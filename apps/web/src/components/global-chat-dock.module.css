@@ -1,0 +1,35 @@
+.dock{position:fixed;bottom:18px;left:18px;z-index:1100;width:min(380px,calc(100vw - 26px));font-family:inherit;pointer-events:none;color:#f4ead5}
+.homeDock{top:0;right:0;bottom:0;left:auto;width:min(360px,100vw)}
+.homeDock .launcher{display:none}
+.homeDock .panel{height:100dvh;margin:0;border-radius:0;transform:translateX(100%);transform-origin:right center}
+.homeDock .panel.shown{transform:translateX(0)}
+.homeDock .guestPanel{width:100%;min-height:0;height:100dvh}
+.homeDock .guest{margin:auto 0;text-align:center}
+.dock *{box-sizing:border-box}
+.launcher{pointer-events:auto;display:flex;align-items:center;gap:9px;min-height:46px;margin-inline-start:auto;padding:0 17px;border:1px solid #9c7a40;border-radius:15px;background:linear-gradient(135deg,#28231c,#12151a);color:#f7dfad;box-shadow:0 8px 32px #0008,0 0 0 1px #e0b66412;font:600 13px inherit;cursor:pointer;transition:transform .22s ease,box-shadow .22s ease,border-color .22s ease}
+.launcher:hover{transform:translateY(-2px);border-color:#d4a95f;box-shadow:0 14px 38px #000a}
+.spark{font-size:22px;color:#d9ac64}.chevron{font-size:18px}
+.panel{pointer-events:none;display:flex;flex-direction:column;height:min(565px,calc(100dvh - 100px));margin-bottom:12px;border:1px solid #6e593b;border-radius:18px;background:linear-gradient(160deg,#202124,#14171c 70%);box-shadow:0 22px 65px #000c,0 0 0 1px #fbd69b12;overflow:hidden;opacity:0;visibility:hidden;transform:translateY(18px) scale(.975);transform-origin:bottom left;transition:opacity .22s ease,transform .26s cubic-bezier(.2,.8,.2,1),visibility .26s}
+.guestPanel{height:auto;min-height:208px;width:min(350px,100%);background:linear-gradient(155deg,#30251c,#171616 80%)}
+.shown{pointer-events:auto;opacity:1;visibility:visible;transform:translateY(0) scale(1)}
+.top{display:flex;justify-content:space-between;align-items:center;padding:16px 17px;background:#1b1b1e;border-bottom:1px solid #ffffff19}
+.top strong{display:block;font-size:15px;letter-spacing:.2px}.top small{display:block;font-size:11px;color:#a9a69e;margin-top:4px}
+.iconButton,.chatHeading button{border:1px solid #6b5d4a;background:#2a2928;color:#f6e3be;border-radius:9px;min-width:31px;height:31px;font-size:21px;cursor:pointer}
+.tabs{display:flex;gap:4px;padding:8px 10px;border-bottom:1px solid #ffffff16}.tabs button{flex:1;padding:10px 5px;border:0;border-radius:8px;background:transparent;color:#aba59a;cursor:pointer;font:inherit;font-size:12px;transition:background .18s,color .18s}.tabs button:hover{background:#ffffff0c}.tabs .active{background:#70552f;color:#fff0cb}
+.scroll{flex:1;min-height:0;overflow:auto;padding:11px 15px;scrollbar-color:#80653c transparent}.scroll h3{font-size:12px;font-weight:700;color:#d9b97c;margin:14px 0 8px}
+.code{background:#242323;border:1px solid #6b5636;border-radius:11px;padding:11px}.code small{display:block;font-size:11px;color:#b1aaa0;margin-bottom:6px}.code div,.add,.entry,.compose,.groupTools{display:flex;gap:7px;align-items:center}.code code{font:12px monospace;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;color:#eac78e;direction:ltr;text-align:left}
+.code button,.add button,.entry button,.compose button,.secondary,.groupTools button{cursor:pointer;border:1px solid #7a6037;background:#645031;border-radius:8px;color:#fff0cf;padding:8px 10px;white-space:nowrap;font:inherit;font-size:11px}
+.code button:disabled,.add button:disabled,.entry button:disabled,.compose button:disabled,.groupTools button:disabled{opacity:.4;cursor:not-allowed}
+.add{margin-top:12px}.add input,.compose input,.groupTools input{width:100%;min-width:0;flex:1;border:1px solid #5c5247;background:#111519;color:#f8efdf;padding:10px;border-radius:8px;font:inherit;font-size:12px;outline:none}.add input:focus,.compose input:focus,.groupTools input:focus{border-color:#bd934f}
+.entry{padding:10px 5px;border-bottom:1px solid #ffffff13}.entry span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;font-size:11px}.entry button:last-child{background:#353031}
+.chatRow{width:100%;text-align:right;display:block;padding:12px;border:1px solid #ffffff1a;border-radius:9px;margin-top:7px;background:#242629;color:#ece0cb;cursor:pointer;font-size:12px}.chatRow:hover{border-color:#a78c61;background:#2b2a2a}
+.empty,.pending,.notice{color:#bcb4a7;font-size:12px;line-height:1.8}.pending{background:#282523;padding:7px;border-radius:6px}.guest{padding:18px 22px 22px;line-height:1.7;font-size:13px}.guest p{margin:0 0 10px}.guest a{display:inline-block;margin:0 0 0 6px;padding:8px 14px;border-radius:8px;background:#755934;color:#fff;text-decoration:none}
+.chatHeading{display:flex;align-items:center;gap:9px;padding:9px 12px;border-bottom:1px solid #ffffff19}.chatHeading strong{flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.chatHeading span{font-size:11px;color:#ada18c}
+.messages{flex:1;min-height:0;overflow-y:auto;padding:13px;display:flex;flex-direction:column;gap:9px;scrollbar-color:#80653c transparent}
+.bubble{max-width:89%;align-self:flex-start;background:#32353b;border:1px solid #ffffff18;border-radius:12px 12px 12px 4px;padding:8px 11px;overflow-wrap:anywhere;animation:arrive .18s ease-out}.mine{background:#53462f;border-color:#886d42;align-self:flex-end;border-radius:12px 12px 4px 12px}.bubble p{margin:3px 0 6px;font-size:12px;line-height:1.7;white-space:pre-wrap}.bubble a{color:#d2b6ff;text-decoration:underline}.bubble time,.bubble small{font-size:10px;color:#b9b3aa}.bubble time{display:block;text-align:left}
+.compose{padding:10px;border-top:1px solid #ffffff20}.groupTools{padding:7px 10px;flex-wrap:wrap;border-top:1px solid #ffffff10}.groupTools input{min-width:130px}.groupTools button:last-child{background:#4c2f2f}
+.error{display:flex;align-items:center;justify-content:space-between;background:#46282a;color:#ffdada;padding:9px 13px;font-size:11px;margin:0}.error button{border:0;background:none;color:inherit;cursor:pointer}
+@keyframes arrive{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:translateY(0)}}
+@media(max-width:520px){.dock{left:8px;right:8px;bottom:8px;width:auto}.panel{height:min(680px,calc(100dvh - 76px));border-radius:15px}.launcher{min-height:45px}}
+@media(max-width:520px){.homeDock{top:0;right:0;bottom:0;left:0;width:100vw}.homeDock .panel,.homeDock .guestPanel{height:100dvh;border-radius:0}}
+@media(prefers-reduced-motion:reduce){.panel,.launcher,.tabs button{transition:none}.bubble{animation:none}}

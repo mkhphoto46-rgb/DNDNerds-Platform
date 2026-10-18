@@ -1,0 +1,51 @@
+body:has(.town-experience) .site-header,body:has(.town-experience) .site-footer{display:none}
+body:has(.town-experience){overflow:hidden;background:#bed9cf}
+.town-experience{position:relative;isolation:isolate;width:100vw;height:100svh;min-height:560px;overflow:hidden;background:#b8d8d6;color:#fff8e8;transition:width .28s ease}
+.town-world{position:absolute;inset:0;background:linear-gradient(#5e81a4,#edba91)}
+.town-world canvas{display:block;width:100%;height:100%}
+.town-world-fallback{background:linear-gradient(#5e81a4,#edba91)}
+.town-focus{position:absolute;inset:0;pointer-events:none;background:linear-gradient(90deg,rgba(24,34,31,.55),transparent 28%,transparent 70%,rgba(26,38,31,.24)),linear-gradient(0deg,rgba(23,32,27,.63),transparent 27%,transparent 78%,rgba(27,49,44,.28));z-index:1}
+.town-focus:after{content:"";position:absolute;inset:0;backdrop-filter:blur(3px);-webkit-mask-image:radial-gradient(ellipse 55% 60% at 50% 49%,transparent 35%,#000 100%);mask-image:radial-gradient(ellipse 55% 60% at 50% 49%,transparent 35%,#000 100%)}
+.town-hud{position:absolute;z-index:5;top:0;right:0;left:0;display:flex;align-items:center;justify-content:space-between;gap:20px;padding:22px clamp(20px,3vw,46px);background:linear-gradient(rgba(15,34,30,.36),transparent)}
+.town-brand{display:flex;align-items:center;gap:12px;color:#fff7df;text-decoration:none;text-shadow:0 2px 12px #18332b8c}.town-brand-mark{display:grid;place-items:center;width:48px;height:48px;border:1px solid #f6d48e;border-radius:13px;background:rgba(89,58,37,.75);transform:rotate(-8deg);font:900 12px Georgia,serif}.town-brand strong{display:block;font:800 21px Georgia,serif;letter-spacing:.08em}.town-brand small{display:block;margin-top:2px;font-size:11px;letter-spacing:.02em}
+.town-hud-actions{display:flex;align-items:center;gap:9px}.town-hud-button,.town-menu summary{display:grid;place-items:center;min-height:42px;padding:0 14px;border:1px solid rgba(255,244,215,.6);border-radius:99px;background:rgba(24,41,36,.55);color:#fff8e9;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;backdrop-filter:blur(8px);text-shadow:0 1px 4px #18362e}.town-hud-button:hover,.town-menu summary:hover{background:rgba(100,65,35,.83)}
+.town-menu{position:relative}.town-menu summary{width:43px;font-size:17px;list-style:none}.town-menu summary::-webkit-details-marker{display:none}.town-menu nav{position:absolute;top:50px;left:0;display:flex;flex-direction:column;min-width:180px;padding:9px;border:1px solid #e9d5ac;border-radius:12px;background:rgba(31,45,37,.96);box-shadow:0 12px 35px #11241c88}.town-menu nav a{padding:8px 10px;border-radius:7px;color:#fff5da;text-decoration:none;font-size:12px}.town-menu nav a:hover{background:#835a38}
+.town-landmarks{position:absolute;z-index:4;inset:0;pointer-events:none}.town-landmarks button{position:absolute;top:50%;left:50%;display:block;padding:8px 15px;border:2px solid #d6af71;border-radius:6px;background:linear-gradient(#805433,#50301f);color:#fff0cb;box-shadow:0 3px 0 #3a2418,0 9px 20px #192c2488;text-shadow:0 1px 2px #372214;font-family:inherit;font-size:12px;font-weight:700;cursor:pointer;white-space:nowrap;opacity:0;pointer-events:none;transform:translate(-50%,-50%);transition:opacity .2s ease,filter .2s ease}.town-landmarks button:hover{filter:brightness(1.18)}
+.town-landmarks button[hidden]{display:none}
+.town-story{position:absolute;z-index:3;right:clamp(24px,5vw,80px);bottom:clamp(103px,13vh,150px);width:min(490px,calc(100% - 150px));text-align:right;animation:town-story-in .5s ease both;text-shadow:0 2px 18px #122920aa}
+.town-eyebrow{display:inline-block;padding:7px 12px;border:1px solid #f4dfacb8;border-radius:99px;background:#2c493b99;color:#fff1c8;font:700 11px Arial,sans-serif;letter-spacing:.03em;backdrop-filter:blur(8px)}
+.town-story h1{margin:15px 0 5px;color:#fff8e7;font-size:clamp(42px,5.5vw,74px);font-weight:900;line-height:1.15;letter-spacing:-.03em}.town-story p{margin:0;color:#fff5df;font-size:clamp(14px,1.4vw,18px);line-height:1.55}
+.town-story-actions{display:flex;align-items:center;gap:12px;margin-top:20px}.town-primary{display:inline-flex;align-items:center;gap:15px;min-height:50px;padding:0 20px;border:1px solid #f3d89d;border-radius:9px;background:#e9be77;color:#2d261b;text-shadow:none;text-decoration:none;font-family:inherit;font-size:14px;font-weight:800;box-shadow:0 10px 24px #2c3b2988;cursor:pointer}.town-primary:hover{background:#ffe0a2}.town-primary span{font-size:18px}.town-quiet{min-height:45px;padding:0 8px;border:0;background:transparent;color:#fff8e8;font-family:inherit;font-size:12px;font-weight:700;text-shadow:0 1px 6px #182d24;cursor:pointer}.town-quiet:disabled{opacity:.45;cursor:default}
+.town-places{position:absolute;z-index:3;left:clamp(18px,3vw,44px);top:50%;display:flex;flex-direction:column;gap:6px;transform:translateY(-50%);direction:ltr}.town-places button{display:flex;align-items:center;gap:10px;min-height:32px;padding:0 10px;border:1px solid transparent;border-radius:99px;background:transparent;color:#fff8e7;text-shadow:0 1px 8px #1f3227;font-family:inherit;font-size:11px;font-weight:700;cursor:pointer;opacity:.66}.town-places button i{display:block;width:8px;height:8px;border:1px solid #fff9de;border-radius:50%;background:transparent;box-shadow:0 0 8px #213b2d}.town-places button span{opacity:0;transform:translateX(-6px);transition:opacity .2s,transform .2s}.town-places button.active,.town-places button:hover,.town-places button:focus-visible{border-color:#fff3d778;background:#345343ad;opacity:1}.town-places button.active i{background:#f7cd82}.town-places button.active span,.town-places button:hover span,.town-places button:focus-visible span{opacity:1;transform:none}
+.town-bottom{position:absolute;z-index:4;right:0;bottom:18px;left:0;display:flex;align-items:center;justify-content:center;gap:16px;direction:rtl;pointer-events:none}.town-bottom>*{pointer-events:auto}.town-movement-hint{color:#fff7e8;font-size:11px;text-shadow:0 1px 9px #18362e}.town-die{display:grid;place-items:center;width:72px;height:72px;border:1px solid #ffe2a5;border-radius:50%;background:radial-gradient(circle,#ab4934,#6c342a);box-shadow:0 5px 0 #4f3424,0 15px 28px #19332d9c;cursor:pointer;transition:transform .2s ease}.town-die:hover{transform:rotate(16deg) translateY(-3px)}.town-die svg{width:55px;height:55px;fill:none;stroke:#ffdfa4;stroke-width:1.5;stroke-linejoin:round}.town-die svg text{fill:#fff8dc;stroke:none;font:800 14px Arial,sans-serif}
+.town-experience :is(button,a,summary):focus-visible{outline:3px solid #fff0a8;outline-offset:3px}
+@keyframes town-story-in{from{opacity:0;transform:translateY(15px);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+body:has([data-social-dock][data-home-open="true"]) .town-experience{width:calc(100vw - min(360px,100vw));margin-right:auto;margin-left:0}
+@media(max-width:700px){.town-experience{min-height:0}.town-hud{padding:13px 14px}.town-brand-mark{width:38px;height:38px;font-size:10px}.town-brand strong{font-size:15px}.town-brand small{font-size:9px}.town-hud-actions{gap:5px}.town-hud-button{min-height:36px;padding:0 8px;font-size:10px}.town-chat-button{font-size:0}.town-chat-button:after{content:"گفتگو";font-size:10px}.town-menu summary{width:36px;min-height:36px}.town-story{right:19px;bottom:118px;width:calc(100% - 44px)}.town-story h1{font-size:clamp(34px,9vw,50px)}.town-story p{font-size:13px}.town-story-actions{margin-top:13px}.town-primary{min-height:44px;padding:0 14px;font-size:12px}.town-places{left:8px;top:34%;gap:2px}.town-places button{min-height:29px;padding:0 7px}.town-places button span{display:none}.town-movement-hint{display:none}.town-die{width:62px;height:62px}.town-die svg{width:49px;height:49px}.town-focus{background:linear-gradient(0deg,rgba(23,32,27,.78),transparent 43%,transparent 72%,rgba(27,49,44,.28))}body:has([data-social-dock][data-home-open="true"]) .town-experience{width:100vw}}
+@media(prefers-reduced-motion:reduce){.town-story{animation:none}.town-die,.town-places button span{transition:none}.town-die:hover{transform:none}}
+
+/* Warm fixed sunset lighting for the live 3D town. */
+body:has(.town-experience){background:#46302b}
+.town-experience{background:#8d5d47}
+.town-focus{background:linear-gradient(90deg,rgba(35,20,18,.36),transparent 24%,transparent 56%,rgba(37,22,24,.37)),linear-gradient(0deg,rgba(39,22,20,.67),transparent 31%,transparent 74%,rgba(40,23,22,.24))}
+.town-focus:after{backdrop-filter:blur(2px);-webkit-mask-image:radial-gradient(ellipse 68% 66% at 49% 48%,transparent 44%,#000 100%);mask-image:radial-gradient(ellipse 68% 66% at 49% 48%,transparent 44%,#000 100%)}
+.town-hud{background:linear-gradient(rgba(37,24,23,.34),transparent)}
+.town-hud-button,.town-menu summary{background:rgba(28,39,39,.68);border-color:#f9d7a6ad}
+.town-hud-button:hover,.town-menu summary:hover{background:rgba(106,53,35,.88)}
+.town-brand-mark{background:rgba(96,50,30,.79)}
+.town-story{bottom:clamp(115px,14vh,160px);text-shadow:0 3px 15px #24140ec9,0 1px 3px #24140e}
+.town-story h1{font-size:clamp(40px,5.1vw,72px);line-height:1.2}
+.town-eyebrow{background:rgba(57,69,58,.8);border-color:#f6d295b0}
+.town-primary{background:#f4c779;border-color:#ffe1a1;box-shadow:0 9px 30px #38201599}
+.town-primary:hover{background:#ffda91}
+.town-places button.active,.town-places button:hover,.town-places button:focus-visible{background:#31453fc9;border-color:#f5d6a6b0}
+.town-die{background:radial-gradient(circle,#b75036,#762e26);box-shadow:0 5px 0 #563022,0 15px 28px #281711a3}
+@media(max-width:700px){.town-story{bottom:116px}.town-focus{background:linear-gradient(0deg,rgba(39,22,20,.82),transparent 56%,transparent 75%,rgba(40,23,22,.3))}.town-focus:after{backdrop-filter:blur(1.5px)}}
+
+.town-logo{display:block;width:96px;height:96px;object-fit:contain;filter:drop-shadow(0 3px 9px #0008)}
+.town-world canvas{cursor:grab;touch-action:none}.town-world canvas:active{cursor:grabbing}
+@media(max-width:700px){.town-logo{width:64px;height:64px}}
+
+/* Landmarks are physical hanging signs with raycast hit targets in the scene. */
+.town-landmarks{display:none}
+.town-hud-button{font-size:14px}.town-places button{font-size:14px}.town-movement-hint{font-size:13px}

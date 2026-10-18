@@ -1,0 +1,20 @@
+.guestActions { display: flex; align-items: center; gap: 10px; font-family: Arial, sans-serif; }
+.textLink { color: #f1dfb5; font-weight: 700; padding: 10px 8px; text-decoration: none; }
+.primaryLink { display: inline-flex; align-items: center; min-height: 40px; border: 1px solid #ba8c4b; border-radius: 10px; color: #1f1308; background: #e2bb75; padding: 8px 14px; font-weight: 800; text-decoration: none; }
+.loading { color: #d4bf98; font-size: 13px; }
+.retry { cursor: pointer; color: #efd49e; background: transparent; border: 1px solid #ae8550; border-radius: 10px; padding: 10px; }
+.menu { position: relative; min-width: 136px; font-family: Arial, sans-serif; z-index: 140; }
+.trigger { display: flex; cursor: pointer; align-items: center; gap: 8px; border: 1px solid rgba(215,166,91,.43); border-radius: 12px; color: #f6e6c6; background: rgba(32,18,13,.92); padding: 7px 10px; list-style: none; font-size: 13px; }
+.trigger::-webkit-details-marker { display: none; }
+.avatar { display: grid; place-items: center; flex-shrink: 0; height: 28px; width: 28px; border-radius: 50%; background: rgba(224,178,99,.2); border: 1px solid #ba925b; color: #f8ddae; font-size: 13px; font-weight: 800; }
+.accountLabel { display: grid; gap: 1px; max-width: 165px; text-align: start; font-weight: 700; }
+.email { display: block; color: #bca885; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: 400; direction: ltr; text-align: left; }
+.panel { position: absolute; top: calc(100% + 8px); inset-inline-end: 0; width: min(285px, calc(100vw - 26px)); padding: 12px; display: grid; gap: 5px; border: 1px solid rgba(215,166,91,.4); border-radius: 14px; background: #120c0b; box-shadow: 0 20px 55px #000b; z-index: 150; }
+.panelEmail { color: #bca885; border-bottom: 1px solid #59402b; padding: 8px; overflow-wrap: anywhere; direction: ltr; font-size: 12px; }
+.panel a, .panel button { display: block; text-align: start; width: 100%; cursor: pointer; color: #f6e6c6; font: inherit; font-size: 13px; text-decoration: none; border: 0; background: transparent; border-radius: 8px; padding: 11px; }
+.panel a:hover, .panel button:hover { background: #3b2920; }
+.panel button:disabled { opacity: .6; cursor: wait; }
+.mobile { width: 100%; }
+.mobile .panel { position: static; width: 100%; box-shadow: none; margin-top: 8px; }
+.mobile.guestActions { align-items: stretch; flex-direction: column; }
+@media (max-width: 900px) { .mobile .accountLabel { max-width: 230px; } }

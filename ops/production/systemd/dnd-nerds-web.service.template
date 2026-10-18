@@ -1,0 +1,25 @@
+# DND Nerds Web systemd template
+# Replace placeholders before installation.
+# __WEB_START_COMMAND__ must be resolved from the production server install.
+
+[Unit]
+Description=DND Nerds Web
+After=network-online.target dnd-nerds-api.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__DND_NERDS_USER__
+WorkingDirectory=__DND_NERDS_ROOT__/apps/web
+Environment=NODE_ENV=production
+EnvironmentFile=__DND_NERDS_WEB_ENV_FILE__
+ExecStart=__WEB_START_COMMAND__
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

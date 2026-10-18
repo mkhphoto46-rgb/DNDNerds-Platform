@@ -1,0 +1,102 @@
+.page {
+  min-height: 100vh;
+  padding: 150px 24px 80px;
+  color: #faecc5;
+  background:
+    radial-gradient(circle at 25% 10%, rgba(116, 1, 4, 0.18), transparent 34%),
+    radial-gradient(circle at 80% 30%, rgba(197, 152, 87, 0.08), transparent 30%);
+}
+
+.card {
+  width: min(100%, 560px);
+  margin: 0 auto;
+  padding: 34px;
+  border: 1px solid rgba(197, 152, 87, 0.24);
+  border-radius: 22px;
+  background: rgba(10, 7, 7, 0.78);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+}
+
+.eyebrow {
+  color: #c59857;
+  font-family: Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+}
+
+.card h1 {
+  margin: 12px 0 8px;
+  font-size: clamp(30px, 5vw, 44px);
+}
+
+.card p {
+  color: rgba(250, 236, 197, 0.62);
+  line-height: 1.8;
+}
+
+.form {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.field {
+  display: grid;
+  gap: 8px;
+}
+
+.field span {
+  color: rgba(250, 236, 197, 0.7);
+  font-size: 14px;
+}
+
+.field input {
+  width: 100%;
+  min-height: 48px;
+  padding: 0 14px;
+  color: #faecc5;
+  border: 1px solid rgba(197, 152, 87, 0.22);
+  border-radius: 12px;
+  outline: none;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.field input:focus {
+  border-color: rgba(234, 199, 136, 0.62);
+}
+
+.button {
+  min-height: 50px;
+  margin-top: 6px;
+  border: 1px solid rgba(234, 199, 136, 0.45);
+  border-radius: 12px;
+  color: #1a0e08;
+  font-weight: 800;
+  cursor: pointer;
+  background: linear-gradient(135deg, #eac788, #c59857);
+}
+
+.button:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.error {
+  padding: 12px 14px;
+  color: #ffd7d7;
+  border: 1px solid rgba(197, 4, 5, 0.45);
+  border-radius: 12px;
+  background: rgba(197, 4, 5, 0.12);
+}
+
+.switch {
+  margin-top: 22px;
+  color: rgba(250, 236, 197, 0.56);
+}
+
+.switch a {
+  color: #eac788;
+}
+.passwordToggle { justify-self: start; border: 1px solid rgba(197, 152, 87, 0.42); color: #eac788; border-radius: 9px; background: rgba(30, 17, 12, .85); cursor: pointer; padding: 7px 12px; font-size: 12px; }
+.passwordToggle:hover { background: rgba(90, 55, 28, .55); }

@@ -1,0 +1,34 @@
+{
+    "generatedAt":  "2026-10-08T23:19:39",
+    "currentLocal":  {
+                         "web":  "http://localhost:3100",
+                         "api":  "http://127.0.0.1:4100",
+                         "apiBind":  "127.0.0.1:4100"
+                     },
+    "production":  {
+                       "appDomain":  "__APP_DOMAIN__",
+                       "apiDomain":  "__API_DOMAIN__",
+                       "appUrl":  "https://__APP_DOMAIN__",
+                       "apiUrl":  "https://__API_DOMAIN__",
+                       "reverseProxy":  "nginx",
+                       "webUpstream":  "127.0.0.1:3100",
+                       "apiUpstream":  "127.0.0.1:4100",
+                       "webFramework":  "next",
+                       "detectedWebStartScript":  "next start -p 3100",
+                       "paymentProvider":  "zarinpal",
+                       "payoutProvider":  "__REAL_PAYOUT_PROVIDER__",
+                       "financeWorker":  "systemd dedicated service"
+                   },
+    "unresolved":  [
+                       "APP_DOMAIN",
+                       "API_DOMAIN",
+                       "Linux deployment user",
+                       "Production filesystem root",
+                       "Node binary path",
+                       "Web start command if not confirmed on server",
+                       "TLS certificate paths",
+                       "Real payout provider",
+                       "ZarinPal credentials",
+                       "SMTP credentials"
+                   ]
+}

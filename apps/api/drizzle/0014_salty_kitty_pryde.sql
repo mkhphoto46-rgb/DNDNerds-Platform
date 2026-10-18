@@ -1,0 +1,1 @@
+ALTER TABLE "marketplace_refund_cases" ADD COLUMN "seller_response_due_at" timestamp with time zone;

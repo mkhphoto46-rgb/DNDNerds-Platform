@@ -1,0 +1,24 @@
+# DND Nerds API systemd template
+# Replace placeholders before installation.
+
+[Unit]
+Description=DND Nerds API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=__DND_NERDS_USER__
+WorkingDirectory=__DND_NERDS_ROOT__/apps/api
+Environment=NODE_ENV=production
+EnvironmentFile=__DND_NERDS_API_ENV_FILE__
+ExecStart=__NODE_BINARY__ dist/server.js
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=45
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

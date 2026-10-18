@@ -1,0 +1,1 @@
+ALTER TABLE "refunds" ALTER COLUMN "provider_refund_id" DROP NOT NULL;

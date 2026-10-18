@@ -1,0 +1,20 @@
+{
+    "name": "dnd-nerds-platform",
+    "version": "0.1.0",
+    "private": true,
+    "workspaces": [
+        "apps/web"
+    ],
+    "scripts": {
+        "dev:web": "npm run dev --workspace=@dndnerds/web",
+        "build:web": "npm run build --workspace=@dndnerds/web",
+        "start:web": "npm run start --workspace=@dndnerds/web",
+        "typecheck:web": "npm run typecheck --workspace=@dndnerds/web",
+        "dev:api": "npm --prefix \"apps/api\" run dev",
+        "build:api": "npm --prefix \"apps/api\" run build",
+        "typecheck:api": "npm --prefix \"apps/api\" run typecheck"
+    },
+    "devDependencies": {
+        "autocannon": "^8.0.0"
+    }
+}
