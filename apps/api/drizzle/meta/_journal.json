@@ -134,6 +134,13 @@
       "when": 1792156967805,
       "tag": "0018_brave_magus",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1792749056197,
+      "tag": "0019_marketplace_global_config",
+      "breakpoints": true
     }
   ]
 }

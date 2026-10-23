@@ -6,6 +6,7 @@
         "apps/web"
     ],
     "scripts": {
+        "ci": "node dev/ci.mjs",
         "dev:web": "npm run dev --workspace=@dndnerds/web",
         "build:web": "npm run build --workspace=@dndnerds/web",
         "start:web": "npm run start --workspace=@dndnerds/web",
@@ -15,6 +16,7 @@
         "typecheck:api": "npm --prefix \"apps/api\" run typecheck"
     },
     "devDependencies": {
-        "autocannon": "^8.0.0"
+        "autocannon": "^8.0.0",
+        "oxlint": "1.89.0"
     }
 }
