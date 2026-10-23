@@ -11,15 +11,15 @@
   "dependencies": {
     "@types/three": "^0.186.0",
     "framer-motion": "^14.0.0",
-    "next": "latest",
-    "react": "latest",
-    "react-dom": "latest",
+    "next": "16.3.8",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
     "three": "^0.186.1"
   },
   "devDependencies": {
-    "@types/node": "latest",
-    "@types/react": "latest",
-    "@types/react-dom": "latest",
-    "typescript": "latest"
+    "@types/node": "26.6.4",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "typescript": "7.0.2"
   }
 }
