@@ -1,16 +1,6 @@
-import type { Metadata } from "next";
-import { PlaceholderPage } from "@/components/placeholder-page";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "کمپین بعدی‌ات را پیدا کن",
-};
-
+// Tables are private for now: a player joins with an invitation or the DM's code on /play.
 export default function Page() {
-  return (
-    <PlaceholderPage
-      eyebrow="پیدا کردن بازی"
-      title="کمپین بعدی‌ات را پیدا کن"
-      description="اینجا می‌توانی میزهای رایگان و پولی را بر اساس زمان، زبان، سبک بازی و ظرفیت بازیکن‌ها پیدا کنی"
-    />
-  );
+  redirect("/play");
 }

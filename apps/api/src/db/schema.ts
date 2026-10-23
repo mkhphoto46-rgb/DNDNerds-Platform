@@ -4059,3 +4059,84 @@ export const socialGroupMessages = pgTable("social_group_messages", {
   index("social_group_messages_sender_date_idx").on(t.senderUserId, t.createdAt),
   check("social_group_messages_body_length", sql`length(btrim(${t.body})) BETWEEN 1 AND 2000`),
 ]);
+
+// Game tables (roadmap phase 10): a DM's table, its members and invitations, the
+// VTT the DM plays on, and the signed launch tickets issued for it.
+export const playerProfiles = pgTable("player_profiles", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  displayName: varchar("display_name", { length: 32 }).notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  check("player_profiles_display_name_length", sql`length(btrim(${t.displayName})) BETWEEN 2 AND 32`),
+]);
+
+export const vttInstances = pgTable("vtt_instances", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerUserId: uuid("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  baseUrl: varchar("base_url", { length: 300 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("vtt_instances_owner_idx").on(t.ownerUserId),
+]);
+
+export const gameTables = pgTable("game_tables", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  name: varchar("name", { length: 80 }).notNull(),
+  edition: varchar("edition", { length: 8 }).notNull().default("2024"),
+  dmUserId: uuid("dm_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  vttInstanceId: uuid("vtt_instance_id").references(() => vttInstances.id, { onDelete: "set null" }),
+  vttCampaignId: varchar("vtt_campaign_id", { length: 120 }),
+  joinCode: varchar("join_code", { length: 16 }).notNull(),
+  maxPlayers: integer("max_players").notNull().default(6),
+  allowObserver: boolean("allow_observer").notNull().default(true),
+  firstLaunchedAt: timestamp("first_launched_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("game_tables_join_code_unique").on(t.joinCode),
+  index("game_tables_dm_idx").on(t.dmUserId),
+  check("game_tables_edition_valid", sql`${t.edition} IN ('2014','2024','mixed')`),
+  check("game_tables_max_players", sql`${t.maxPlayers} BETWEEN 1 AND 9`),
+  check("game_tables_name_length", sql`length(btrim(${t.name})) BETWEEN 2 AND 80`),
+]);
+
+export const gameTableMembers = pgTable("game_table_members", {
+  tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 12 }).notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  uniqueIndex("game_table_members_pair_unique").on(t.tableId, t.userId),
+  index("game_table_members_user_idx").on(t.userId),
+  check("game_table_members_role_valid", sql`${t.role} IN ('dm','player','observer')`),
+]);
+
+export const gameTableInvites = pgTable("game_table_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
+  senderUserId: uuid("sender_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  invitedUserId: uuid("invited_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 12 }).notNull().default("player"),
+  status: varchar("status", { length: 16 }).notNull().default("PENDING"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  respondedAt: timestamp("responded_at", { withTimezone: true }),
+}, t => [
+  uniqueIndex("game_table_invites_table_target_unique").on(t.tableId, t.invitedUserId),
+  index("game_table_invites_invited_status_idx").on(t.invitedUserId, t.status),
+  check("game_table_invites_no_self", sql`${t.senderUserId} <> ${t.invitedUserId}`),
+  check("game_table_invites_role_valid", sql`${t.role} IN ('player','observer')`),
+  check("game_table_invites_status_valid", sql`${t.status} IN ('PENDING','ACCEPTED','DECLINED')`),
+]);
+
+export const vttLaunchTickets = pgTable("vtt_launch_tickets", {
+  jti: uuid("jti").primaryKey(),
+  tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  vttInstanceId: uuid("vtt_instance_id").notNull().references(() => vttInstances.id, { onDelete: "cascade" }),
+  role: varchar("role", { length: 12 }).notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [
+  index("vtt_launch_tickets_table_idx").on(t.tableId, t.issuedAt),
+  check("vtt_launch_tickets_role_valid", sql`${t.role} IN ('dm','player','observer')`),
+]);
