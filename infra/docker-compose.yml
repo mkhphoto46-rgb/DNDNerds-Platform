@@ -19,7 +19,7 @@ services:
 
     volumes:
       - type: bind
-        source: "F:/DND NERDS PLATFORM/data/postgres"
+        source: "${DND_NERDS_DATA_DIR:-../.data}/postgres"
         target: /var/lib/postgresql
 
     healthcheck:
@@ -56,7 +56,7 @@ services:
 
     volumes:
       - type: bind
-        source: "F:/DND NERDS PLATFORM/data/redis"
+        source: "${DND_NERDS_DATA_DIR:-../.data}/redis"
         target: /data
 
     healthcheck:
