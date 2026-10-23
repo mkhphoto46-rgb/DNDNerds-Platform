@@ -15,6 +15,8 @@ export interface TestApi {
   app: FastifyInstance;
   request: (options: InjectOptions & { token?: string }) => Promise<{ status: number; body: any }>;
   register: (label?: string) => Promise<{ token: string; userId: string; email: string; password: string; address: string }>;
+  /** Raw SQL for setup a route can't reach (fixed text only, never user input). */
+  query: (text: string) => Promise<unknown>;
   stop: () => Promise<void>;
 }
 
@@ -70,6 +72,7 @@ export async function startApi(): Promise<TestApi> {
     app,
     request,
     register,
+    query: (text) => sqlClient.unsafe(text),
     stop: async () => {
       await app.close();
       await sqlClient.end({ timeout: 5 });
