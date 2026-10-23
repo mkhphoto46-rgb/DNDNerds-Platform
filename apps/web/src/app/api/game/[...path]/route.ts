@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { apiFetch } from "@/lib/bff-api";
 
 // Game tables (roadmap phase 10): the browser reaches only these API areas.
-const ALLOWED_PREFIXES = ["tables", "profile/display-name", "vtt-instances"];
+const ALLOWED_PREFIXES = ["tables", "profile/display-name", "vtt-instances", "platform/launch-keys"];
 
 async function forward(request: Request, context: { params: Promise<{ path: string[] }> }) {
   const { path } = await context.params;
