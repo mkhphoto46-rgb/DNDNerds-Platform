@@ -1,6 +1,6 @@
 .form{display:grid;gap:12px;margin-top:12px}
 .form label{display:grid;gap:6px;font-size:13px;color:#cbb898}
-.form input,.form select{min-height:42px;border-radius:10px;border:1px solid rgba(202,153,79,.3);background:rgba(255,255,255,.04);color:#f7e9cf;padding:6px 12px;font:inherit}
+.form input,.form select,.form textarea{min-height:42px;border-radius:10px;border:1px solid rgba(202,153,79,.3);background:rgba(255,255,255,.04);color:#f7e9cf;padding:6px 12px;font:inherit}
 .list{display:grid;gap:10px;margin:12px 0 0;padding:0;list-style:none}
 .list li{display:grid;gap:4px;padding:12px;border:1px solid rgba(191,144,77,.15);border-radius:12px;background:rgba(255,255,255,.02)}
 .list a{color:#f2d39c;text-decoration:none}

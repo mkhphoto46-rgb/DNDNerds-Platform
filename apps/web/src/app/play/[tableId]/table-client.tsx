@@ -25,12 +25,17 @@ export function TableClient({ tableId }: { tableId: string }) {
   const [instanceName, setInstanceName] = useState("")
   const [instanceUrl, setInstanceUrl] = useState("")
   const [launching, setLaunching] = useState(false)
+  const [publicKey, setPublicKey] = useState<string | null>(null)
 
   const refresh = useCallback(async () => {
     try {
       const details = await gameApi<Table>(`tables/${tableId}`)
       setTable(details)
-      if (details.role === "dm") setInstances(await gameApi<Instance[]>("vtt-instances"))
+      if (details.role === "dm") {
+        setInstances(await gameApi<Instance[]>("vtt-instances"))
+        const keys = await gameApi<{ keys: Array<{ publicKeyPem: string }> }>("platform/launch-keys").catch(() => null)
+        setPublicKey(keys?.keys[0]?.publicKeyPem ?? null)
+      }
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "میز پیدا نشد.")
     }
@@ -135,6 +140,13 @@ export function TableClient({ tableId }: { tableId: string }) {
                     {instances.map((instance) => <option key={instance.id} value={instance.id}>{instance.name} ({instance.baseUrl})</option>)}
                   </select>
                 </label>
+                {table.vttInstance ? (
+                  <div className={play.form}>
+                    <p className={styles.hint}>برای اتصال، این دو مقدار را در تنظیماتِ D&D Nerds Platform در صفحهٔ شروعِ Web VTT (روی رایانهٔ میزبان) بگذارید:</p>
+                    <label><span>Instance id</span><input readOnly dir="ltr" value={table.vttInstance.id} /></label>
+                    {publicKey ? <label><span>Public key</span><textarea readOnly dir="ltr" rows={4} value={publicKey} /></label> : <p className={styles.hint}>ورود به VTT روی این Platform هنوز فعال نشده است.</p>}
+                  </div>
+                ) : null}
                 <form className={play.form} onSubmit={(event) => { event.preventDefault(); void act(() => gameApi("vtt-instances", { method: "POST", body: JSON.stringify({ name: instanceName, baseUrl: instanceUrl }) }), "نشانی Web VTT ثبت شد.") }}>
                   <label><span>نام</span><input value={instanceName} onChange={(event) => setInstanceName(event.target.value)} /></label>
                   <label><span>نشانی (https)</span><input value={instanceUrl} dir="ltr" onChange={(event) => setInstanceUrl(event.target.value)} /></label>
