@@ -55,6 +55,15 @@ export async function POST(
         user:
           data.user,
 
+        pendingApproval:
+          data.pendingApproval === true,
+
+        verificationRequired:
+          data.verificationRequired === true,
+
+        verificationEmailSent:
+          data.verificationEmailSent === true,
+
         source:
           data.source,
       },
@@ -64,11 +73,11 @@ export async function POST(
       },
     );
 
-  response.cookies.set(
-    publicSessionCookie(
-      data.sessionToken,
-    ),
-  );
+  if (data.sessionToken) {
+    response.cookies.set(
+      publicSessionCookie(data.sessionToken),
+    );
+  }
 
   return response;
 }

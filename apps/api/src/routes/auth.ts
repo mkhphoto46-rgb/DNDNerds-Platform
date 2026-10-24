@@ -19,6 +19,7 @@ import {
 
 import {
   db,
+  sqlClient,
 } from "../db/client.js";
 
 import {
@@ -39,6 +40,10 @@ import {
 import {
   verifyEncryptedTotp,
 } from "../security/totp.js";
+import { accountEmailReady } from "../email/account-email-policy.js";
+import { createEmailActionToken } from "../email/tokens.js";
+import { sendAccountEmail } from "../email/provider.js";
+import { normalizeUsername, publicAccountId, usernameSchema } from "../auth/public-identity.js";
 
 const credentialsSchema =
   z.object({
@@ -50,7 +55,7 @@ const credentialsSchema =
 
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     totpCode:
@@ -60,6 +65,8 @@ const credentialsSchema =
         )
         .optional(),
   });
+
+const registrationSchema = credentialsSchema.omit({ totpCode: true }).extend({ username: usernameSchema });
 
 const PASSWORD_POLICY = {
   algorithm:
@@ -135,11 +142,18 @@ function publicUser(
     id: string;
     email: string;
     emailVerified: boolean;
+    username?: string | null;
   },
 ) {
   return {
     id:
       user.id,
+
+    publicId:
+      publicAccountId(user.id),
+
+    username:
+      user.username ?? null,
 
     email:
       user.email,
@@ -159,12 +173,7 @@ export async function registerAuthRoutes(
       reply,
     ) => {
       const parsed =
-        credentialsSchema
-          .omit({
-            totpCode:
-              true,
-          })
-          .safeParse(
+        registrationSchema.safeParse(
             request.body,
           );
 
@@ -189,6 +198,7 @@ export async function registerAuthRoutes(
         normalizeEmail(
           parsed.data.email,
         );
+      const username = normalizeUsername(parsed.data.username);
 
       const [
         existing,
@@ -228,12 +238,14 @@ export async function registerAuthRoutes(
           parsed.data.password,
           PASSWORD_POLICY,
         );
+      const emailVerificationRequired = accountEmailReady();
 
       let created:
         | {
             id: string;
             email: string;
             emailVerified: boolean;
+            username: string | null;
           }
         | undefined;
 
@@ -248,10 +260,14 @@ export async function registerAuthRoutes(
             .values({
               email,
 
+              username,
+
               passwordHash,
 
               status:
-                "ACTIVE",
+                emailVerificationRequired || process.env.FREE_LAUNCH_MODE === "true"
+                  ? "PENDING_APPROVAL"
+                  : "ACTIVE",
 
               emailVerified:
                 false,
@@ -265,6 +281,9 @@ export async function registerAuthRoutes(
 
               emailVerified:
                 users.emailVerified,
+
+              username:
+                users.username,
             });
       }
       catch (error) {
@@ -281,7 +300,7 @@ export async function registerAuthRoutes(
                   "EMAIL_ALREADY_EXISTS",
 
                 message:
-                  "An account already exists for this email.",
+                  "Email or username is already in use.",
               },
             });
         }
@@ -293,6 +312,33 @@ export async function registerAuthRoutes(
         throw new Error(
           "User creation failed.",
         );
+      }
+
+      await sqlClient`INSERT INTO user_xp (user_id, total_xp) VALUES (${created.id}, 1000) ON CONFLICT (user_id) DO NOTHING`;
+
+      if (emailVerificationRequired) {
+        let verificationEmailSent = false;
+        try {
+          const action = await createEmailActionToken(created.id, "VERIFY_EMAIL", 60);
+          await sendAccountEmail({ to: created.email, kind: "VERIFY_EMAIL", token: action.token });
+          verificationEmailSent = true;
+        } catch (error) {
+          request.log.error({ err: error, userId: created.id }, "Registration email delivery failed");
+        }
+        return reply.code(201).send({
+          user: publicUser(created),
+          verificationRequired: true,
+          verificationEmailSent,
+          source: "postgresql",
+        });
+      }
+
+      if (process.env.FREE_LAUNCH_MODE === "true") {
+        return reply.code(201).send({
+          user: publicUser(created),
+          pendingApproval: true,
+          source: "postgresql",
+        });
       }
 
       const session =
@@ -366,6 +412,9 @@ export async function registerAuthRoutes(
 
             email:
               users.email,
+
+            username:
+              users.username,
 
             passwordHash:
               users.passwordHash,
@@ -542,6 +591,21 @@ export async function registerAuthRoutes(
       };
     },
   );
+
+  app.put("/api/v1/auth/username", async (request, reply) => {
+    const user = await requireAuthUser(request);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "Authentication required." } });
+    const parsed = z.object({ username: usernameSchema }).safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: { code: "INVALID_USERNAME", message: "Username must start with a letter and contain 3 to 24 English letters, numbers or underscores." } });
+    const username = normalizeUsername(parsed.data.username);
+    try {
+      await db.update(users).set({ username, updatedAt: new Date() }).where(eq(users.id, user.id));
+    } catch (error) {
+      if (isPostgresUniqueViolation(error)) return reply.code(409).send({ error: { code: "USERNAME_TAKEN", message: "This username is already taken." } });
+      throw error;
+    }
+    return { user: { ...user, username } };
+  });
 
   app.post(
     "/api/v1/auth/logout",

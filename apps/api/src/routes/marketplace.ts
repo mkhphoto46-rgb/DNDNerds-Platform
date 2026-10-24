@@ -193,6 +193,9 @@ export async function registerMarketplaceRoutes(
         marketplace:
           "DND Nerds Marketplace",
 
+        commerceEnabled:
+          process.env.FREE_LAUNCH_MODE !== "true",
+
         multiVendor:
           true,
 
@@ -868,7 +871,7 @@ export async function registerMarketplaceRoutes(
     },
   );
 
-  app.post(
+  if (process.env.FREE_LAUNCH_MODE !== "true") app.post(
     "/api/v1/marketplace/checkout/preview",
 
     async (

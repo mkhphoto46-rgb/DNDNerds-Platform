@@ -49,3 +49,13 @@ body:has(.town-experience){background:#46302b}
 /* Landmarks are physical hanging signs with raycast hit targets in the scene. */
 .town-landmarks{display:none}
 .town-hud-button{font-size:14px}.town-places button{font-size:14px}.town-movement-hint{font-size:13px}
+
+.town-entry-image{position:absolute;z-index:100;inset:0;display:grid;place-content:center;gap:18px;justify-items:center;background:linear-gradient(0deg,#0d1119a6,#0d11193b),url('/town-images/town-transition.png') center/cover no-repeat;color:#f5ddac;opacity:0;visibility:hidden;pointer-events:none;transition:opacity .26s ease,visibility .26s ease}
+.town-entry-image.visible{opacity:1;visibility:visible}
+.town-route-loading{min-height:100vh;display:grid;place-content:center;justify-items:center;gap:14px;background:linear-gradient(0deg,#0d1119a6,#0d11193b),url('/town-images/town-transition.png') center/cover no-repeat;color:#f5ddac;font:600 22px "B Nazanin Local",Tahoma,sans-serif}
+.town-route-loading img{object-fit:contain;filter:drop-shadow(0 3px 16px #140f0a)}
+.town-entry-wordmark{font:800 clamp(22px,3vw,42px)/1 Georgia,serif;letter-spacing:.12em;text-shadow:0 3px 18px #110e0b}
+.town-entry-die{font-size:42px;line-height:1;animation:town-entry-turn 1.2s linear infinite;text-shadow:0 2px 14px #110e0b}
+@keyframes town-entry-turn{to{transform:rotate(360deg)}}
+@media(prefers-reduced-motion:reduce){.town-entry-image{transition:none}.town-entry-die{animation:none}}
+.town-xp-display{position:absolute;z-index:5;top:104px;right:clamp(20px,4vw,52px);width:230px;pointer-events:none;filter:drop-shadow(0 2px 5px #160d0d)}.town-xp-display .xp-progress-compact{width:100%;max-width:none}.town-xp-display .xp-progress-track:before{display:none}.town-xp-display .xp-progress-track{height:8px;background:#2b1a18cc;box-shadow:inset 0 1px 4px #0009}.town-xp-display .xp-progress-track span:after{width:8px;height:8px;box-shadow:0 0 8px 2px #ffc4678a}@media(max-width:700px){.town-xp-display{top:77px;right:16px;width:164px}.town-xp-display .xp-progress-labels strong{font-size:11px}.town-xp-display .xp-progress-labels span{font-size:9px}}

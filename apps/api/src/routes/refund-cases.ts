@@ -108,7 +108,7 @@ const contactConfirmationBody =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     note:
@@ -141,7 +141,7 @@ const adminDecisionBody =
 
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     reason:
@@ -155,7 +155,7 @@ const returnConfirmationBody =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     note:
@@ -3094,7 +3094,7 @@ export async function registerRefundCaseRoutes(
     const user = await requireAuthUser(request);
     if (!user) return reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "Authentication required." } });
     const params = caseParams.safeParse(request.params);
-    const body = z.object({ password: z.string().min(12).max(128) }).safeParse(request.body);
+    const body = z.object({ password: z.string().min(8).max(128) }).safeParse(request.body);
     if (!params.success || !body.success) {
       return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Valid case ID and password required." } });
     }

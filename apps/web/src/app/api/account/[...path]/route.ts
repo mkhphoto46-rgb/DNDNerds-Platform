@@ -4,6 +4,7 @@ import {
 
 import {
   apiFetch,
+  SESSION_COOKIE,
 } from "@/lib/bff-api";
 
 async function forward(
@@ -67,13 +68,15 @@ async function forward(
   const data =
     await upstream.json();
 
-  return NextResponse.json(
+  const response = NextResponse.json(
     data,
     {
       status:
         upstream.status,
     },
   );
+  if (suffix === "password/change" && upstream.ok) response.cookies.delete(SESSION_COOKIE);
+  return response;
 }
 
 export const GET = forward;
