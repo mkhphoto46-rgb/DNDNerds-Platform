@@ -5,8 +5,8 @@ import { registerSessionManagementRoutes } from "./routes/session-management.js"
 import { registerAccountRoutes } from "./routes/account.js";
 import { registerSocialRoutes } from "./routes/social.js";
 import { registerSocialGroupRoutes } from "./routes/social-groups.js";
-import { registerGameTableRoutes } from "./routes/game-tables.js";
-import { registerTableLaunchRoutes } from "./routes/table-launch.js";
+import { registerGameHubRoutes } from "./routes/game-hub.js";
+import { registerXpRoutes } from "./routes/xp.js";
 import { registerPayoutDestinationRoutes } from "./routes/payout-destinations.js";
 import { registerRefundCaseRoutes } from "./routes/refund-cases.js";
 import { registerPayoutRoutes } from "./routes/payouts.js";
@@ -326,48 +326,27 @@ export async function buildApp() {
   await app.register(registerAccountRoutes);
   await app.register(registerSocialRoutes);
   await app.register(registerSocialGroupRoutes);
-  await app.register(registerGameTableRoutes);
-  await app.register(registerTableLaunchRoutes);
+  await app.register(registerGameHubRoutes);
+  await app.register(registerXpRoutes);
 
 
 
   await app.register(registerSessionManagementRoutes);
 
 
-  await app.register(registerOrderRoutes);
-
-
-
-  await app.register(registerPaymentRoutes);
-
-
-
-
-  await app.register(registerSellerRoutes);
-  await app.register(registerSellerNotificationRoutes);
-  await app.register(registerSellerNotificationConnectionRoutes);
-
-
-
-
   await app.register(registerAdminRoutes);
 
-
-
-
-
-  await app.register(registerRefundCaseRoutes);
-
-  await app.register(registerPayoutDestinationRoutes);
-
-  await app.register(registerPayoutRoutes);
-
-
-
-
-
-
-  await app.register(registerPayoutProviderRoutes);
+  if (process.env.FREE_LAUNCH_MODE !== "true") {
+    await app.register(registerOrderRoutes);
+    await app.register(registerPaymentRoutes);
+    await app.register(registerSellerRoutes);
+    await app.register(registerSellerNotificationRoutes);
+    await app.register(registerSellerNotificationConnectionRoutes);
+    await app.register(registerRefundCaseRoutes);
+    await app.register(registerPayoutDestinationRoutes);
+    await app.register(registerPayoutRoutes);
+    await app.register(registerPayoutProviderRoutes);
+  }
 
 
   return app;

@@ -1,17 +1,20 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createTownWorld } from "./town-world";
+import { XpBar } from "./xp-experience";
+import { SiteTour } from "./site-tour";
 
 const places = [
-  { name: "دروازهٔ شهر", title: "ماجرا از اینجا شروع می‌شود.", hint: "قدم بزن و شهر را کشف کن.", action: "شروع ماجراجویی", href: "/register" },
-  { name: "میخانه", title: "همراهت را پیدا کن.", hint: "میزهای تازه همین نزدیکی‌اند.", action: "پیدا کردن بازی", href: "/find-game" },
-  { name: "میدان", title: "میز بازی آماده است.", hint: "نقشه، تاس و قصه در یک جا.", action: "ورود به میز", href: "/play" },
-  { name: "تالار همراهان", title: "با گروهت در تماس باش.", hint: "دوستان و گفتگو؛ همیشه در دسترس.", action: "باز کردن گفتگو", href: null },
-  { name: "کارگاه نقشه‌سازی", title: "دنیای خودت را رسم کن.", hint: "نقشهٔ ماجراجویی از همین‌جا آغاز می‌شود.", action: "دیدن کارگاه", href: "/cartography" },
-  { name: "بازارچه", title: "چیز تازه‌ای برای ماجرا.", hint: "وسایل و محتوای بازی را ببین.", action: "دیدن بازار", href: "/store" },
-  { name: "میدان نبرد", title: "نوبت توست.", hint: "یک نبرد کوتاه، یک تصمیم بزرگ.", action: "ورود به Arena", href: "/arena" },
+  { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "قدم بزن و شهر را کشف کن", action: "شروع ماجراجویی", href: "/register" },
+  { name: "Tavern", title: "همراهت را پیدا کن", hint: "میزهای تازه همین نزدیکی‌اند", action: "ورود به Tavern", href: "/tavern" },
+  { name: "میدان", title: "میز بازی آماده است", hint: "نقشه، تاس و قصه در یک جا", action: "ورود به میز", href: "/play" },
+  { name: "دوستان و گفتگو", title: "با گروهت در تماس باش", hint: "دوستان و گفتگو همیشه در دسترس", action: "باز کردن گفتگو", href: null },
+  { name: "نقشه‌خانه", title: "دنیای خودت را رسم کن", hint: "نقشه ماجراجویی از همین‌جا آغاز می‌شود", action: "دیدن نقشه‌خانه", href: "/cartography" },
+  { name: "بازارچه", title: "چیز تازه‌ای برای ماجرا", hint: "وسایل و محتوای بازی را ببین", action: "دیدن بازار", href: "/store" },
+  { name: "میدان نبرد", title: "نوبت توست", hint: "یک نبرد کوتاه، یک تصمیم بزرگ", action: "ورود به Arena", href: "/arena" },
 ] as const;
 
 type TownWorld = Awaited<ReturnType<typeof createTownWorld>>;
@@ -23,33 +26,45 @@ function DieIcon() {
 }
 
 export function HomeTownExperience() {
+  const router = useRouter();
   const [stage, setStage] = useState(0);
   const [soundOn, setSoundOn] = useState(false);
+  const [entering, setEntering] = useState<string | null>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const markerRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const worldRef = useRef<TownWorld | null>(null);
   const stageRef = useRef(stage);
   const [worldFailed, setWorldFailed] = useState(false);
+  const [worldReady, setWorldReady] = useState(false);
   const audioRef = useRef<HTMLAudioElement>(null);
   const ambienceRef = useRef<HTMLAudioElement>(null);
+  const fountainRef = useRef<HTMLAudioElement>(null);
+  const crowdRef = useRef<HTMLAudioElement>(null);
   const audioChannel = useRef<BroadcastChannel | null>(null);
   const wheelRef = useRef(0);
   const lastWheelStepRef = useRef(0);
   const touchRef = useRef<number | null>(null);
 
   const go = useCallback((value: number) => setStage(Math.max(0, Math.min(places.length - 1, value))), []);
+  const enterPlace = useCallback((key: string) => {
+    if (key === "guild") { openChat(); return; }
+    const routes: Record<string,string> = { gate: "/register", tavern: "/tavern", play: "/play", cartography: "/cartography", blacksmith: "/blacksmith", market: "/store", arena: "/arena" };
+    if (routes[key]) router.push(routes[key]);
+  }, [router]);
+  const startTransition = useCallback((key: string) => setEntering(key), []);
 
   useEffect(() => {
     let cancelled = false;
     const host = mountRef.current;
     if (!host) return;
-    createTownWorld(host, markerRefs.current, value => setStage(value)).then(world => {
+    createTownWorld(host, markerRefs.current, value => setStage(value), enterPlace, startTransition).then(world => {
       if (cancelled) { world.dispose(); return; }
       worldRef.current = world;
       world.setStage(stageRef.current);
-    }).catch(() => setWorldFailed(true));
+      requestAnimationFrame(() => { if (!cancelled) setWorldReady(true); });
+    }).catch(() => { setWorldFailed(true); setWorldReady(true); });
     return () => { cancelled = true; worldRef.current?.dispose(); worldRef.current = null; };
-  }, []);
+  }, [enterPlace, startTransition]);
 
   useEffect(() => { stageRef.current = stage; worldRef.current?.setStage(stage); }, [stage]);
 
@@ -62,14 +77,30 @@ export function HomeTownExperience() {
   useEffect(() => {
     const audio = audioRef.current;
     const ambience = ambienceRef.current;
-    if (!audio || !ambience) return;
+    const fountain = fountainRef.current;
+    const crowd = crowdRef.current;
+    if (!audio || !ambience || !fountain || !crowd) return;
     if (soundOn) {
       audioChannel.current?.postMessage("claim-audio");
-      audio.volume = .28;
-      ambience.volume = .16;
-      void Promise.all([audio.play(), ambience.play()]).catch(() => setSoundOn(false));
-    } else { audio.pause(); ambience.pause(); }
-    return () => { audio.pause(); ambience.pause(); };
+      audio.volume = .22;
+      ambience.volume = .34;
+      fountain.volume = 0;
+      crowd.volume = 0;
+      void Promise.all([audio.play(), ambience.play(), fountain.play(), crowd.play()]).catch(() => setSoundOn(false));
+      const adjust = () => {
+        const position = worldRef.current?.getCameraPosition();
+        if (!position) return;
+        const waterDistance = Math.hypot(position.x + .8, position.z + 4.5);
+        const tavernDistance = Math.hypot(position.x + 5, position.z - 13);
+        fountain.volume = .48 * Math.pow(Math.max(0, 1 - waterDistance / 14), 2);
+        crowd.volume = .23 * Math.pow(Math.max(0, 1 - tavernDistance / 20), 2);
+      };
+      adjust();
+      const timer = window.setInterval(adjust, 160);
+      return () => { window.clearInterval(timer); audio.pause(); ambience.pause(); fountain.pause(); crowd.pause(); };
+    }
+    audio.pause(); ambience.pause(); fountain.pause(); crowd.pause();
+    return () => { audio.pause(); ambience.pause(); fountain.pause(); crowd.pause(); };
   }, [soundOn]);
   useEffect(() => {
     const key = (event: KeyboardEvent) => {
@@ -104,42 +135,48 @@ export function HomeTownExperience() {
 
   return <main className="town-experience" onWheel={onWheel} onPointerMove={onPointerMove} onTouchStart={onTouchStart} onTouchEnd={onTouchEnd}>
     <div className={`town-world${worldFailed ? " town-world-fallback" : ""}`} ref={mountRef} aria-hidden="true" />
+    <div className={`town-entry-image${entering || !worldReady ? " visible" : ""}`} aria-hidden="true"><span className="town-entry-wordmark">DND NERDS</span><span className="town-entry-die">◇</span></div>
     <div className="town-focus" aria-hidden="true" />
     <div className="town-landmarks" aria-label="تابلوهای شهر">
-      <button ref={node => { markerRefs.current.tavern = node; }} type="button" onClick={() => go(1)}>✦ میخانه</button>
-      <button ref={node => { markerRefs.current.guild = node; }} type="button" onClick={() => go(3)}>✦ تالار همراهان</button>
-      <button ref={node => { markerRefs.current.cartography = node; }} type="button" onClick={() => go(4)}>✦ کارگاه نقشه‌سازی</button>
+      <button ref={node => { markerRefs.current.tavern = node; }} type="button" onClick={() => go(1)}>✦ Tavern</button>
+      <button ref={node => { markerRefs.current.guild = node; }} type="button" onClick={() => go(3)}>✦ دوستان و گفتگو</button>
+      <button ref={node => { markerRefs.current.cartography = node; }} type="button" onClick={() => go(4)}>✦ نقشه‌خانه</button>
       <button ref={node => { markerRefs.current.market = node; }} type="button" onClick={() => go(5)}>✦ بازارچه</button>
       <button ref={node => { markerRefs.current.arena = node; }} type="button" onClick={() => go(6)}>✦ میدان نبرد</button>
     </div>
 
     <header className="town-hud">
-      <Link className="town-brand" href="/" aria-label="DND Nerds، صفحهٔ اصلی"><img className="town-logo" src="/brand/dnd-nerds-logo.png" width="100" height="100" alt="DND Nerds" /></Link>
+      <Link className="town-brand" href="/" aria-label="DND Nerds، صفحه اصلی"><img className="town-logo" src="/brand/dnd-nerds-logo.png" width="100" height="100" alt="DND Nerds" /></Link>
       <div className="town-hud-actions">
-        <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ موسیقی روشن" : "♫ موسیقی خاموش"}</button>
+        <SiteTour onStageChange={go} onOpenChat={openChat} />
+        <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ صدای شهر روشن" : "♫ صدای شهر خاموش"}</button>
         <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
-        <details className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">کارگاه نقشه‌سازی</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></details>
+        <details className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/tavern">Tavern</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></details>
       </div>
     </header>
 
+    <div className="town-xp-display"><XpBar compact /></div>
+
     <div className="town-story" aria-live="polite" key={stage}>
-      <span className="town-eyebrow">{String(stage + 1).padStart(2, "0")} / {String(places.length).padStart(2, "0")} · {place.name}</span>
+      <span className="town-eyebrow">{String(stage + 1).padStart(2, "0")} / {String(places.length).padStart(2, "0")} {place.name}</span>
       <h1>{place.title}</h1>
       <p>{place.hint}</p>
       <div className="town-story-actions">
-        {place.href ? <Link className="town-primary" href={place.href}>{place.action} <span>←</span></Link> : <button type="button" className="town-primary" onClick={openChat}>{place.action} <span>←</span></button>}
+        {place.href ? <Link className="town-primary" href={place.href} onClick={event => { if (worldRef.current) { event.preventDefault(); worldRef.current.enterStage(stage); } }}>{place.action} <span>←</span></Link> : <button type="button" className="town-primary" onClick={() => worldRef.current ? worldRef.current.enterStage(stage) : openChat()}>{place.action} <span>←</span></button>}
         <button type="button" className="town-quiet" onClick={() => go(stage + 1)} disabled={stage === places.length - 1}>قدم بعدی</button>
       </div>
     </div>
 
-    <nav className="town-places" aria-label="محله‌های شهر">{places.map((item, index) => <button key={item.name} type="button" className={index === stage ? "active" : ""} onClick={() => go(index)} aria-current={index === stage ? "step" : undefined} title={item.name}><i/><span>{item.name}</span></button>)}</nav>
+    <nav className="town-places" aria-label="محله‌های شهر">{places.map((item, index) => <button key={item.name} type="button" className={index === stage ? "active" : ""} onClick={() => index === stage ? worldRef.current?.enterStage(index) : go(index)} aria-current={index === stage ? "step" : undefined} title={index === stage ? `${item.name}؛ برای ورود کلیک کن` : item.name}><i/><span>{item.name}</span></button>)}</nav>
 
     <div className="town-bottom">
-      <span className="town-movement-hint">WASD: حرکت · کشیدن موس: چرخش</span>
+      <span className="town-movement-hint">WASD: حرکت، کشیدن موس: چرخش</span>
       <button type="button" className="town-die" onClick={() => go(stage + 1 === places.length ? 0 : stage + 1)} aria-label="برداشتن قدم بعدی با تاس D20"><DieIcon/></button>
       <span className="town-movement-hint">اسکرول: محله‌ها</span>
     </div>
     <audio ref={audioRef} src="/audio/tavern-instrumental.ogg" loop preload="none" aria-hidden="true" />
     <audio ref={ambienceRef} src="/audio/village-market.ogg" loop preload="none" aria-hidden="true" />
+    <audio ref={fountainRef} src="/audio/fountain-water.mp3" loop preload="none" aria-hidden="true" />
+    <audio ref={crowdRef} src="/audio/inn-crowd.ogg" loop preload="none" aria-hidden="true" />
   </main>;
 }

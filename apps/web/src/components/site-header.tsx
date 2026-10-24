@@ -5,7 +5,7 @@ import { AccountStatus } from "@/components/account-status";
 const navigation = [
   { label: "بازی", href: "/play" },
   { label: "پیدا کردن بازی", href: "/find-game" },
-  { label: "DMها", href: "/find-dm" },
+  { label: "Dungeon Masters", href: "/find-dm" },
   { label: "Arena", href: "/arena" },
   { label: "Marketplace", href: "/store" },
   { label: "اشتراک", href: "/pricing" },

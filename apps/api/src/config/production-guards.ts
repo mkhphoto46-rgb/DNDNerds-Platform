@@ -117,6 +117,7 @@ export function productionReadinessIssues(
 ) {
   const missing:
     string[] = [];
+  const freeLaunch = env.FREE_LAUNCH_MODE === "true";
 
   if (
     !env.REDIS_URL
@@ -127,24 +128,23 @@ export function productionReadinessIssues(
   }
 
   if (
-    !env
-      .MFA_ENCRYPTION_KEY
+    !/^[0-9a-f]{64}$/i.test(env.MFA_ENCRYPTION_KEY ?? "")
   ) {
     missing.push(
-      "MFA_ENCRYPTION_KEY",
+      "MFA_ENCRYPTION_KEY(64 hex chars)",
     );
   }
 
   if (
-    !env
-      .PAYOUT_DESTINATION_ENCRYPTION_KEY
+    !/^[0-9a-f]{64}$/i.test(env.PAYOUT_DESTINATION_ENCRYPTION_KEY ?? "")
   ) {
     missing.push(
-      "PAYOUT_DESTINATION_ENCRYPTION_KEY",
+      "PAYOUT_DESTINATION_ENCRYPTION_KEY(64 hex chars)",
     );
   }
 
   if (
+    !freeLaunch &&
     providers.payment
       .startsWith(
         "mock",
@@ -156,6 +156,7 @@ export function productionReadinessIssues(
   }
 
   if (
+    !freeLaunch &&
     providers.email ===
     "development"
   ) {
@@ -165,6 +166,7 @@ export function productionReadinessIssues(
   }
 
   if (
+    !freeLaunch &&
     providers.payout ===
     "mock"
   ) {
@@ -174,6 +176,7 @@ export function productionReadinessIssues(
   }
 
   if (
+    !freeLaunch &&
     providers.payment ===
     "zarinpal"
   ) {
@@ -208,6 +211,7 @@ export function productionReadinessIssues(
   }
 
   if (
+    !freeLaunch &&
     providers.email ===
     "smtp"
   ) {
@@ -229,6 +233,12 @@ export function productionReadinessIssues(
           key,
         );
       }
+    }
+  }
+
+  if (!freeLaunch && providers.email === "brevo") {
+    for (const key of ["BREVO_API_KEY", "EMAIL_FROM"] as const) {
+      if (!env[key]) missing.push(key);
     }
   }
 

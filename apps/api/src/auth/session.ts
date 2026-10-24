@@ -22,10 +22,13 @@ import {
   userSessions,
   users,
 } from "../db/schema.js";
+import { publicAccountId } from "./public-identity.js";
 
 export type AuthUser = {
   id: string;
   email: string;
+  username: string | null;
+  publicId: string;
 };
 
 const SESSION_DAYS =
@@ -134,6 +137,9 @@ export async function requireAuthUser(
 
         email:
           users.email,
+
+        username:
+          users.username,
       })
       .from(
         userSessions,
@@ -192,6 +198,12 @@ export async function requireAuthUser(
 
     email:
       row.email,
+
+    username:
+      row.username,
+
+    publicId:
+      publicAccountId(row.userId),
   };
 }
 

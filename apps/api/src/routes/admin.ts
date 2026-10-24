@@ -11,6 +11,9 @@ import {
   and,
   desc,
   eq,
+  ilike,
+  or,
+  sql,
 } from "drizzle-orm";
 
 import {
@@ -20,6 +23,7 @@ import {
 import {
   requireAuthUser,
 } from "../auth/session.js";
+import { publicAccountId } from "../auth/public-identity.js";
 
 import {
   db,
@@ -29,13 +33,14 @@ import {
   marketplaceAdminAuditLogs,
   marketplaceAdmins,
   marketplaceConfig,
+  userSessions,
   sellerProfiles,
   storeCommissionSettings,
   stores,
   users,
 } from "../db/schema.js";
 
-async function getAdmin(
+export async function getAdmin(
   request: FastifyRequest,
 ) {
   const user =
@@ -70,7 +75,7 @@ async function getAdmin(
   };
 }
 
-async function reauth(
+export async function reauth(
   request: FastifyRequest,
   password: string,
 ) {
@@ -141,7 +146,7 @@ const moderationBody =
         "REJECT",
       ]),
     password:
-      z.string().min(12).max(128),
+      z.string().min(8).max(128),
     reason:
       z.string().trim().min(3).max(500),
   });
@@ -151,7 +156,7 @@ const globalCommissionBody =
     commissionBps:
       z.number().int().min(0).max(3000),
     password:
-      z.string().min(12).max(128),
+      z.string().min(8).max(128),
     reason:
       z.string().trim().min(3).max(500),
   });
@@ -166,7 +171,7 @@ const storeCommissionBody =
     commissionBps:
       z.number().int().min(0).max(3000).nullable(),
     password:
-      z.string().min(12).max(128),
+      z.string().min(8).max(128),
     reason:
       z.string().trim().min(3).max(500),
   });
@@ -174,6 +179,103 @@ const storeCommissionBody =
 export async function registerAdminRoutes(
   app: FastifyInstance,
 ) {
+  const accountParams = z.object({ userId: z.string().uuid() });
+  const accountChange = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]), password: z.string().min(8).max(128), reason: z.string().trim().min(3).max(500) });
+  const roleChange = z.object({ role: z.enum(["SUPER_ADMIN", "MARKETPLACE_ADMIN", "SUPPORT", "NONE"]), password: z.string().min(8).max(128), reason: z.string().trim().min(3).max(500) });
+
+  app.get("/api/v1/admin/accounts", async (request, reply) => {
+    const admin = await getAdmin(request);
+    if (!admin) return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Admin access required." } });
+    const query = z.object({ q: z.string().trim().max(160).optional(), status: z.enum(["ALL", "PENDING_APPROVAL", "ACTIVE", "SUSPENDED", "BANNED"]).default("ALL"), page: z.coerce.number().int().min(1).max(10000).default(1) }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid account search." } });
+    const { q, status, page } = query.data;
+    const searchTerm = q ? `%${q.replaceAll("%", "\\%").replaceAll("_", "\\_")}%` : null;
+    const filters = and(searchTerm ? or(ilike(users.email, searchTerm), ilike(users.username, searchTerm)) : undefined, status === "ALL" ? undefined : eq(users.status, status));
+    const [rows, [total], totals] = await Promise.all([
+      db.select({ id: users.id, email: users.email, username: users.username, status: users.status, emailVerified: users.emailVerified, createdAt: users.createdAt, updatedAt: users.updatedAt, adminRole: marketplaceAdmins.role, adminActive: marketplaceAdmins.active }).from(users).leftJoin(marketplaceAdmins, eq(marketplaceAdmins.userId, users.id)).where(filters).orderBy(desc(users.createdAt)).limit(30).offset((page - 1) * 30),
+      db.select({ count: sql<number>`count(*)::int` }).from(users).where(filters),
+      db.select({ status: users.status, count: sql<number>`count(*)::int` }).from(users).groupBy(users.status),
+    ]);
+    return { data: rows.map(row => ({ ...row, publicId: publicAccountId(row.id) })), total: total?.count ?? 0, page, pageSize: 30, statusCounts: Object.fromEntries(totals.map(row => [row.status, row.count])), admin: { role: admin.role, email: admin.email, userId: admin.userId } };
+  });
+
+  app.get<{ Params: { userId: string } }>("/api/v1/admin/accounts/:userId", async (request, reply) => {
+    if (!await getAdmin(request)) return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Admin access required." } });
+    const params = accountParams.safeParse(request.params);
+    if (!params.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid account." } });
+    const [account] = await db.select({ id: users.id, email: users.email, username: users.username, status: users.status, emailVerified: users.emailVerified, createdAt: users.createdAt, updatedAt: users.updatedAt, adminRole: marketplaceAdmins.role, adminActive: marketplaceAdmins.active }).from(users).leftJoin(marketplaceAdmins, eq(marketplaceAdmins.userId, users.id)).where(eq(users.id, params.data.userId)).limit(1);
+    if (!account) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Account not found." } });
+    const [activity] = await db.select({ lastSeenAt: sql<Date | null>`max(${userSessions.lastSeenAt})`, activeSessions: sql<number>`count(*) filter (where ${userSessions.revokedAt} is null and ${userSessions.expiresAt} > now())::int` }).from(userSessions).where(eq(userSessions.userId, account.id));
+    return { data: { ...account, publicId: publicAccountId(account.id), lastSeenAt: activity?.lastSeenAt ?? null, activeSessions: activity?.activeSessions ?? 0 } };
+  });
+
+  app.patch<{ Params: { userId: string } }>("/api/v1/admin/accounts/:userId/status", async (request, reply) => {
+    const params = accountParams.safeParse(request.params);
+    const body = accountChange.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid account change." } });
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role === "SUPPORT") return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Admin password and access required." } });
+    if (params.data.userId === admin.userId) return reply.code(403).send({ error: { code: "SELF_CHANGE", message: "You cannot change your own account status." } });
+    const [target] = await db.select({ id: users.id, email: users.email, status: users.status, adminRole: marketplaceAdmins.role, adminActive: marketplaceAdmins.active }).from(users).leftJoin(marketplaceAdmins, eq(marketplaceAdmins.userId, users.id)).where(eq(users.id, params.data.userId)).limit(1);
+    if (!target) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Account not found." } });
+    if (target.adminRole && target.adminActive && admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Only a super admin can change an admin account." } });
+    await db.transaction(async tx => {
+      await tx.update(users).set({ status: body.data.status, updatedAt: new Date() }).where(eq(users.id, target.id));
+      if (body.data.status !== "ACTIVE") await tx.update(userSessions).set({ revokedAt: new Date() }).where(and(eq(userSessions.userId, target.id), sql`${userSessions.revokedAt} is null`));
+    });
+    await audit(admin.userId, "CHANGE_ACCOUNT_STATUS", "USER", target.id, { email: target.email, before: target.status, after: body.data.status, reason: body.data.reason });
+    return { data: { id: target.id, status: body.data.status } };
+  });
+
+  app.patch<{ Params: { userId: string } }>("/api/v1/admin/accounts/:userId/role", async (request, reply) => {
+    const params = accountParams.safeParse(request.params);
+    const body = roleChange.safeParse(request.body);
+    if (!params.success || !body.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid role change." } });
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Super admin password required." } });
+    if (params.data.userId === admin.userId) return reply.code(403).send({ error: { code: "SELF_CHANGE", message: "You cannot change your own admin role." } });
+    const [target] = await db.select({ id: users.id, email: users.email, status: users.status, adminRole: marketplaceAdmins.role, adminActive: marketplaceAdmins.active }).from(users).leftJoin(marketplaceAdmins, eq(marketplaceAdmins.userId, users.id)).where(eq(users.id, params.data.userId)).limit(1);
+    if (!target) return reply.code(404).send({ error: { code: "NOT_FOUND", message: "Account not found." } });
+    if (body.data.role !== "NONE" && target.status !== "ACTIVE") return reply.code(409).send({ error: { code: "ACCOUNT_INACTIVE", message: "Activate the account before granting an admin role." } });
+    if (body.data.role === "NONE") await db.delete(marketplaceAdmins).where(eq(marketplaceAdmins.userId, target.id));
+    else await db.insert(marketplaceAdmins).values({ userId: target.id, role: body.data.role, active: true }).onConflictDoUpdate({ target: marketplaceAdmins.userId, set: { role: body.data.role, active: true, updatedAt: new Date() } });
+    await audit(admin.userId, "CHANGE_ADMIN_ROLE", "USER", target.id, { email: target.email, before: target.adminActive ? target.adminRole : "NONE", after: body.data.role, reason: body.data.reason });
+    return { data: { id: target.id, role: body.data.role } };
+  });
+  app.get("/api/v1/admin/accounts/pending", async (request, reply) => {
+    const admin = await getAdmin(request);
+    if (!admin || admin.role === "SUPPORT") {
+      return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Admin access required." } });
+    }
+    const data = await db.select({
+      id: users.id,
+      email: users.email,
+      createdAt: users.createdAt,
+    }).from(users).where(eq(users.status, "PENDING_APPROVAL")).orderBy(desc(users.createdAt)).limit(100);
+    return { data };
+  });
+
+  app.post("/api/v1/admin/accounts/:userId/approve", async (request, reply) => {
+    const params = z.object({ userId: z.string().uuid() }).safeParse(request.params);
+    const body = z.object({ password: z.string().min(8).max(128) }).safeParse(request.body);
+    if (!params.success || !body.success) {
+      return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid approval request." } });
+    }
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role === "SUPPORT") {
+      return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Admin re-authentication required." } });
+    }
+    const [approved] = await db.update(users)
+      .set({ status: "ACTIVE", updatedAt: new Date() })
+      .where(and(eq(users.id, params.data.userId), eq(users.status, "PENDING_APPROVAL")))
+      .returning({ id: users.id, email: users.email });
+    if (!approved) {
+      return reply.code(404).send({ error: { code: "PENDING_ACCOUNT_NOT_FOUND", message: "Pending account not found." } });
+    }
+    await audit(admin.userId, "APPROVE_ACCOUNT", "USER", approved.id, { email: approved.email });
+    return { user: approved, approved: true };
+  });
+
   app.get(
     "/api/v1/admin/marketplace/overview",
     async (request, reply) => {
