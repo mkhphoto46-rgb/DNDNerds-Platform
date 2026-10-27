@@ -1,0 +1,9 @@
+[Unit]
+Description=Finish dndnerds.ir HTTPS setup when DNS is active
+After=network-online.target nginx.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/dndnerds/finalize-domain.sh
+TimeoutStartSec=180
