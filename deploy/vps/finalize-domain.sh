@@ -5,6 +5,7 @@ target_ip=94.183.163.87
 done_file=/opt/dndnerds/domain-ready
 config_source=/opt/dndnerds/domain-https.conf
 config_live=/etc/nginx/sites-enabled/dndnerds-domain-http.conf
+config_backup=/etc/nginx/backups/dndnerds-domain-http.before-https.conf
 env_file=/opt/dndnerds/app/.env
 
 [[ ! -e "$done_file" ]] || exit 0
@@ -22,10 +23,11 @@ certbot certonly --webroot -w /var/www/letsencrypt \
     --non-interactive --agree-tos --quiet
 
 test -s /etc/letsencrypt/live/dndnerds.ir/fullchain.pem
-cp -p "$config_live" "${config_live}.before-https"
+mkdir -p /etc/nginx/backups
+cp -p "$config_live" "$config_backup"
 cp "$config_source" "$config_live"
 if ! nginx -t; then
-    cp -p "${config_live}.before-https" "$config_live"
+    cp -p "$config_backup" "$config_live"
     exit 1
 fi
 systemctl reload nginx
