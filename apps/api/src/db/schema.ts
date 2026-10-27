@@ -4163,3 +4163,29 @@ export const sitePosts = pgTable("site_posts", {
   index("site_posts_status_created_idx").on(t.status, t.createdAt),
   check("site_posts_status_valid", sql`${t.status} IN ('DRAFT','PUBLISHED')`),
 ]);
+
+export const gameSubscriptionGrants = pgTable("game_subscription_grants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  email: varchar("email", { length: 320 }).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("game_subscription_grants_user_idx").on(t.userId, t.endsAt),
+  index("game_subscription_grants_email_idx").on(t.email, t.endsAt),
+  check("game_subscription_grants_period_valid", sql`${t.endsAt} > ${t.startsAt}`),
+]);
+
+export const gameSubscriptionSettings = pgTable("game_subscription_settings", {
+  id: integer("id").primaryKey(),
+  priceRial: integer("price_rial").notNull().default(5990000),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  check("game_subscription_settings_singleton", sql`${t.id} = 1`),
+  check("game_subscription_settings_price_valid", sql`${t.priceRial} > 0`),
+]);

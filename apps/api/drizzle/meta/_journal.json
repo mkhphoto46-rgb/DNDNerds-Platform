@@ -190,6 +190,13 @@
       "when": 1792780200000,
       "tag": "0026_xp_fractional_seconds",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793059200000,
+      "tag": "0027_game_subscription_manual",
+      "breakpoints": true
     }
   ]
 }

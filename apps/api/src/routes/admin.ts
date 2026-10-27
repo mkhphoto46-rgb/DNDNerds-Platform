@@ -2,6 +2,8 @@ import type {
   FastifyInstance,
   FastifyRequest,
 } from "fastify";
+import { statfsSync } from "node:fs";
+import { freemem, loadavg, totalmem, uptime } from "node:os";
 
 import {
   verify,
@@ -11,6 +13,7 @@ import {
   and,
   desc,
   eq,
+  isNull,
   ilike,
   or,
   sql,
@@ -33,6 +36,8 @@ import {
   marketplaceAdminAuditLogs,
   marketplaceAdmins,
   marketplaceConfig,
+  gameSubscriptionGrants,
+  gameSubscriptionSettings,
   userSessions,
   sellerProfiles,
   storeCommissionSettings,
@@ -179,6 +184,119 @@ const storeCommissionBody =
 export async function registerAdminRoutes(
   app: FastifyInstance,
 ) {
+  app.get("/api/v1/admin/system/health", async (request, reply) => {
+    const admin = await getAdmin(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Owner access required." } });
+    const check = async (url: string) => {
+      try { return (await fetch(url, { signal: AbortSignal.timeout(2000) })).ok; }
+      catch { return false; }
+    };
+    const [database, web, vtt, voice] = await Promise.all([
+      db.execute(sql`select 1`).then(() => true).catch(() => false),
+      check("http://127.0.0.1:3100/"),
+      check("http://127.0.0.1:4200/api/access-info"),
+      check("http://127.0.0.1:7880/"),
+    ]);
+    const disk = statfsSync("/");
+    return { data: {
+      sampledAt: new Date().toISOString(),
+      uptimeSeconds: uptime(), load1m: loadavg()[0],
+      memoryTotalBytes: totalmem(), memoryFreeBytes: freemem(),
+      diskTotalBytes: disk.blocks * disk.bsize, diskFreeBytes: disk.bavail * disk.bsize,
+      services: { api: true, database, web, vtt, voice },
+    } };
+  });
+
+  app.get("/api/v1/subscriptions/plan", async () => {
+    const [settings] = await db.select({ priceRial: gameSubscriptionSettings.priceRial })
+      .from(gameSubscriptionSettings).where(eq(gameSubscriptionSettings.id, 1)).limit(1);
+    return { data: { priceRial: settings?.priceRial ?? 5990000, durationDays: 30, checkoutAvailable: false } };
+  });
+
+  const subscriptionChange = z.object({
+    email: z.email().max(320).transform(value => value.trim().toLowerCase()),
+    password: z.string().min(8).max(128),
+    reason: z.string().trim().min(3).max(500),
+  });
+
+  app.get("/api/v1/admin/subscriptions", async (request, reply) => {
+    const admin = await getAdmin(request);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Owner access required." } });
+    const query = z.object({ email: z.string().trim().max(320).default("") }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid search." } });
+    const email = query.data.email.toLowerCase();
+    const [settings] = await db.select().from(gameSubscriptionSettings).where(eq(gameSubscriptionSettings.id, 1)).limit(1);
+    const grants = email ? await db.select({
+      id: gameSubscriptionGrants.id, email: gameSubscriptionGrants.email,
+      startsAt: gameSubscriptionGrants.startsAt, endsAt: gameSubscriptionGrants.endsAt,
+      revokedAt: gameSubscriptionGrants.revokedAt, reason: gameSubscriptionGrants.reason,
+      createdAt: gameSubscriptionGrants.createdAt,
+    }).from(gameSubscriptionGrants).where(eq(gameSubscriptionGrants.email, email)).orderBy(desc(gameSubscriptionGrants.createdAt)).limit(100) : [];
+    const [account] = email ? await db.select({ id: users.id, email: users.email, emailVerified: users.emailVerified, status: users.status })
+      .from(users).where(sql`lower(${users.email}) = ${email}`).limit(1) : [];
+    return { data: { priceRial: settings?.priceRial ?? 5990000, account: account ?? null, grants } };
+  });
+
+  app.post("/api/v1/admin/subscriptions/grants", async (request, reply) => {
+    const body = subscriptionChange.extend({ endsAt: z.iso.datetime({ offset: true }) }).safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid grant." } });
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Owner password required." } });
+    const endsAt = new Date(body.data.endsAt);
+    if (endsAt.getTime() <= Date.now()) return reply.code(400).send({ error: { code: "INVALID_END", message: "End time must be in the future." } });
+    const [account] = await db.select({ id: users.id }).from(users).where(sql`lower(${users.email}) = ${body.data.email}`).limit(1);
+    const grantId = await db.transaction(async tx => {
+      const [grant] = await tx.insert(gameSubscriptionGrants).values({
+        userId: account?.id ?? null, email: body.data.email, endsAt,
+        createdByUserId: admin.userId, reason: body.data.reason,
+      }).returning({ id: gameSubscriptionGrants.id });
+      if (!grant) throw new Error("Failed to create game subscription grant.");
+      await tx.insert(marketplaceAdminAuditLogs).values({
+        adminUserId: admin.userId, action: "GRANT_GAME_SUBSCRIPTION", entityType: "USER",
+        entityId: account?.id ?? grant.id,
+        details: JSON.stringify({ email: body.data.email, endsAt: endsAt.toISOString(), reason: body.data.reason, pending: !account }).slice(0, 1800),
+      });
+      return grant.id;
+    });
+    return { data: { id: grantId, pending: !account } };
+  });
+
+  app.post("/api/v1/admin/subscriptions/revoke", async (request, reply) => {
+    const body = subscriptionChange.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid revocation." } });
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Owner password required." } });
+    const now = new Date();
+    const revoked = await db.transaction(async tx => {
+      const rows = await tx.update(gameSubscriptionGrants).set({ revokedAt: now })
+        .where(and(eq(gameSubscriptionGrants.email, body.data.email), isNull(gameSubscriptionGrants.revokedAt), sql`${gameSubscriptionGrants.endsAt} > ${now}`))
+        .returning({ id: gameSubscriptionGrants.id });
+      await tx.insert(marketplaceAdminAuditLogs).values({
+        adminUserId: admin.userId, action: "REVOKE_GAME_SUBSCRIPTION", entityType: "EMAIL", entityId: body.data.email.slice(0, 180),
+        details: JSON.stringify({ email: body.data.email, count: rows.length, grantIds: rows.map(row => row.id), reason: body.data.reason }).slice(0, 1800),
+      });
+      return rows.length;
+    });
+    return { data: { revoked } };
+  });
+
+  app.patch("/api/v1/admin/subscriptions/price", async (request, reply) => {
+    const body = z.object({ priceToman: z.number().int().min(1).max(100000000), password: z.string().min(8).max(128), reason: z.string().trim().min(3).max(500) }).safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Invalid price." } });
+    const admin = await reauth(request, body.data.password);
+    if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Owner password required." } });
+    const priceRial = body.data.priceToman * 10;
+    await db.transaction(async tx => {
+      const [before] = await tx.select({ priceRial: gameSubscriptionSettings.priceRial }).from(gameSubscriptionSettings).where(eq(gameSubscriptionSettings.id, 1));
+      await tx.update(gameSubscriptionSettings).set({ priceRial, updatedByUserId: admin.userId, updatedAt: new Date() }).where(eq(gameSubscriptionSettings.id, 1));
+      await tx.insert(marketplaceAdminAuditLogs).values({
+        adminUserId: admin.userId, action: "CHANGE_GAME_SUBSCRIPTION_PRICE", entityType: "PLAN", entityId: "1",
+        details: JSON.stringify({ before: before?.priceRial, after: priceRial, reason: body.data.reason }).slice(0, 1800),
+      });
+    });
+    return { data: { priceRial } };
+  });
+
   const accountParams = z.object({ userId: z.string().uuid() });
   const accountChange = z.object({ status: z.enum(["ACTIVE", "SUSPENDED", "BANNED"]), password: z.string().min(8).max(128), reason: z.string().trim().min(3).max(500) });
   const roleChange = z.object({ role: z.enum(["SUPER_ADMIN", "MARKETPLACE_ADMIN", "SUPPORT", "NONE"]), password: z.string().min(8).max(128), reason: z.string().trim().min(3).max(500) });
