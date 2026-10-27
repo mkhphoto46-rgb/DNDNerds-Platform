@@ -8,6 +8,7 @@ import { arenaListings, dmProfiles, gameApplications, gameTableReviews, gameTabl
 import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
+import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
 
 const base = "/api/v1/game-hub";
 const id = z.string().uuid();
@@ -141,9 +142,10 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     const user = await auth(request, reply); if (!user) return;
     const [hosted, applications] = await Promise.all([
       db.select().from(gameTables).where(eq(gameTables.hostUserId, user.id)).orderBy(desc(gameTables.createdAt)).limit(80),
-      db.select({ id: gameApplications.id, tableId: gameApplications.tableId, title: gameTables.title, status: gameApplications.status, note: gameApplications.note }).from(gameApplications).innerJoin(gameTables, eq(gameApplications.tableId, gameTables.id)).where(eq(gameApplications.userId, user.id)).orderBy(desc(gameApplications.createdAt)).limit(80),
+      db.select({ id: gameApplications.id, tableId: gameApplications.tableId, title: gameTables.title, status: gameApplications.status, note: gameApplications.note, tableStatus: gameTables.status, tableUpdatedAt: gameTables.updatedAt }).from(gameApplications).innerJoin(gameTables, eq(gameApplications.tableId, gameTables.id)).where(eq(gameApplications.userId, user.id)).orderBy(desc(gameApplications.createdAt)).limit(80),
     ]);
-    return { data: { hosted: hosted.map(publicTable), applications } };
+    const statuses = await fetchVttTableStatuses([...hosted.map(table => table.id), ...applications.map(application => application.tableId)]);
+    return { data: { hosted: hosted.map(table => ({ ...publicTable(table), sessionStatus: statuses?.[table.id] ?? null })), applications: applications.map(application => ({ ...application, sessionStatus: statuses?.[application.tableId] ?? null })) } };
   });
   app.post(`${base}/tables`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
@@ -191,7 +193,9 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     if (!table) return reply.code(404).send({ error: { message: "میز پیدا نشد." } });
     const [application] = parsed.data.role === "player" ? await db.select({ status: gameApplications.status }).from(gameApplications).where(and(eq(gameApplications.tableId, table.id), eq(gameApplications.userId, user.id))).limit(1) : [];
     if (!canLaunchTable(table, user.id, parsed.data.role, application?.status === "ACCEPTED")) return reply.code(403).send({ error: { message: "اجازهٔ ورود به این میز را ندارید." } });
-    if (!user.username) return reply.code(409).send({ error: { code: "USERNAME_REQUIRED", message: "برای ورود به بازی، ابتدا در حساب کاربری نام کاربری انتخاب کن." } });
+    const vttUsername = user.username && /^[a-z][a-z0-9_]{2,23}$/i.test(user.username)
+      ? user.username
+      : `player_${user.id.replaceAll("-", "").slice(0, 10)}`;
     const baseUrl = process.env.VTT_PUBLIC_URL?.trim(), secret = process.env.VTT_BRIDGE_SECRET?.trim();
     if (!baseUrl || !secret || secret.length < 32) return reply.code(503).send({ error: { message: "سرور بازی هنوز پیکربندی نشده است." } });
     let target: URL;
@@ -201,7 +205,7 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
       const result = await reservePlayerSeat(table.id, user.id, "PUBLIC");
       if (result !== "accepted") return reply.code(409).send({ error: { message: result === "full" ? "ظرفیت میز تکمیل است." : "این میز دیگر باز نیست." } });
     }
-    const ticket = createVttTicket({ tableId: table.id, userId: user.id, hostUserId: table.hostUserId, title: table.title, role: parsed.data.role, username: user.username }, secret);
+    const ticket = createVttTicket({ tableId: table.id, userId: user.id, hostUserId: table.hostUserId, title: table.title, role: parsed.data.role, username: vttUsername }, secret);
     target.searchParams.set("ticket", ticket);
     reply.header("Cache-Control", "no-store");
     return { data: { url: target.toString() } };

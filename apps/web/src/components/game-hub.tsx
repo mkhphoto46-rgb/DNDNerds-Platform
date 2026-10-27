@@ -4,12 +4,14 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./game-hub.module.css";
 
-type Table = { id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; rating?: number | null; reviewCount?: number };
+type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
+type SessionStatus = { onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] } | null;
+type Table = { id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; updatedAt?: string; sessionStatus?: SessionStatus; rating?: number | null; reviewCount?: number };
 type Profile = { userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; visible?: boolean; rating?: number | null; reviewCount?: number };
-type Application = { id: string; tableId: string; title?: string; note: string; status: string; email?: string };
+type Application = { id: string; tableId: string; title?: string; note: string; status: string; tableStatus?: string; tableUpdatedAt?: string; sessionStatus?: SessionStatus; email?: string };
 type Listing = { id: string; ownerUserId: string; opponentUserId?: string | null; mode: string; title: string; note: string; status: string };
 type Mine = { hosted: Table[]; applications: Application[] };
-type Mode = "find-game" | "find-dm" | "play" | "arena";
+type Mode = "find-game" | "find-dm" | "play" | "create-game" | "arena";
 
 async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, body: data ? JSON.stringify(data) : undefined });
@@ -17,13 +19,25 @@ async function request<T>(path: string, method = "GET", data?: unknown): Promise
   if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
   return body.data as T;
 }
-
 const headings: Record<Mode, { eyebrow: string; title: string; description: string }> = {
   "find-game": { eyebrow: "میزهای بازی · Player", title: "کمپین بعدی‌ات را پیدا کن", description: "میزهای عمومی را ببین و مستقیم با نمای بازیکن وارد شو؛ برای میز خصوصی از کد دعوت استفاده کن." },
   "find-dm": { eyebrow: "راهنمایان بازی", title: "DM مناسب گروهت را پیدا کن", description: "سبک اجرا، زبان و سابقه Dungeon Masters را پیش از انتخاب میز ببین." },
-  play: { eyebrow: "کمپین‌های من · DM", title: "میزهای بازی خودت را مدیریت کن", description: "میز بساز، عمومی یا خصوصی بودنش را انتخاب کن و با نمای DM وارد محیط بازی شو." },
+  play: { eyebrow: "بازی‌های من", title: "میزهای من", description: "میزهایی که میزبانی می‌کنی و بازی‌هایی که در آن‌ها عضو هستی، همراه با سشن‌های فعال و گذشته." },
+  "create-game": { eyebrow: "میز تازه · DM", title: "ساخت بازی", description: "مشخصات میز را ثبت کن، سپس از «میزهای من» با نمای DM وارد بازی شو." },
   arena: { eyebrow: "آرنا", title: "برای رقابت هم‌گروه پیدا کن", description: "دعوت رقابت ثبت کن یا به دعوت دیگری بپیوند. اجرای نبرد بعد از اتصال WebVTT فعال می‌شود." },
 };
+
+const tableStatusNames: Record<string, string> = { DRAFT: "پیش‌نویس", PUBLISHED: "باز برای بازی", CLOSED: "پایان‌یافته", HIDDEN: "پنهان" };
+const applicationStatusNames: Record<string, string> = { PENDING: "در انتظار پذیرش", ACCEPTED: "عضو میز", DECLINED: "پذیرفته‌نشده", WITHDRAWN: "انصراف‌داده" };
+const sessionDate = (value: string) => new Intl.DateTimeFormat("fa-IR", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Tehran" }).format(new Date(value));
+
+function SessionSummary({ status }: { status?: SessionStatus }) {
+  if (!status) return <p className={styles.sessionInfo}>وضعیت سشن‌های بازی فعلاً در دسترس نیست.</p>;
+  return <div className={styles.sessionInfo}>
+    {status.activeSession ? <p><strong>سشن {status.activeSession.number} فعال</strong> · {status.onlineCount} نفر آنلاین</p> : <p>سشن فعالی در حال اجرا نیست.</p>}
+    {status.recentSessions.length > 0 ? <details><summary>سشن‌های قبلی ({status.recentSessions.filter(session => session.endedAt).length})</summary><ul>{status.recentSessions.filter(session => session.endedAt).slice(0, 5).map(session => <li key={session.id}>سشن {session.number} · {sessionDate(session.startedAt)}</li>)}</ul></details> : <small>هنوز سشنی ثبت نشده است.</small>}
+  </div>;
+}
 
 export function GameHub({ mode }: { mode: Mode }) {
   const [tables, setTables] = useState<Table[]>([]);
@@ -63,8 +77,19 @@ export function GameHub({ mode }: { mode: Mode }) {
         setProfiles(await request<Profile[]>("dms"));
         try { const own = await request<Profile | null>("dms/me"); setMyProfile(own); if (own) setProfileForm({ ...own, visible: own.visible ?? true }); } catch { /* Guest can still browse. */ }
       }
-      if (mode === "play") {
-        try { setMine(await request<Mine>("tables/me")); } catch { setMine(null); }
+      if (mode === "play" || mode === "create-game") {
+        try {
+          const own = await request<Mine>("tables/me");
+          setMine(own);
+          if (mode === "create-game") {
+            const editId = new URLSearchParams(window.location.search).get("edit");
+            const table = own.hosted.find(item => item.id === editId);
+            if (table) {
+              setEditTableId(table.id);
+              setTableForm({ title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "HIDDEN" ? "DRAFT" : table.status ?? "DRAFT" });
+            }
+          }
+        } catch { setMine(null); }
       }
       if (mode === "arena") {
         setListings(await request<Listing[]>("arena"));
@@ -105,11 +130,11 @@ export function GameHub({ mode }: { mode: Mode }) {
   return <main className={styles.page}>
     <div className="shell">
       <header className={styles.intro}><span className="section-kicker">{heading.eyebrow}</span><h1>{heading.title}</h1><p>{heading.description}</p></header>
-      <nav className={styles.tabs} aria-label="بخش‌های بازی"><Link href="/tavern">Tavern</Link><Link href="/find-game" aria-current={mode === "find-game" ? "page" : undefined}>پیدا کردن بازی · Player</Link><Link href="/play" aria-current={mode === "play" ? "page" : undefined}>ساخت بازی · DM</Link><Link href="/find-dm" aria-current={mode === "find-dm" ? "page" : undefined}>Dungeon Masters</Link><Link href="/arena" aria-current={mode === "arena" ? "page" : undefined}>آرنا</Link></nav>
+      <nav className={styles.tabs} aria-label="بخش‌های بازی"><Link href="/play" aria-current={mode === "play" ? "page" : undefined}>میزهای من</Link><Link href="/find-game" aria-current={mode === "find-game" ? "page" : undefined}>پیدا کردن بازی</Link><Link href="/create-game" aria-current={mode === "create-game" ? "page" : undefined}>ساخت بازی</Link></nav>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
       {loading && <p role="status">در حال بارگذاری…</p>}
-      {(mode === "find-game" || mode === "play") && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول حساب سایت را بساز</h2><p>ساخت میز برای DM و پیوستن به بازی برای Player فقط با حساب فعال سایت ممکن است. پس از ورود به همین بخش برمی‌گردی.</p><div className={styles.actions}><Link href={`/register?next=${mode === "play" ? "%2Fplay" : "%2Ffind-game"}`}>ساخت حساب</Link><Link href={`/login?next=${mode === "play" ? "%2Fplay" : "%2Ffind-game"}`}>حساب دارم؛ ورود</Link></div></section>}
+      {(["find-game", "play", "create-game"] as Mode[]).includes(mode) && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول وارد حساب شو</h2><p>ساخت میز و پیوستن به بازی با حساب فعال سایت انجام می‌شود.</p><div className={styles.actions}><Link href={`/register?next=${encodeURIComponent(mode === "create-game" ? "/create-game" : mode === "play" ? "/play" : "/find-game")}`}>ساخت حساب</Link><Link href={`/login?next=${encodeURIComponent(mode === "create-game" ? "/create-game" : mode === "play" ? "/play" : "/find-game")}`}>حساب دارم؛ ورود</Link></div></section>}
 
       {mode === "find-game" && !loading && <>
         {signedIn && <section className={styles.panel}><h2>ورود به میز خصوصی</h2><p>کد دعوتی را که DM فرستاده وارد کن تا با نمای Player وارد شوی.</p><form onSubmit={event => { event.preventDefault(); void joinWithCode(); }}><label>کد دعوت<input required value={codeInput} onChange={event => setCodeInput(event.target.value.toUpperCase())} autoComplete="off" /></label><button disabled={busy}>ورود با کد</button></form></section>}
@@ -137,9 +162,9 @@ export function GameHub({ mode }: { mode: Mode }) {
         </form></section>
       </>}
 
-      {mode === "play" && !loading && <>
+      {(mode === "play" || mode === "create-game") && !loading && <>
         {!mine && signedIn && <div className={styles.empty}>میزهای تو بارگذاری نشدند. صفحه را تازه‌سازی کن.</div>}
-        {mine && <><section className={styles.panel}><h2>{editTableId ? "ویرایش میز" : "میز تازه"}</h2><form onSubmit={event => { event.preventDefault(); void act(async () => { const result = await request<{ inviteCode?: string | null }>(editTableId ? `tables/${editTableId}` : "tables", editTableId ? "PUT" : "POST", tableForm); setInviteCode(result.inviteCode ?? ""); }, editTableId ? "میز ویرایش شد." : "میز ساخته شد."); }}>
+        {mine && <>{mode === "create-game" && <section className={styles.panel}><h2>{editTableId ? "ویرایش میز" : "میز تازه"}</h2><form onSubmit={event => { event.preventDefault(); void act(async () => { const result = await request<{ inviteCode?: string | null }>(editTableId ? `tables/${editTableId}` : "tables", editTableId ? "PUT" : "POST", tableForm); setInviteCode(result.inviteCode ?? ""); }, editTableId ? "میز ویرایش شد." : "میز ساخته شد."); }}>
           <label>عنوان میز<input required minLength={3} value={tableForm.title} onChange={e => setTableForm({ ...tableForm, title: e.target.value })} /></label>
           <details className={styles.expandField} open={editTableId ? true : undefined}><summary>درباره کمپین <span>توضیحات کامل را اینجا بنویس</span></summary><label>توضیحات کمپین<textarea maxLength={2000} value={tableForm.description} onChange={e => setTableForm({ ...tableForm, description: e.target.value })} /></label></details>
           <label>سیستم بازی<input required value={tableForm.system} onChange={e => setTableForm({ ...tableForm, system: e.target.value })} /></label>
@@ -151,10 +176,12 @@ export function GameHub({ mode }: { mode: Mode }) {
           <label>نوع نمایش<select value={tableForm.visibility} onChange={e => setTableForm({ ...tableForm, visibility: e.target.value as "PUBLIC" | "PRIVATE" })}><option value="PUBLIC">عمومی؛ در فهرست بازی‌ها</option><option value="PRIVATE">خصوصی؛ فقط با کد دعوت</option></select></label>
           <label>وضعیت<select value={tableForm.status} onChange={e => setTableForm({ ...tableForm, status: e.target.value })}><option value="DRAFT">پیش‌نویس</option><option value="PUBLISHED">منتشرشده</option><option value="CLOSED">بسته</option></select></label>
           <button disabled={busy}>{editTableId ? "ذخیره تغییرات" : "ساخت میز"}</button>{editTableId && <button type="button" onClick={() => setEditTableId(null)}>لغو ویرایش</button>}
-        </form>{inviteCode && <p className={styles.notice}>کد دعوت خصوصی: <strong dir="ltr">{inviteCode}</strong> — آن را برای دوستانت بفرست. این کد پس از بستن صفحه دوباره نمایش داده نمی‌شود.</p>}</section>
-        <h2>میزهای میزبانی‌شده</h2><div className={styles.grid}>{mine.hosted.map(table => <article className={styles.card} key={table.id}><small>{table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><div className={styles.actions}><button disabled={busy} onClick={() => { setInviteCode(""); setEditTableId(table.id); setTableForm({ title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "HIDDEN" ? "DRAFT" : table.status ?? "DRAFT" }); window.scrollTo({ top: 0, behavior: "smooth" }); }}>ویرایش</button><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به نمای DM</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></article>)}</div>
+        </form>{inviteCode && <p className={styles.notice}>کد دعوت خصوصی: <strong dir="ltr">{inviteCode}</strong> — آن را برای دوستانت بفرست. این کد پس از بستن صفحه دوباره نمایش داده نمی‌شود.</p>}<p><Link href="/play">بازگشت به میزهای من ←</Link></p></section>}
+        {mode === "play" && <><div className={styles.actions}><Link href="/create-game">ساخت بازی تازه ←</Link><Link href="/find-game">پیدا کردن بازی ←</Link></div>
+        <h2>میزهای میزبانی‌شده</h2><div className={styles.grid}>{mine.hosted.map(table => <article className={styles.card} key={table.id}><small>{tableStatusNames[table.status ?? ""] ?? table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><SessionSummary status={table.sessionStatus} /><div className={styles.actions}><button disabled={busy} onClick={() => window.location.assign(`/create-game?edit=${encodeURIComponent(table.id)}`)}>ویرایش</button><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به نمای DM</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></article>)}</div>
         {selected && <section className={styles.panel}><h2>درخواست‌های میز</h2>{applications.map(application => <div key={application.id} className={styles.application}><strong>{application.email}</strong><span>{application.note || "بدون پیام"}</span><small>{application.status}</small>{application.status === "PENDING" && <div className={styles.actions}><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: true }), "درخواست پذیرفته شد.")}>پذیرش</button><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: false }), "درخواست رد شد.")}>رد</button></div>}</div>)}{!applications.length && <p>درخواستی ثبت نشده است.</p>}</section>}
-        <h2>بازی‌هایی که در آن‌ها عضو هستم</h2><div className={styles.grid}>{mine.applications.map(application => <article className={styles.card} key={application.id}><h3>{application.title}</h3><p>{application.status}</p>{application.status === "ACCEPTED" && <button disabled={busy} onClick={() => void launch(application.tableId, "player")}>ورود به نمای Player</button>}{["PENDING", "ACCEPTED"].includes(application.status) && <button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/withdraw`, "POST"), "درخواست پس گرفته شد.")}>پس‌گرفتن درخواست</button>}</article>)}</div>
+        <h2>بازی‌هایی که در آن‌ها عضو هستم</h2><div className={styles.grid}>{mine.applications.map(application => <article className={styles.card} key={application.id}><h3>{application.title}</h3><p>{applicationStatusNames[application.status] ?? application.status} · {tableStatusNames[application.tableStatus ?? ""] ?? application.tableStatus}</p><SessionSummary status={application.sessionStatus} />{application.status === "ACCEPTED" && application.tableStatus === "PUBLISHED" && <button disabled={busy} onClick={() => void launch(application.tableId, "player")}>ورود به نمای Player</button>}{["PENDING", "ACCEPTED"].includes(application.status) && <button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/withdraw`, "POST"), "درخواست پس گرفته شد.")}>پس‌گرفتن درخواست</button>}</article>)}</div>
+        </>}
         </>}
       </>}
 

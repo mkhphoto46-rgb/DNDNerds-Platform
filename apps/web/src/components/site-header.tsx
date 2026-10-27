@@ -3,10 +3,9 @@ import Link from "next/link";
 import { AccountStatus } from "@/components/account-status";
 
 const navigation = [
-  { label: "بازی", href: "/play" },
+  { label: "میزهای من", href: "/play" },
   { label: "پیدا کردن بازی", href: "/find-game" },
-  { label: "Dungeon Masters", href: "/find-dm" },
-  { label: "Arena", href: "/arena" },
+  { label: "ساخت بازی", href: "/create-game" },
   { label: "Marketplace", href: "/store" },
   { label: "اشتراک", href: "/pricing" },
 ];
