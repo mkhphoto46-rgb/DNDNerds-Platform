@@ -1,131 +1,39 @@
 "use client";
 
-import {
-  FormEvent,
-  useState,
-} from "react";
-
+import Link from "next/link";
+import { useState, type FormEvent } from "react";
 import styles from "../auth.module.css";
 
 export default function ForgotPasswordPage() {
-  const [
-    email,
-    setEmail,
-  ] =
-    useState("");
+  const [email, setEmail] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
 
-  const [
-    token,
-    setToken,
-  ] =
-    useState("");
-
-  const [
-    message,
-    setMessage,
-  ] =
-    useState<string | null>(
-      null,
-    );
-
-  async function submit(
-    event:
-      FormEvent<HTMLFormElement>,
-  ) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    const response =
-      await fetch(
-        "/api/account/password-reset/request",
-        {
-          method:
-            "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify({
-              email,
-            }),
-        },
-      );
-
-    const data =
-      await response.json();
-
-    if (data.devToken) {
-      setToken(
-        data.devToken,
-      );
-    }
-
-    setMessage(
-      "اگر این Email حساب فعال داشته باشد، درخواست Reset ساخته شد.",
-    );
+    setBusy(true); setError(""); setMessage("");
+    try {
+      const response = await fetch("/api/account/password-reset/request", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
+      });
+      if (response.status === 503) throw new Error("ارسال ایمیل هنوز برای سایت فعال نشده است. بعد از راه‌اندازی سرویس ایمیل دوباره تلاش کن.");
+      if (!response.ok) throw new Error("درخواست انجام نشد. کمی بعد دوباره تلاش کن.");
+      setMessage("اگر این ایمیل حساب داشته باشد، پیوند بازیابی برایش فرستاده می‌شود. پوشهٔ Spam را هم بررسی کن.");
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "ارتباط با سرور برقرار نشد."); }
+    finally { setBusy(false); }
   }
 
-  return (
-    <main className={styles.page}>
-      <section className={styles.card}>
-        <div className={styles.eyebrow}>
-          ACCOUNT RECOVERY
-        </div>
-
-        <h1>
-          فراموشی رمز عبور
-        </h1>
-
-        <form
-          className={styles.form}
-          onSubmit={submit}
-        >
-          <label className={styles.field}>
-            <span>
-              Email
-            </span>
-
-            <input
-              type="email"
-              value={email}
-              onChange={
-                (event) =>
-                  setEmail(
-                    event.target.value,
-                  )
-              }
-              required
-            />
-          </label>
-
-          <button
-            className={styles.button}
-            type="submit"
-          >
-            Request Reset
-          </button>
-        </form>
-
-        {token && (
-          <>
-            <p>
-              Development Token:
-            </p>
-
-            <div className={styles.error}>
-              {token}
-            </div>
-          </>
-        )}
-
-        {message && (
-          <p>
-            {message}
-          </p>
-        )}
-      </section>
-    </main>
-  );
+  return <main className={styles.page} dir="rtl"><section className={styles.card}>
+    <span className={styles.eyebrow}>ACCOUNT RECOVERY</span>
+    <h1>فراموشی رمز عبور</h1>
+    <p>ایمیل حساب را وارد کن تا پیوند تغییر رمز برایت فرستاده شود. این پیوند ۳۰ دقیقه اعتبار دارد.</p>
+    <form className={styles.form} onSubmit={submit}>
+      <label className={styles.field}><span>ایمیل</span><input type="email" dir="ltr" autoComplete="email" value={email} onChange={event => setEmail(event.target.value)} required /></label>
+      {error && <p className={styles.error} role="alert">{error}</p>}
+      {message && <p role="status">{message}</p>}
+      <button className={styles.button} type="submit" disabled={busy}>{busy ? "در حال ارسال…" : "فرستادن پیوند بازیابی"}</button>
+    </form>
+    <div className={styles.switch}><Link href="/login">بازگشت به ورود</Link></div>
+  </section></main>;
 }

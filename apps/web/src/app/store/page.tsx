@@ -23,6 +23,7 @@ function toneClass(
 }
 
 export default async function MarketplacePage() {
+  const catalogOnly = process.env.FREE_LAUNCH_MODE === "true";
   const [
     marketplaceStores,
     marketplaceProducts,
@@ -49,11 +50,9 @@ export default async function MarketplacePage() {
             </h1>
 
             <p className={styles.heroText}>
-              فروشگاه‌های مستقل،
-              سازندگان و هنرمندان می‌توانند
-              محصولات خودشان را عرضه کنند،
-              سفارش بگیرند و ارسال را
-              مستقیماً مدیریت کنند
+              {catalogOnly
+                ? "کاتالوگ بازارچه را ببین. ثبت سفارش و پرداخت پس از اتصال درگاه فعال می‌شود."
+                : "فروشگاه‌های مستقل، سازندگان و هنرمندان می‌توانند محصولات خودشان را عرضه کنند، سفارش بگیرند و ارسال را مستقیماً مدیریت کنند."}
             </p>
 
             <div className={styles.heroActions}>
@@ -64,12 +63,12 @@ export default async function MarketplacePage() {
                 دیدن فروشگاه‌ها
               </a>
 
-              <Link
+              {!catalogOnly && <Link
                 className={styles.secondaryButton}
                 href="/seller/register"
               >
                 ساخت فروشگاه
-              </Link>
+              </Link>}
             </div>
           </div>
 
@@ -262,7 +261,7 @@ export default async function MarketplacePage() {
           </div>
         </section>
 
-        <section className={styles.sellerBanner}>
+        {!catalogOnly && <section className={styles.sellerBanner}>
           <div className={styles.sellerBannerText}>
             <div className={styles.eyebrow}>
               SELL ON DND NERDS
@@ -285,7 +284,7 @@ export default async function MarketplacePage() {
           >
             شروع ثبت فروشگاه
           </Link>
-        </section>
+        </section>}
       </div>
     </main>
   );

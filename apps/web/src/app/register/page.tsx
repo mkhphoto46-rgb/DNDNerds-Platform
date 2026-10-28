@@ -19,6 +19,7 @@ export default function RegisterPage() {
 
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [username, setUsername] = useState("");
 
   const [
     email,
@@ -45,6 +46,9 @@ export default function RegisterPage() {
     useState<string | null>(
       null,
     );
+  const [pendingApproval, setPendingApproval] = useState(false);
+  const [verificationRequired, setVerificationRequired] = useState(false);
+  const [verificationEmailSent, setVerificationEmailSent] = useState(false);
 
   async function submit(
     event:
@@ -75,6 +79,7 @@ export default function RegisterPage() {
             body:
               JSON.stringify({
                 email,
+                username,
                 password,
               }),
           },
@@ -90,6 +95,17 @@ export default function RegisterPage() {
         );
       }
 
+      if (data.verificationRequired) {
+        setVerificationRequired(true);
+        setVerificationEmailSent(data.verificationEmailSent === true);
+        return;
+      }
+
+      if (data.pendingApproval) {
+        setPendingApproval(true);
+        return;
+      }
+
       const sessionCheck = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
       if (!sessionCheck.ok) {
         throw new Error("حساب ساخته شد، اما ورود خودکار تأیید نشد. با همان حساب از صفحه ورود وارد شو.");
@@ -101,7 +117,8 @@ export default function RegisterPage() {
         channel.close();
       }
       const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested === "/checkout" ? "/checkout" : "/";
+      const destination = requested && /^\/(?!\/)[a-z0-9/_-]*$/i.test(requested)
+        ? requested : "/";
       router.replace(destination);
       router.refresh();
     }
@@ -129,10 +146,14 @@ export default function RegisterPage() {
         </h1>
 
         <p>
-          رمز عبور حداقل ۱۲ کاراکتر باشد. رمز به‌صورت Argon2id hash در دیتابیس ذخیره می‌شود.
+          ایمیل، نام کاربری یکتا و رمزی با دست‌کم ۸ نویسه وارد کن
         </p>
 
-        <form
+        {verificationRequired ? (
+          <div role="status"><p>{verificationEmailSent ? "حساب ساخته شد. پیوند تأیید ایمیل را باز کن تا حساب خودکار فعال شود." : "حساب ساخته شد، اما ارسال ایمیل انجام نشد. از صفحهٔ تأیید ایمیل، پیوند تازه‌ای درخواست کن."}</p><Link href="/verify-email">رفتن به تأیید ایمیل</Link></div>
+        ) : pendingApproval ? (
+          <p role="status">درخواست حساب ثبت شد. پس از تأیید مدیر می‌توانی وارد شوی.</p>
+        ) : <form
           className={styles.form}
           onSubmit={submit}
         >
@@ -155,6 +176,11 @@ export default function RegisterPage() {
             />
           </label>
 
+          <label className={styles.field}>
+            <span>نام کاربری برای گفتگو و بازی</span>
+            <input type="text" autoComplete="username" dir="ltr" minLength={3} maxLength={24} pattern="[A-Za-z][A-Za-z0-9_]*" value={username} onChange={event => setUsername(event.target.value)} placeholder="example_player" required />
+          </label>
+
           <div className={styles.field}>
             <label htmlFor="register-password">Password</label>
 
@@ -162,7 +188,7 @@ export default function RegisterPage() {
               id="register-password"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              minLength={12}
+              minLength={8}
               maxLength={128}
               value={password}
               onChange={
@@ -183,7 +209,7 @@ export default function RegisterPage() {
             <input
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              minLength={12}
+              minLength={8}
               maxLength={128}
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}
@@ -206,7 +232,7 @@ export default function RegisterPage() {
               ? "در حال ساخت حساب..."
               : "ساخت حساب"}
           </button>
-        </form>
+        </form>}
 
         <div className={styles.switch}>
           حساب داری؟

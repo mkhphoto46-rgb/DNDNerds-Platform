@@ -109,7 +109,8 @@ export function getProviderConfig():
 
   if (
     process.env.NODE_ENV ===
-      "production"
+      "production" &&
+    process.env.FREE_LAUNCH_MODE !== "true"
   ) {
     if (
       config.payment.startsWith(

@@ -18,6 +18,7 @@ import {
 
 export const userStatusEnum =
   pgEnum("user_status", [
+    "PENDING_APPROVAL",
     "ACTIVE",
     "SUSPENDED",
     "BANNED",
@@ -82,6 +83,9 @@ export const users =
         })
           .notNull()
           .unique(),
+
+      username:
+        varchar("username", { length: 32 }),
 
       passwordHash:
         text("password_hash"),
@@ -4060,83 +4064,155 @@ export const socialGroupMessages = pgTable("social_group_messages", {
   check("social_group_messages_body_length", sql`length(btrim(${t.body})) BETWEEN 1 AND 2000`),
 ]);
 
-// Game tables (roadmap phase 10): a DM's table, its members and invitations, the
-// VTT the DM plays on, and the signed launch tickets issued for it.
-export const playerProfiles = pgTable("player_profiles", {
+// The website owns discovery and lobby state. The WebVTT engine is attached later.
+export const dmProfiles = pgTable("dm_profiles", {
   userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
-  displayName: varchar("display_name", { length: 32 }).notNull(),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  bio: varchar("bio", { length: 1200 }).notNull().default(""),
+  playStyle: varchar("play_style", { length: 60 }).notNull().default("داستان‌محور"),
+  languages: varchar("languages", { length: 120 }).notNull().default("فارسی"),
+  experienceYears: integer("experience_years").notNull().default(0),
+  visible: boolean("visible").notNull().default(true),
+  avatarData: text("avatar_data"),
+  bannerData: text("banner_data"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  check("player_profiles_display_name_length", sql`length(btrim(${t.displayName})) BETWEEN 2 AND 32`),
+  index("dm_profiles_visible_idx").on(t.visible),
+  check("dm_profiles_experience_range", sql`${t.experienceYears} BETWEEN 0 AND 60`),
 ]);
 
-export const vttInstances = pgTable("vtt_instances", {
+export const playerCharacters = pgTable("player_characters", {
   id: uuid("id").primaryKey().defaultRandom(),
-  ownerUserId: uuid("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 80 }).notNull(),
-  baseUrl: varchar("base_url", { length: 300 }).notNull(),
+  className: varchar("class_name", { length: 60 }).notNull().default(""),
+  subclass: varchar("subclass", { length: 80 }).notNull().default(""),
+  race: varchar("race", { length: 80 }).notNull().default(""),
+  background: varchar("background", { length: 120 }).notNull().default(""),
+  level: integer("level").notNull().default(1),
+  currentHp: integer("current_hp").notNull().default(1),
+  maxHp: integer("max_hp").notNull().default(1),
+  description: text("description").notNull().default(""),
+  story: text("story").notNull().default(""),
+  portraitData: text("portrait_data"),
+  public: boolean("public").notNull().default(true),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  index("vtt_instances_owner_idx").on(t.ownerUserId),
+  index("player_characters_user_idx").on(t.userId, t.createdAt),
+  check("player_characters_level_range", sql`${t.level} BETWEEN 1 AND 20`),
+  check("player_characters_hp_range", sql`${t.maxHp} BETWEEN 1 AND 999 AND ${t.currentHp} BETWEEN 0 AND ${t.maxHp}`),
+  check("player_characters_story_length", sql`length(${t.story}) <= 3000`),
+  check("player_characters_description_length", sql`length(${t.description}) <= 1200`),
 ]);
 
 export const gameTables = pgTable("game_tables", {
   id: uuid("id").primaryKey().defaultRandom(),
-  name: varchar("name", { length: 80 }).notNull(),
-  edition: varchar("edition", { length: 8 }).notNull().default("2024"),
-  dmUserId: uuid("dm_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  vttInstanceId: uuid("vtt_instance_id").references(() => vttInstances.id, { onDelete: "set null" }),
-  vttCampaignId: varchar("vtt_campaign_id", { length: 120 }),
-  joinCode: varchar("join_code", { length: 16 }).notNull(),
-  maxPlayers: integer("max_players").notNull().default(6),
-  allowObserver: boolean("allow_observer").notNull().default(true),
-  firstLaunchedAt: timestamp("first_launched_at", { withTimezone: true }),
+  hostUserId: uuid("host_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  visibility: varchar("visibility", { length: 8 }).notNull().default("PUBLIC"),
+  inviteCodeHash: varchar("invite_code_hash", { length: 64 }),
+  title: varchar("title", { length: 120 }).notNull(),
+  description: varchar("description", { length: 2000 }).notNull().default(""),
+  system: varchar("system", { length: 80 }).notNull().default("D&D 5e"),
+  language: varchar("language", { length: 60 }).notNull().default("فارسی"),
+  playStyle: varchar("play_style", { length: 60 }).notNull().default("داستان‌محور"),
+  levelRange: varchar("level_range", { length: 60 }).notNull().default("۱ تا ۵"),
+  schedule: varchar("schedule", { length: 160 }).notNull().default("با هماهنگی گروه"),
+  capacity: integer("capacity").notNull().default(4),
+  status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  uniqueIndex("game_tables_join_code_unique").on(t.joinCode),
-  index("game_tables_dm_idx").on(t.dmUserId),
-  check("game_tables_edition_valid", sql`${t.edition} IN ('2014','2024','mixed')`),
-  check("game_tables_max_players", sql`${t.maxPlayers} BETWEEN 1 AND 9`),
-  check("game_tables_name_length", sql`length(btrim(${t.name})) BETWEEN 2 AND 80`),
+  index("game_tables_status_created_idx").on(t.status, t.createdAt),
+  index("game_tables_host_idx").on(t.hostUserId, t.createdAt),
+  check("game_tables_capacity_range", sql`${t.capacity} BETWEEN 2 AND 8`),
+  check("game_tables_status_valid", sql`${t.status} IN ('DRAFT','PUBLISHED','CLOSED','HIDDEN')`),
+  check("game_tables_visibility_valid", sql`${t.visibility} IN ('PUBLIC','PRIVATE')`),
 ]);
 
-export const gameTableMembers = pgTable("game_table_members", {
-  tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: varchar("role", { length: 12 }).notNull(),
-  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => [
-  uniqueIndex("game_table_members_pair_unique").on(t.tableId, t.userId),
-  index("game_table_members_user_idx").on(t.userId),
-  check("game_table_members_role_valid", sql`${t.role} IN ('dm','player','observer')`),
-]);
-
-export const gameTableInvites = pgTable("game_table_invites", {
+export const gameApplications = pgTable("game_applications", {
   id: uuid("id").primaryKey().defaultRandom(),
   tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
-  senderUserId: uuid("sender_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  invitedUserId: uuid("invited_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  role: varchar("role", { length: 12 }).notNull().default("player"),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  note: varchar("note", { length: 500 }).notNull().default(""),
   status: varchar("status", { length: 16 }).notNull().default("PENDING"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  respondedAt: timestamp("responded_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  uniqueIndex("game_table_invites_table_target_unique").on(t.tableId, t.invitedUserId),
-  index("game_table_invites_invited_status_idx").on(t.invitedUserId, t.status),
-  check("game_table_invites_no_self", sql`${t.senderUserId} <> ${t.invitedUserId}`),
-  check("game_table_invites_role_valid", sql`${t.role} IN ('player','observer')`),
-  check("game_table_invites_status_valid", sql`${t.status} IN ('PENDING','ACCEPTED','DECLINED')`),
+  uniqueIndex("game_applications_table_user_uq").on(t.tableId, t.userId),
+  index("game_applications_user_idx").on(t.userId, t.createdAt),
+  index("game_applications_table_status_idx").on(t.tableId, t.status),
+  check("game_applications_status_valid", sql`${t.status} IN ('PENDING','ACCEPTED','DECLINED','WITHDRAWN')`),
 ]);
 
-export const vttLaunchTickets = pgTable("vtt_launch_tickets", {
-  jti: uuid("jti").primaryKey(),
+export const gameTableReviews = pgTable("game_table_reviews", {
+  id: uuid("id").primaryKey().defaultRandom(),
   tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
-  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  vttInstanceId: uuid("vtt_instance_id").notNull().references(() => vttInstances.id, { onDelete: "cascade" }),
-  role: varchar("role", { length: 12 }).notNull(),
-  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
-  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  rating: integer("rating").notNull(),
+  comment: varchar("comment", { length: 1200 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
-  index("vtt_launch_tickets_table_idx").on(t.tableId, t.issuedAt),
-  check("vtt_launch_tickets_role_valid", sql`${t.role} IN ('dm','player','observer')`),
+  uniqueIndex("game_table_reviews_table_reviewer_uq").on(t.tableId, t.reviewerUserId),
+  index("game_table_reviews_table_date_idx").on(t.tableId, t.createdAt),
+  check("game_table_reviews_rating_range", sql`${t.rating} BETWEEN 1 AND 5`),
+  check("game_table_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 10 AND 1200`),
+]);
+
+export const arenaListings = pgTable("arena_listings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ownerUserId: uuid("owner_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  opponentUserId: uuid("opponent_user_id").references(() => users.id, { onDelete: "set null" }),
+  mode: varchar("mode", { length: 4 }).notNull(),
+  title: varchar("title", { length: 100 }).notNull(),
+  note: varchar("note", { length: 500 }).notNull().default(""),
+  status: varchar("status", { length: 16 }).notNull().default("OPEN"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("arena_listings_status_idx").on(t.status, t.createdAt),
+  index("arena_listings_owner_idx").on(t.ownerUserId),
+  check("arena_listings_mode_valid", sql`${t.mode} IN ('1V1','2V2','3V3')`),
+  check("arena_listings_status_valid", sql`${t.status} IN ('OPEN','MATCHED','CANCELLED','HIDDEN')`),
+]);
+
+export const sitePosts = pgTable("site_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  authorUserId: uuid("author_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  title: varchar("title", { length: 160 }).notNull(),
+  summary: varchar("summary", { length: 500 }).notNull(),
+  body: text("body").notNull(),
+  status: varchar("status", { length: 16 }).notNull().default("DRAFT"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("site_posts_status_created_idx").on(t.status, t.createdAt),
+  check("site_posts_status_valid", sql`${t.status} IN ('DRAFT','PUBLISHED')`),
+]);
+
+export const gameSubscriptionGrants = pgTable("game_subscription_grants", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  email: varchar("email", { length: 320 }).notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull().defaultNow(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdByUserId: uuid("created_by_user_id").notNull().references(() => users.id, { onDelete: "restrict" }),
+  reason: varchar("reason", { length: 500 }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("game_subscription_grants_user_idx").on(t.userId, t.endsAt),
+  index("game_subscription_grants_email_idx").on(t.email, t.endsAt),
+  check("game_subscription_grants_period_valid", sql`${t.endsAt} > ${t.startsAt}`),
+]);
+
+export const gameSubscriptionSettings = pgTable("game_subscription_settings", {
+  id: integer("id").primaryKey(),
+  priceRial: integer("price_rial").notNull().default(5990000),
+  updatedByUserId: uuid("updated_by_user_id").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  check("game_subscription_settings_singleton", sql`${t.id} = 1`),
+  check("game_subscription_settings_price_valid", sql`${t.priceRial} > 0`),
 ]);

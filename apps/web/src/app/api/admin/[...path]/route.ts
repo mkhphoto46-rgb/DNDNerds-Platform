@@ -52,7 +52,7 @@ async function forward(
 
   const upstream =
     await apiFetch(
-      "/api/v1/admin/" + suffix,
+      "/api/v1/admin/" + suffix + new URL(request.url).search,
       init,
     );
 

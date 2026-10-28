@@ -128,7 +128,7 @@ export default function LoginPage() {
       }
 
       const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested === "/seller/dashboard" || requested === "/seller/payouts"
+      const destination = requested && /^\/(?!\/)[a-z0-9/_-]*$/i.test(requested)
         ? requested : "/";
       window.dispatchEvent(new Event("dnd-auth-change"));
       if (typeof BroadcastChannel !== "undefined") {
@@ -192,7 +192,7 @@ export default function LoginPage() {
               id="login-password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
-              minLength={12}
+              minLength={8}
               value={password}
               onChange={
                 (event) =>
@@ -251,6 +251,8 @@ export default function LoginPage() {
                 : "ورود"}
           </button>
         </form>
+
+        <div className={styles.switch}><Link href="/forgot-password">رمز عبورت را فراموش کرده‌ای؟</Link></div>
 
         <div className={styles.switch}>
           حساب نداری؟

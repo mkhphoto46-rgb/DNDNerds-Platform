@@ -6,11 +6,13 @@ import {
   Algorithm,
   Version,
   hash,
+  verify,
 } from "@node-rs/argon2";
 
 import {
   and,
   eq,
+  gt,
   isNull,
 } from "drizzle-orm";
 
@@ -40,6 +42,7 @@ import {
   createEmailActionToken,
   findUsableActionToken,
 } from "../email/tokens.js";
+import { accountEmailReady, statusAfterVerification } from "../email/account-email-policy.js";
 
 const emailSchema =
   z.object({
@@ -67,9 +70,21 @@ const resetConfirmSchema =
 
     newPassword:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
   });
+
+const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  newPassword: z.string().min(8).max(128),
+});
+
+function emailUnavailable(reply: import("fastify").FastifyReply) {
+  return reply.code(503).send({ error: {
+    code: "EMAIL_SERVICE_UNAVAILABLE",
+    message: "Email sending is not configured yet.",
+  } });
+}
 
 const PASSWORD_POLICY = {
   algorithm:
@@ -91,46 +106,55 @@ const PASSWORD_POLICY = {
     32,
 } as const;
 
-function developmentToken(
-  token: string,
-) {
-  if (
-    process.env.NODE_ENV ===
-    "production"
-  ) {
-    return {};
-  }
-
-  return {
-    devToken:
-      token,
-  };
-}
-
 export async function registerAccountRoutes(
   app: FastifyInstance,
 ) {
+  app.post("/api/v1/account/password/change", async (request, reply) => {
+    const user = await requireAuthUser(request);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHORIZED", message: "Authentication required." } });
+    const parsed = changePasswordSchema.safeParse(request.body);
+    if (!parsed.success || parsed.data.currentPassword === parsed.data.newPassword) {
+      return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Choose a different password with at least 8 characters." } });
+    }
+    const [current] = await db.select({ passwordHash: users.passwordHash })
+      .from(users).where(eq(users.id, user.id)).limit(1);
+    if (!current?.passwordHash || !await verify(current.passwordHash, parsed.data.currentPassword)) {
+      return reply.code(401).send({ error: { code: "INVALID_CREDENTIALS", message: "Current password is incorrect." } });
+    }
+    const passwordHash = await hash(parsed.data.newPassword, PASSWORD_POLICY);
+    const now = new Date();
+    await db.transaction(async (tx) => {
+      await tx.update(users).set({ passwordHash, updatedAt: now }).where(eq(users.id, user.id));
+      await tx.update(userSessions).set({ revokedAt: now })
+        .where(and(eq(userSessions.userId, user.id), isNull(userSessions.revokedAt)));
+    });
+    return { ok: true, sessionsRevoked: true };
+  });
+
   app.post(
     "/api/v1/account/email-verification/request",
+    { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
     async (
       request,
       reply,
     ) => {
+      if (!accountEmailReady()) return emailUnavailable(reply);
+      const parsedEmail = emailSchema.safeParse(request.body);
       const user =
         await requireAuthUser(
           request,
         );
 
-      if (!user) {
+      if (!user && !parsedEmail.success) {
         return reply
-          .code(401)
+          .code(400)
           .send({
             error: {
               code:
-                "UNAUTHORIZED",
+                "VALIDATION_ERROR",
 
               message:
-                "Authentication required.",
+                "A valid email address is required.",
             },
           });
       }
@@ -140,6 +164,7 @@ export async function registerAccountRoutes(
       ] =
         await db
           .select({
+            id: users.id,
             email:
               users.email,
 
@@ -150,42 +175,25 @@ export async function registerAccountRoutes(
             users,
           )
           .where(
-            eq(
-              users.id,
-              user.id,
-            ),
+            user ? eq(users.id, user.id) : eq(users.email, parsedEmail.success ? parsedEmail.data.email.trim().toLowerCase() : ""),
           )
           .limit(1);
 
-      if (!current) {
-        return reply
-          .code(404)
-          .send({
-            error: {
-              code:
-                "USER_NOT_FOUND",
+      if (!current || current.emailVerified) return { ok: true };
 
-              message:
-                "Account was not found.",
-            },
-          });
-      }
-
-      if (
-        current.emailVerified
-      ) {
-        return {
-          ok:
-            true,
-
-          alreadyVerified:
-            true,
-        };
-      }
+      const [recent] = await db.select({ id: emailActionTokens.id })
+        .from(emailActionTokens)
+        .where(and(
+          eq(emailActionTokens.userId, current.id),
+          eq(emailActionTokens.type, "VERIFY_EMAIL"),
+          isNull(emailActionTokens.usedAt),
+          gt(emailActionTokens.createdAt, new Date(Date.now() - 60_000)),
+        )).limit(1);
+      if (recent) return { ok: true };
 
       const action =
         await createEmailActionToken(
-          user.id,
+          current.id,
           "VERIFY_EMAIL",
           60,
         );
@@ -204,13 +212,6 @@ export async function registerAccountRoutes(
       return {
         ok:
           true,
-
-        expiresAt:
-          action.expiresAt,
-
-        ...developmentToken(
-          action.token,
-        ),
       };
     },
   );
@@ -260,10 +261,24 @@ export async function registerAccountRoutes(
           });
       }
 
-      await db.transaction(
+      const confirmed = await db.transaction(
         async (
           tx,
         ) => {
+          const now = new Date();
+          const [consumed] = await tx.update(emailActionTokens)
+            .set({ usedAt: now })
+            .where(and(
+              eq(emailActionTokens.id, tokenRow.id),
+              isNull(emailActionTokens.usedAt),
+              gt(emailActionTokens.expiresAt, now),
+            ))
+            .returning({ userId: emailActionTokens.userId });
+          if (!consumed) return false;
+
+          const [current] = await tx.select({ status: users.status })
+            .from(users).where(eq(users.id, consumed.userId)).limit(1);
+          if (!current) return false;
           await tx
             .update(
               users,
@@ -271,33 +286,23 @@ export async function registerAccountRoutes(
             .set({
               emailVerified:
                 true,
-
-              updatedAt:
-                new Date(),
+              status: statusAfterVerification(current.status) as typeof current.status,
+              updatedAt: now,
             })
             .where(
               eq(
                 users.id,
-                tokenRow.userId,
+                consumed.userId,
               ),
             );
-
-          await tx
-            .update(
-              emailActionTokens,
-            )
-            .set({
-              usedAt:
-                new Date(),
-            })
-            .where(
-              eq(
-                emailActionTokens.id,
-                tokenRow.id,
-              ),
-            );
+          return true;
         },
       );
+
+      if (!confirmed) return reply.code(400).send({ error: {
+        code: "INVALID_OR_EXPIRED_TOKEN",
+        message: "Verification token is invalid or expired.",
+      } });
 
       return {
         ok:
@@ -311,10 +316,12 @@ export async function registerAccountRoutes(
 
   app.post(
     "/api/v1/account/password-reset/request",
+    { config: { rateLimit: { max: 5, timeWindow: "15 minutes" } } },
     async (
       request,
       reply,
     ) => {
+      if (!accountEmailReady()) return emailUnavailable(reply);
       const parsed =
         emailSchema.safeParse(
           request.body,
@@ -359,16 +366,22 @@ export async function registerAccountRoutes(
           )
           .limit(1);
 
-      if (
-        !user ||
-        user.status !==
-          "ACTIVE"
-      ) {
+      if (!user || user.status === "BANNED" || user.status === "SUSPENDED") {
         return {
           ok:
             true,
         };
       }
+
+      const [recent] = await db.select({ id: emailActionTokens.id })
+        .from(emailActionTokens)
+        .where(and(
+          eq(emailActionTokens.userId, user.id),
+          eq(emailActionTokens.type, "PASSWORD_RESET"),
+          isNull(emailActionTokens.usedAt),
+          gt(emailActionTokens.createdAt, new Date(Date.now() - 60_000)),
+        )).limit(1);
+      if (recent) return { ok: true };
 
       const action =
         await createEmailActionToken(
@@ -457,10 +470,19 @@ export async function registerAccountRoutes(
       const now =
         new Date();
 
-      await db.transaction(
+      const changed = await db.transaction(
         async (
           tx,
         ) => {
+          const [consumed] = await tx.update(emailActionTokens)
+            .set({ usedAt: now })
+            .where(and(
+              eq(emailActionTokens.id, tokenRow.id),
+              isNull(emailActionTokens.usedAt),
+              gt(emailActionTokens.expiresAt, now),
+            ))
+            .returning({ userId: emailActionTokens.userId });
+          if (!consumed) return false;
           await tx
             .update(
               users,
@@ -474,22 +496,7 @@ export async function registerAccountRoutes(
             .where(
               eq(
                 users.id,
-                tokenRow.userId,
-              ),
-            );
-
-          await tx
-            .update(
-              emailActionTokens,
-            )
-            .set({
-              usedAt:
-                now,
-            })
-            .where(
-              eq(
-                emailActionTokens.id,
-                tokenRow.id,
+                consumed.userId,
               ),
             );
 
@@ -505,7 +512,7 @@ export async function registerAccountRoutes(
               and(
                 eq(
                   userSessions.userId,
-                  tokenRow.userId,
+                  consumed.userId,
                 ),
 
                 isNull(
@@ -513,8 +520,14 @@ export async function registerAccountRoutes(
                 ),
               ),
             );
+          return true;
         },
       );
+
+      if (!changed) return reply.code(400).send({ error: {
+        code: "INVALID_OR_EXPIRED_TOKEN",
+        message: "Reset token is invalid or expired.",
+      } });
 
       return {
         ok:

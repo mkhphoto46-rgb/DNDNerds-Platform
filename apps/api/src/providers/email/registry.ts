@@ -13,6 +13,8 @@ import {
 import {
   smtpEmailProvider,
 } from "./smtp.js";
+import { brevoEmailProvider } from "./brevo.js";
+import { resendEmailProvider } from "./resend.js";
 
 const providers =
   new Map<
@@ -29,6 +31,8 @@ const providers =
       smtpEmailProvider.key,
       smtpEmailProvider,
     ],
+    [brevoEmailProvider.key, brevoEmailProvider],
+    [resendEmailProvider.key, resendEmailProvider],
   ]);
 
 export function getEmailProvider(

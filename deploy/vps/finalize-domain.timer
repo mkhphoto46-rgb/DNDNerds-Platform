@@ -1,0 +1,10 @@
+[Unit]
+Description=Check for dndnerds.ir DNS activation
+
+[Timer]
+OnBootSec=1min
+OnUnitInactiveSec=5min
+Unit=finalize-domain.service
+
+[Install]
+WantedBy=timers.target

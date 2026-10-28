@@ -1136,6 +1136,25 @@ export async function processProviderWebhook(
           ),
         );
 
+      if (order.userId) {
+        await tx.execute(sql`
+          INSERT INTO user_xp (user_id, total_xp)
+          VALUES (${order.userId}, 1000)
+          ON CONFLICT (user_id) DO NOTHING
+        `);
+        await tx.execute(sql`
+          WITH awarded AS (
+            INSERT INTO user_xp_awards (user_id, source, source_id, amount)
+            VALUES (${order.userId}, 'purchase', ${order.id}, 125)
+            ON CONFLICT (source, source_id) DO NOTHING
+            RETURNING user_id, amount
+          )
+          UPDATE user_xp SET total_xp = user_xp.total_xp + awarded.amount,
+            updated_at = now()
+          FROM awarded WHERE user_xp.user_id = awarded.user_id
+        `);
+      }
+
       await tx
         .update(
           paymentIntents,

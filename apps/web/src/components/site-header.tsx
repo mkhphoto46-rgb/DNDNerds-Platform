@@ -1,12 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AccountStatus } from "@/components/account-status";
+import { AutoCloseMenu } from "@/components/auto-close-menu";
 
 const navigation = [
-  { label: "بازی", href: "/play" },
+  { label: "میزهای من", href: "/play" },
   { label: "پیدا کردن بازی", href: "/find-game" },
-  { label: "DMها", href: "/find-dm" },
-  { label: "Arena", href: "/arena" },
+  { label: "ساخت بازی", href: "/create-game" },
   { label: "Marketplace", href: "/store" },
   { label: "اشتراک", href: "/pricing" },
 ];
@@ -117,7 +117,7 @@ export function SiteHeader() {
 
         </div>
 
-        <details className="mobile-menu">
+        <AutoCloseMenu className="mobile-menu">
 
           <summary aria-label="باز کردن منو">
             <span />
@@ -151,7 +151,7 @@ export function SiteHeader() {
 
           </div>
 
-        </details>
+        </AutoCloseMenu>
 
       </div>
 

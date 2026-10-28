@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import "@fontsource-variable/vazirmatn/index.css";
 
 import "./globals.css";
 import "./scene-v2.css";
@@ -9,6 +10,7 @@ import { GlobalMagicParticles } from "@/components/global-magic-particles";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { GlobalChatDock } from "@/components/global-chat-dock";
+import { XpExperience } from "@/components/xp-experience";
 
 export const metadata: Metadata = {
   title: {
@@ -34,14 +36,14 @@ export default function RootLayout({
 
         <GlobalMagicParticles />
 
-        <div className="app-shell">
+        <XpExperience><div className="app-shell">
           <SiteHeader />
 
           {children}
 
           <SiteFooter />
           <GlobalChatDock />
-        </div>
+        </div></XpExperience>
 
       </body>
     </html>

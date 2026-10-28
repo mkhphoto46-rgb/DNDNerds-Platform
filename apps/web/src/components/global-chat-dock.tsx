@@ -11,7 +11,7 @@ type FriendRequest={id:string;friendCode:string|null};
 type Requests={incoming:FriendRequest[];outgoing:FriendRequest[]};
 type Group={id:string;title:string;ownerUserId:string};
 type GroupInvite={id:string;groupId:string;title:string};
-type Message={id:string;senderUserId:string;body:string;createdAt:string};
+type Message={id:string;senderUserId:string;senderUsername?:string|null;body:string;createdAt:string};
 type Chat={kind:"direct"|"group";id:string;title:string};
 type PanelTab="friends"|"chats"|"groups";
 
@@ -39,7 +39,7 @@ export function GlobalChatDock(){
   const pathname=usePathname();
   const [open,setOpen]=useState(false);
   const [tab,setTab]=useState<PanelTab>("friends");
-  const [session,setSession]=useState<"loading"|"guest"|"ready"|"error">("loading");
+  const [session,setSession]=useState<"loading"|"guest"|"ready"|"needsUsername"|"error">("loading");
   const [me,setMe]=useState("");
   const [code,setCode]=useState("");
   const [friendCode,setFriendCode]=useState("");
@@ -65,11 +65,11 @@ export function GlobalChatDock(){
       if(seq!==accountSeq.current)return;
       if(res.status===401){setSession("guest");setMe("");setChat(null);setMessages([]);setFriends([]);setGroups([]);setCode("");return;}
       if(!res.ok)throw new Error("Session check failed");
-      const json:{user?:{id:string}}=await res.json();
+      const json:{user?:{id:string;username?:string|null}}=await res.json();
       if(seq!==accountSeq.current)return;
       if(!json.user?.id)throw new Error("Invalid session response");
       if(me!==json.user.id){setFriends([]);setMessages([]);setChat(null);setRequests(emptyRequests);setGroups([]);setCode("");}
-      setMe(json.user.id);setSession("ready");
+      setMe(json.user.id);setSession(json.user.username?"ready":"needsUsername");
     }catch{if(seq===accountSeq.current)setSession("error");}
   },[me]);
   useEffect(()=>{void refreshAccount();},[pathname,refreshAccount]);
@@ -139,7 +139,6 @@ export function GlobalChatDock(){
   const startChat=(kind:Chat["kind"],id:string,title:string)=>{
     setChat({kind,id,title});setTab("chats");
   };
-  const activate=()=>void action(async()=>{await api<Profile>("me/activate","POST",{});});
   return (
     <div className={`${styles.dock} ${pathname==="/"?styles.homeDock:""}`} dir="rtl" data-social-dock data-home-open={pathname==="/"&&open?"true":"false"}>
       <section id="dnd-social-panel" className={`${styles.panel} ${session==="guest"?styles.guestPanel:""} ${open?styles.shown:""}`} aria-hidden={!open} aria-label="Friends and Chat" inert={!open}>
@@ -149,18 +148,19 @@ export function GlobalChatDock(){
         </div>
         {session==="loading"&&<p className={styles.notice}>در حال بررسی حساب…</p>}
         {session==="error"&&<button className={styles.secondary} onClick={()=>void refreshAccount()}>بررسی دوباره ورود</button>}
+        {session==="needsUsername"&&<div className={styles.guest}><p>برای گفتگو ابتدا نام کاربری انتخاب کن</p><Link href="/account" onClick={()=>setOpen(false)}>انتخاب نام کاربری</Link></div>}
         {session==="guest"&&<div className={styles.guest}><p>گفتگو برای اعضا رایگان است.</p><Link href="/login">ورود</Link><Link href="/register">ثبت‌نام رایگان</Link></div>}
         {session==="ready"&&<>
           {chat?<>
             <div className={styles.chatHeading}><button type="button" onClick={()=>setChat(null)}>→</button><strong>{chat.title}</strong><span>{chat.kind==="group"?"گروهی":"خصوصی"}</span></div>
             <div className={styles.messages} aria-live="polite">{messages.length===0&&<p className={styles.empty}>هنوز پیامی در این گفتگو نیست.</p>}
               {messages.map(msg=><div key={msg.id} className={`${styles.bubble} ${msg.senderUserId===me?styles.mine:""}`}>
-                {chat.kind==="group"&&<small>{msg.senderUserId===me?"شما":msg.senderUserId.slice(0,8)}</small>}
+                {chat.kind==="group"&&<small>{msg.senderUserId===me?"شما":msg.senderUsername??"کاربر"}</small>}
                 <p dir="auto">{renderMessage(msg.body)}</p><time>{new Date(msg.createdAt).toLocaleTimeString("fa-IR",{hour:"2-digit",minute:"2-digit"})}</time>
               </div>)}<div ref={bottom}/>
             </div>
             <form className={styles.compose} onSubmit={e=>void send(e)}><input type="text" value={draft} maxLength={2000} onChange={e=>setDraft(e.target.value)} placeholder="پیام یا لینک بنویس…" aria-label="متن پیام"/><button type="submit" disabled={busy||!draft.trim()}>ارسال</button></form>
-            {chat.kind==="group"&&<div className={styles.groupTools}><input value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="Friend ID برای دعوت به گروه" aria-label="Friend ID دعوت"/><button disabled={busy||!inviteCode.trim()} onClick={()=>void action(async()=>{await api(`groups/${encodeURIComponent(chat.id)}/invites`,"POST",{friendCode:inviteCode});setInviteCode("");})}>دعوت</button><button disabled={busy} onClick={()=>void action(async()=>{
+            {chat.kind==="group"&&<div className={styles.groupTools}><input value={inviteCode} onChange={e=>setInviteCode(e.target.value)} placeholder="نام کاربری برای دعوت به گروه" aria-label="نام کاربری دعوت"/><button disabled={busy||!inviteCode.trim()} onClick={()=>void action(async()=>{await api(`groups/${encodeURIComponent(chat.id)}/invites`,"POST",{friendCode:inviteCode});setInviteCode("");})}>دعوت</button><button disabled={busy} onClick={()=>void action(async()=>{
               const group=groups.find(g=>g.id===chat.id);const mine=group?.ownerUserId===me;
               if(!window.confirm(mine?"گروه و تمام پیام‌هایش حذف شوند؟":"از گروه خارج شوی؟"))return;
               await api(`groups/${encodeURIComponent(chat.id)}/${mine?"delete":"leave"}`,"POST",{});setChat(null);
@@ -171,8 +171,8 @@ export function GlobalChatDock(){
             </div>
             <div className={styles.scroll}>
               {tab==="friends"&&<>
-                <div className={styles.code}><small>Friend ID من</small>{code?<div><code dir="ltr">{code}</code><button type="button" onClick={()=>void navigator.clipboard.writeText(code)}>کپی</button></div>:<button disabled={busy} onClick={activate}>ساخت Friend ID</button>}</div>
-                <form className={styles.add} onSubmit={e=>{e.preventDefault();void action(async()=>{await api("requests","POST",{friendCode});setFriendCode("");});}}><input value={friendCode} onChange={e=>setFriendCode(e.target.value)} placeholder="Friend ID دوست"/><button disabled={busy||!friendCode.trim()}>دعوت</button></form>
+                <div className={styles.code}><small>نام کاربری من</small>{code?<div><code dir="ltr">{code}</code><button type="button" onClick={()=>void navigator.clipboard.writeText(code)}>کپی</button></div>:<Link href="/account">انتخاب نام کاربری</Link>}</div>
+                <form className={styles.add} onSubmit={e=>{e.preventDefault();void action(async()=>{await api("requests","POST",{friendCode});setFriendCode("");});}}><input value={friendCode} onChange={e=>setFriendCode(e.target.value)} placeholder="نام کاربری دوست"/><button disabled={busy||!friendCode.trim()}>دعوت</button></form>
                 {requests.incoming.length>0&&<><h3>درخواست‌های دریافتی</h3>{requests.incoming.map(r=><div className={styles.entry} key={r.id}><span dir="ltr">{r.friendCode??"درخواست دوستی"}</span><button disabled={busy} onClick={()=>void action(()=>api(`requests/${r.id}/accept`,"POST",{}))}>قبول</button><button disabled={busy} onClick={()=>void action(()=>api(`requests/${r.id}/decline`,"POST",{}))}>رد</button></div>)}</>}
                 {requests.outgoing.length>0&&<><h3>در انتظار پذیرش</h3>{requests.outgoing.map(r=><p className={styles.pending} key={r.id} dir="ltr">{r.friendCode??"Pending"}</p>)}</>}
                 <h3>دوستان من</h3>{friends.length===0&&<p className={styles.empty}>هنوز دوستی اضافه نکردی.</p>}

@@ -98,7 +98,9 @@ secrets.json
 
 # DNDNERDS_GITHUB_UPLOAD_V6_SAFE - UNVERIFIED SECRET-LOOKING TEST EXCLUDED
 /apps/api/src/jobs/j2m-production-guard-self-test.ts
-
-# Local development data and examples (dev/local-stack.mjs)
 **/.data/
 !**/.env.example
+/.deploy/
+/.serena/
+/MARKETPLACE_WEB_CURRENT_SOURCE.txt
+/START_DND_NERDS_DEV.ps1

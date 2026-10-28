@@ -6,6 +6,7 @@ import type {
   EmailProvider,
   SendAccountEmailInput,
 } from "../contracts/email-provider.js";
+import { accountActionUrl } from "../../email/account-email-policy.js";
 
 function requiredEnv(
   name: string,
@@ -41,22 +42,17 @@ function text(
       .PUBLIC_APP_URL ??
     "http://localhost:3100";
 
-  const path =
-    input.kind ===
-      "VERIFY_EMAIL"
-      ? "/verify-email"
-      : "/reset-password";
+  const actionUrl = accountActionUrl(input.kind, input.token, baseUrl);
 
   return [
     "DND Nerds",
     "",
-    input.kind ===
-      "VERIFY_EMAIL"
-      ? "Email verification token:"
-      : "Password reset token:",
-    input.token,
+    input.kind === "VERIFY_EMAIL"
+      ? "To verify your email and activate your account, open this link:"
+      : "To choose a new password, open this link:",
+    actionUrl,
     "",
-    `Open: ${baseUrl}${path}`,
+    input.kind === "VERIFY_EMAIL" ? "This link expires in 60 minutes." : "This link expires in 30 minutes.",
     "",
     "If you did not request this action, ignore this message.",
   ].join(

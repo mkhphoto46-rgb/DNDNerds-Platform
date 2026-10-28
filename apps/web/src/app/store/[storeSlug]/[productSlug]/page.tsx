@@ -57,6 +57,7 @@ export default async function ProductPage({
     marketplaceTone(
       `${product.store.slug}:${product.slug}`,
     );
+  const catalogOnly = process.env.FREE_LAUNCH_MODE === "true";
 
   return (
     <main className={styles.page}>
@@ -72,12 +73,12 @@ export default async function ProductPage({
             ← {product.store.name}
           </Link>
 
-          <Link
+          {!catalogOnly && <Link
             className={styles.backLink}
             href="/cart"
           >
             سبد خرید
-          </Link>
+          </Link>}
 
         </div>
 
@@ -127,7 +128,7 @@ export default async function ProductPage({
               انجام می‌شود
             </div>
 
-            <AddToCartButton
+            {catalogOnly ? <p className={styles.fulfillmentNotice}>این محصول فعلاً برای نمایش است. ثبت سفارش و پرداخت بعداً فعال می‌شود.</p> : <AddToCartButton
               productId={product.id}
               productSlug={product.slug}
               productName={product.name}
@@ -135,7 +136,7 @@ export default async function ProductPage({
               storeName={product.store.name}
               unitPriceToman={product.priceToman}
               inventory={product.inventory}
-            />
+            />}
 
           </div>
 
