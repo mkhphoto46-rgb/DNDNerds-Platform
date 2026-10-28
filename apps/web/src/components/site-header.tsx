@@ -1,6 +1,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import { AccountStatus } from "@/components/account-status";
+import { AutoCloseMenu } from "@/components/auto-close-menu";
 
 const navigation = [
   { label: "میزهای من", href: "/play" },
@@ -116,7 +117,7 @@ export function SiteHeader() {
 
         </div>
 
-        <details className="mobile-menu">
+        <AutoCloseMenu className="mobile-menu">
 
           <summary aria-label="باز کردن منو">
             <span />
@@ -150,7 +151,7 @@ export function SiteHeader() {
 
           </div>
 
-        </details>
+        </AutoCloseMenu>
 
       </div>
 

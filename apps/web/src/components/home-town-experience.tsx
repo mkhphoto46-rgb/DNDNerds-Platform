@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createTownWorld } from "./town-world";
 import { XpBar } from "./xp-experience";
 import { SiteTour } from "./site-tour";
+import { AutoCloseMenu } from "./auto-close-menu";
 
 const places = [
   { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "قدم بزن و شهر را کشف کن", action: "شروع ماجراجویی", href: "/register" },
@@ -151,7 +152,7 @@ export function HomeTownExperience() {
         <SiteTour onStageChange={go} onOpenChat={openChat} />
         <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ صدای شهر روشن" : "♫ صدای شهر خاموش"}</button>
         <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
-        <details className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/tavern">Tavern</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></details>
+        <AutoCloseMenu className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/tavern">Tavern</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></AutoCloseMenu>
       </div>
     </header>
 

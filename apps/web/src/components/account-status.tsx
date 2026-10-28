@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./account-status.module.css";
+import { AutoCloseMenu } from "./auto-close-menu";
 
 type AccountUser = { id: string; email: string };
 type SessionState =
@@ -124,7 +125,7 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
     );
   }
   return (
-    <details className={`${styles.menu} ${mobile ? styles.mobile : ""}`}>
+    <AutoCloseMenu className={`${styles.menu} ${mobile ? styles.mobile : ""}`}>
       <summary className={styles.trigger} title={state.user.email}>
         <span className={styles.avatar} aria-hidden="true">{state.user.email.slice(0, 1).toUpperCase()}</span>
         <span className={styles.accountLabel}>حساب من <span className={styles.email}>{state.user.email}</span></span>
@@ -138,6 +139,6 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
           {signingOut ? "در حال خروج…" : "خروج از حساب"}
         </button>
       </div>
-    </details>
+    </AutoCloseMenu>
   );
 }
