@@ -204,6 +204,13 @@
       "when": 1793145600000,
       "tag": "0028_profile_pages",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793232000000,
+      "tag": "0029_player_campaign_metadata",
+      "breakpoints": true
     }
   ]
 }

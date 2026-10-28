@@ -1,0 +1,52 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { startApi } from "../support/api.js";
+
+test("profiles, campaign metadata and public privacy are enforced by the API", async () => {
+  const api = await startApi();
+  try {
+    const owner = await api.register("profile-owner"), other = await api.register("profile-other");
+    const base = "/api/v1/game-hub";
+    const profile = { displayName: "آرمان", bio: "بازیکن داستان‌های فانتزی", avatarData: null, bannerData: null };
+    assert.equal((await api.request({ method: "PUT", url: `${base}/players/me/page`, token: owner.token, payload: profile })).status, 200);
+    const publicPage = await api.request({ method: "GET", url: `${base}/players/${owner.userId}/page` });
+    assert.equal(publicPage.body.data.player.bio, profile.bio);
+    assert.equal(publicPage.body.data.player.name, profile.displayName);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/players/me/page`, payload: profile })).status, 401);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/players/me/page`, token: other.token, payload: { ...profile, avatarData: "data:image/svg+xml;base64,PHN2Zz4=" } })).status, 400);
+    const character = { name: "رازدار", className: "Wizard", subclass: "", race: "Elf", background: "", level: 1, currentHp: 5, maxHp: 5, description: "", story: "private story", public: false };
+    const created = await api.request({ method: "POST", url: `${base}/characters`, token: owner.token, payload: character });
+    assert.equal(created.status, 201);
+    assert.equal((await api.request({ method: "GET", url: `${base}/players/${owner.userId}/page` })).body.data.characters.length, 0);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/characters/${created.body.data.id}`, token: other.token, payload: { ...character, public: true } })).status, 404);
+    const table = { title: "جستجوی اژدها", description: "نجات شهر", system: "D&D 5e", language: "فارسی", playStyle: "داستانی", levelRange: "1-5", schedule: "جمعه", capacity: 4, status: "PUBLISHED", visibility: "PUBLIC", genres: ["فانتزی", "ماجراجویی"], imageData: null };
+    const made = await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: table });
+    assert.equal(made.status, 201);
+    const tableId = made.body.data.id;
+    const detail = await api.request({ method: "GET", url: `${base}/tables/${tableId}` });
+    assert.deepEqual(detail.body.data.genres, table.genres);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/tables/${tableId}`, token: other.token, payload: table })).status, 404);
+    const review = { rating: 5, comment: "یک تجربه بسیار خوب برای گروه" };
+    assert.equal((await api.request({ method: "PUT", url: `${base}/tables/${tableId}/review`, token: owner.token, payload: review })).status, 403);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/tables/${tableId}/review`, token: other.token, payload: review })).status, 403);
+    await api.query(`INSERT INTO game_applications (table_id, user_id, status, note) VALUES ('${tableId}', '${other.userId}', 'ACCEPTED', '')`);
+    assert.equal((await api.request({ method: "PUT", url: `${base}/tables/${tableId}/review`, token: other.token, payload: review })).status, 200);
+    assert.equal((await api.request({ method: "POST", url: `${base}/dms/me/activate`, token: owner.token })).status, 200);
+    const draft = await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: { ...table, title: "secret draft", status: "DRAFT" } });
+    assert.equal(draft.status, 201);
+    const dmPage = await api.request({ method: "GET", url: `${base}/dms/${owner.userId}/page` });
+    assert.equal(dmPage.body.data.reviews.length, 1);
+    assert.equal(dmPage.body.data.tables.length, 1);
+    assert.deepEqual(dmPage.body.data.tables[0].genres, table.genres);
+    const dms = await api.request({ method: "GET", url: `${base}/dms` });
+    const byTopic = await api.request({ method: "GET", url: `${base}/dms?q=${encodeURIComponent(table.title)}&genre=${encodeURIComponent("فانتزی")}` });
+    assert.equal(byTopic.body.data.length, 1);
+    const noGenre = await api.request({ method: "GET", url: `${base}/tables?genre=${encodeURIComponent("وحشت")}` });
+    assert.equal(noGenre.body.data.length, 0);
+    const byId = await api.request({ method: "GET", url: `${base}/tables?q=${dms.body.data[0].publicId}` });
+    assert.equal(byId.body.data.length, 1);
+    assert.ok(dms.body.data.find((dm: { userId: string; publicId: string }) => dm.userId === owner.userId && dm.publicId));
+    assert.equal((await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: { ...table, genres: ["unknown"] } })).status, 400);
+    assert.equal((await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: { ...table, imageData: "data:image/webp;base64," + "A".repeat(140000) } })).status, 400);
+  } finally { await api.stop(); }
+});

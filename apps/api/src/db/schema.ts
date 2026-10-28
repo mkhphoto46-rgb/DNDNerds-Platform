@@ -4081,6 +4081,14 @@ export const dmProfiles = pgTable("dm_profiles", {
   check("dm_profiles_experience_range", sql`${t.experienceYears} BETWEEN 0 AND 60`),
 ]);
 
+export const playerProfiles = pgTable("player_profiles", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  bio: varchar("bio", { length: 1200 }).notNull().default(""),
+  avatarData: text("avatar_data"), bannerData: text("banner_data"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const playerCharacters = pgTable("player_characters", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -4113,6 +4121,8 @@ export const gameTables = pgTable("game_tables", {
   inviteCodeHash: varchar("invite_code_hash", { length: 64 }),
   title: varchar("title", { length: 120 }).notNull(),
   description: varchar("description", { length: 2000 }).notNull().default(""),
+  genres: jsonb("genres").$type<string[]>().notNull().default([]),
+  imageData: text("image_data"),
   system: varchar("system", { length: 80 }).notNull().default("D&D 5e"),
   language: varchar("language", { length: 60 }).notNull().default("فارسی"),
   playStyle: varchar("play_style", { length: 60 }).notNull().default("داستان‌محور"),

@@ -2,13 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { prepareProfileImage } from "@/lib/profile-pages";
 import styles from "./game-hub.module.css";
 
 type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
 type SessionStatus = { onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] } | null;
-type Table = { id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; updatedAt?: string; sessionStatus?: SessionStatus; rating?: number | null; reviewCount?: number };
-type Profile = { userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData?: string | null; rating?: number | null; reviewCount?: number };
+const genreChoices = ["فانتزی", "ماجراجویی", "وحشت", "معمایی", "علمی‌تخیلی", "حماسی", "طنز", "تاریخی", "نقش‌آفرینی", "نبردمحور"];
+
+type Table = { hostPublicId?: string; genres?: string[]; imageData?: string | null; hostUsername?: string | null; id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; updatedAt?: string; sessionStatus?: SessionStatus; rating?: number | null; reviewCount?: number };
+type Profile = { username?: string | null; publicId?: string; userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData?: string | null; rating?: number | null; reviewCount?: number };
 type Application = { id: string; tableId: string; title?: string; note: string; status: string; tableStatus?: string; tableUpdatedAt?: string; sessionStatus?: SessionStatus; email?: string };
 type Listing = { id: string; ownerUserId: string; opponentUserId?: string | null; mode: string; title: string; note: string; status: string };
 type Mine = { hosted: Table[]; applications: Application[] };
@@ -54,9 +57,13 @@ export function GameHub({ mode }: { mode: Mode }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [filter, setFilter] = useState("");
+  const [genre, setGenre] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
+  const searchVersion = useRef(0);
+  useEffect(() => { const timer = setTimeout(() => setSearchQuery(filter), 250); return () => clearTimeout(timer); }, [filter]);
   const [gamePage, setGamePage] = useState(1);
   const [gameSort, setGameSort] = useState<"newest" | "rating">("newest");
-  const [tableForm, setTableForm] = useState({ title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
+  const [tableForm, setTableForm] = useState({ genres: [] as string[], imageData: null as string | null, title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
   const [inviteCode, setInviteCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [editTableId, setEditTableId] = useState<string | null>(null);
@@ -73,10 +80,10 @@ export function GameHub({ mode }: { mode: Mode }) {
   }, []);
 
   const reload = useCallback(async () => {
-    setLoading(true); setError("");
+    const version = ++searchVersion.current; setError("");
     try {
-      if (mode === "find-game") setTables(await request<Table[]>("tables"));
-      if (mode === "find-dm") setProfiles(await request<Profile[]>("dms"));
+      if (mode === "find-game") { const query = new URLSearchParams({ q: searchQuery, genre }); const [games, dms] = await Promise.all([request<Table[]>(`tables?${query}`), request<Profile[]>(`dms?${query}`)]); if (version === searchVersion.current) { setTables(games); setProfiles(dms); } }
+      if (mode === "find-dm") { const dms = await request<Profile[]>(`dms?${new URLSearchParams({ q: searchQuery })}`); if (version === searchVersion.current) setProfiles(dms); }
       if (mode === "play" || mode === "create-game") {
         try {
           const own = await request<Mine>("tables/me");
@@ -86,7 +93,7 @@ export function GameHub({ mode }: { mode: Mode }) {
             const table = own.hosted.find(item => item.id === editId);
             if (table) {
               setEditTableId(table.id);
-              setTableForm({ title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "HIDDEN" ? "DRAFT" : table.status ?? "DRAFT" });
+              setTableForm({ genres: table.genres ?? [], imageData: table.imageData ?? null, title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "HIDDEN" ? "DRAFT" : table.status ?? "DRAFT" });
             }
           }
         } catch { setMine(null); }
@@ -95,9 +102,9 @@ export function GameHub({ mode }: { mode: Mode }) {
         setListings(await request<Listing[]>("arena"));
         try { setMyListings(await request<Listing[]>("arena/me")); } catch { setMyListings([]); }
       }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "بارگذاری ناموفق بود."); }
-    finally { setLoading(false); }
-  }, [mode]);
+    } catch (reason) { if (version === searchVersion.current) setError(reason instanceof Error ? reason.message : "بارگذاری ناموفق بود."); }
+    finally { if (version === searchVersion.current) setLoading(false); }
+  }, [mode, searchQuery, genre]);
   useEffect(() => { void reload(); }, [reload]);
 
   async function act(action: () => Promise<unknown>, message: string) {
@@ -125,12 +132,12 @@ export function GameHub({ mode }: { mode: Mode }) {
   }
 
   const heading = headings[mode];
-  const visibleGames = mode === "find-game" ? tables.filter(table => `${table.title} ${table.system} ${table.playStyle} ${table.hostName ?? ""}`.toLocaleLowerCase().includes(filter.toLocaleLowerCase())).sort((a, b) => gameSort === "rating" ? (b.rating ?? 0) - (a.rating ?? 0) || (b.reviewCount ?? 0) - (a.reviewCount ?? 0) : 0) : [];
+  const visibleGames = mode === "find-game" ? [...tables].sort((a, b) => gameSort === "rating" ? (b.rating ?? 0) - (a.rating ?? 0) || (b.reviewCount ?? 0) - (a.reviewCount ?? 0) : 0) : [];
   const gamesPerPage = 12;
   return <main className={styles.page}>
     <div className="shell">
       <header className={styles.intro}><span className="section-kicker">{heading.eyebrow}</span><h1>{heading.title}</h1><p>{heading.description}</p></header>
-      <nav className={styles.tabs} aria-label="بخش‌های بازی"><Link href={routes.play} aria-current={mode === "play" ? "page" : undefined}>میزهای من</Link><Link href={routes.find} aria-current={mode === "find-game" ? "page" : undefined}>پیدا کردن بازی</Link><Link href={routes.create} aria-current={mode === "create-game" ? "page" : undefined}>ساخت میز</Link><Link href="/find-dm" aria-current={mode === "find-dm" ? "page" : undefined}>DMها</Link>{inAccount && <Link href="/account">حساب من</Link>}</nav>
+
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
       {loading && <p role="status">در حال بارگذاری…</p>}
@@ -143,17 +150,19 @@ export function GameHub({ mode }: { mode: Mode }) {
 
       {mode === "find-game" && !loading && <>
 
-        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="جستجو در عنوان، سیستم یا نام DM" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "rating"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="rating">بالاترین امتیاز</option></select></label><span>{visibleGames.length} کمپین</span></div>
+        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="نام یا ID دی‌ام، موضوع کمپین یا ژانر" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "rating"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="rating">بالاترین امتیاز</option></select></label><label>ژانر <select value={genre} onChange={e => { setGenre(e.target.value); setGamePage(1); }}><option value="">همهٔ ژانرها</option>{genreChoices.map(value => <option key={value}>{value}</option>)}</select></label><span>{visibleGames.length} کمپین</span></div>
         <div className={styles.gameGrid}>{visibleGames.slice((gamePage - 1) * gamesPerPage, gamePage * gamesPerPage).map(table => <article className={styles.gameCard} key={table.id}>
-          <small>{table.system} · {table.language} · {table.levelRange}</small><h2>{table.title}</h2><p>{table.description || "DM هنوز توضیحی برای این میز ننوشته است."}</p>
-          <div className={styles.gameCardFooter}><span>DM: {table.hostName || "میزبان"}</span><span className={styles.rating}>★ {table.reviewCount ? `${table.rating} (${table.reviewCount})` : "بدون امتیاز"}</span></div>
+          <small>{table.system} · {table.language} · {table.levelRange}</small>{table.imageData && <img className={styles.campaignImage} src={table.imageData} alt={`تصویر ${table.title}`} />}<h2>{table.title}</h2><div className={styles.genreTags}>{table.genres?.map(value => <span key={value}>{value}</span>)}</div><p>{table.description || "DM هنوز توضیحی برای این میز ننوشته است."}</p>
+          <div className={styles.gameCardFooter}><Link href={`/dm/${table.hostUserId}`}>DM: {table.hostName || table.hostUsername || "میزبان"}</Link><span className={styles.rating}>★ {table.reviewCount ? `${table.rating} (${table.reviewCount})` : "بدون امتیاز"}</span></div>
           <Link className={styles.detailLink} href={`/find-game/${table.id}`}>دیدن جزئیات کمپین ←</Link>
         </article>)}</div>
         {visibleGames.length > gamesPerPage && <nav className={styles.pagination} aria-label="صفحه‌های کمپین"><button disabled={gamePage === 1} onClick={() => setGamePage(page => page - 1)}>صفحهٔ پیشین</button><span>صفحهٔ {gamePage} از {Math.ceil(visibleGames.length / gamesPerPage)}</span><button disabled={gamePage * gamesPerPage >= visibleGames.length} onClick={() => setGamePage(page => page + 1)}>صفحهٔ بعدی</button></nav>}
+        <section className={styles.panel}><h2>Dungeon Masterها</h2><p>با نام یا شناسه جستجو کن و معرفی، کمپین‌ها و نظر بازیکنان را ببین.</p><div className={styles.grid}>{profiles.map(profile => <article className={styles.card} key={profile.userId}><h3><Link href={`/dm/${profile.userId}`}>{profile.displayName}</Link></h3><small dir="ltr">{profile.username ?? profile.publicId ?? profile.userId}</small><p>{profile.bio}</p><span>★ {profile.rating ?? "بدون امتیاز"}</span></article>)}</div><Link href="/find-dm">همهٔ DMها ←</Link></section>
         {!tables.length && <div className={styles.empty}>هنوز میز منتشرشده‌ای وجود ندارد. اگر DM هستی، نخستین میز را بساز. <Link href={routes.create}>ساخت میز</Link></div>}
       </>}
 
       {mode === "find-dm" && !loading && <>
+        <input className={styles.search} aria-label="جستجوی DM" placeholder="نام یا ID دی‌ام" value={filter} onChange={e => setFilter(e.target.value)}/>
         <div className={styles.grid}>{profiles.map((profile, index) => <article className={styles.card} key={profile.userId}><small>Dungeon Master · {profile.reviewCount ? `رتبهٔ ${index + 1}` : "بدون رتبه"}</small>{profile.avatarData && <img src={profile.avatarData} alt="" width={72} height={72} style={{ borderRadius: "50%", objectFit: "cover" }} />}<h2>{profile.displayName}</h2><p className={styles.rating}>★ {profile.reviewCount ? `${profile.rating} از ۵ · ${profile.reviewCount} نظر` : "هنوز امتیازی ثبت نشده"}</p><p>{profile.bio || "این DM هنوز معرفی کوتاهی ثبت نکرده است."}</p><div className={styles.meta}><span>{profile.playStyle}</span><span>{profile.languages}</span><span>{profile.experienceYears} سال تجربه</span></div><Link href={`/dm/${profile.userId}`}>دیدن صفحهٔ DM ←</Link></article>)}</div>
         {!profiles.length && <div className={styles.empty}>هنوز پروفایل DM منتشر نشده است.</div>}
         <section className={styles.panel}><h2>صفحهٔ DM خودت</h2><p>از حساب من صفحه‌ات را فعال کن، تصویر و معرفی بگذار و میزهایت را نشان بده.</p><Link href="/account/dm">ساخت یا ویرایش صفحهٔ DM ←</Link></section>
@@ -164,6 +173,8 @@ export function GameHub({ mode }: { mode: Mode }) {
         {mine && <>{mode === "create-game" && <section className={styles.panel}><h2>{editTableId ? "ویرایش میز" : "میز تازه"}</h2><form onSubmit={event => { event.preventDefault(); void act(async () => { const result = await request<{ inviteCode?: string | null }>(editTableId ? `tables/${editTableId}` : "tables", editTableId ? "PUT" : "POST", tableForm); setInviteCode(result.inviteCode ?? ""); }, editTableId ? "میز ویرایش شد." : "میز ساخته شد."); }}>
           <label>عنوان میز<input required minLength={3} value={tableForm.title} onChange={e => setTableForm({ ...tableForm, title: e.target.value })} /></label>
           <details className={styles.expandField} open={editTableId ? true : undefined}><summary>درباره کمپین <span>توضیحات کامل را اینجا بنویس</span></summary><label>توضیحات کمپین<textarea maxLength={2000} value={tableForm.description} onChange={e => setTableForm({ ...tableForm, description: e.target.value })} /></label></details>
+          <fieldset className={styles.genreTags}><legend>ژانر کمپین · حداکثر ۴ تگ</legend>{genreChoices.map(value => <label key={value}><input type="checkbox" checked={tableForm.genres.includes(value)} disabled={!tableForm.genres.includes(value) && tableForm.genres.length >= 4} onChange={e => setTableForm({ ...tableForm, genres: e.target.checked ? [...tableForm.genres, value] : tableForm.genres.filter(item => item !== value) })}/>{value}</label>)}</fieldset>
+          <label>یک تصویر کوچک کمپین · تا ۴۸۰×۳۲۰ و ۱۰۰ کیلوبایت<input type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={async e => { const file = e.target.files?.[0]; if (!file) return; setBusy(true); setError(""); try { const value = await prepareProfileImage(file, "campaign"); setTableForm(current => ({ ...current, imageData: value })); } catch (reason) { setError(reason instanceof Error ? reason.message : "تصویر آماده نشد."); } finally { setBusy(false); } }}/>{tableForm.imageData && <img className={styles.campaignImage} src={tableForm.imageData} alt="پیش‌نمایش کمپین"/>}</label>{tableForm.imageData && <button type="button" onClick={() => setTableForm({ ...tableForm, imageData: null })}>حذف تصویر کمپین</button>}
           <label>سیستم بازی<input required value={tableForm.system} onChange={e => setTableForm({ ...tableForm, system: e.target.value })} /></label>
           <label>زبان<input required value={tableForm.language} onChange={e => setTableForm({ ...tableForm, language: e.target.value })} /></label>
           <label>سبک<input required value={tableForm.playStyle} onChange={e => setTableForm({ ...tableForm, playStyle: e.target.value })} /></label>
@@ -175,7 +186,7 @@ export function GameHub({ mode }: { mode: Mode }) {
           <button disabled={busy}>{editTableId ? "ذخیره تغییرات" : "ساخت میز"}</button>{editTableId && <button type="button" onClick={() => setEditTableId(null)}>لغو ویرایش</button>}
         </form>{inviteCode && <p className={styles.notice}>کد دعوت خصوصی: <strong dir="ltr">{inviteCode}</strong> — آن را برای دوستانت بفرست. این کد پس از بستن صفحه دوباره نمایش داده نمی‌شود.</p>}<p><Link href={routes.play}>بازگشت به میزهای من ←</Link></p></section>}
         {mode === "play" && <><div className={styles.actions}><Link href={routes.create}>ساخت میز تازه ←</Link><Link href={routes.find}>پیدا کردن بازی ←</Link></div>
-        <h2>میزهایی که DM آن‌ها هستم</h2><div className={styles.grid}>{mine.hosted.map(table => <article className={styles.card} key={table.id}><span className={styles.roleBadge}>نقش من: DM · میزبان</span><small>{tableStatusNames[table.status ?? ""] ?? table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><SessionSummary status={table.sessionStatus} /><div className={styles.actions}><Link href={`${routes.create}?edit=${encodeURIComponent(table.id)}`} aria-label={`مدیریت میز ${table.title}`}>مدیریت میز</Link><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به بازی با نقش DM</button><details className={styles.tableOptions}><summary>گزینه‌های میز</summary><div className={styles.actions}><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></details></div></article>)}</div>
+        <h2>میزهایی که DM آن‌ها هستم</h2><div className={styles.hostedGrid}>{mine.hosted.map(table => <article className={`${styles.card} ${styles.hostedCard}`} key={table.id}><span className={styles.roleBadge}>نقش من: DM · میزبان</span><small>{tableStatusNames[table.status ?? ""] ?? table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><SessionSummary status={table.sessionStatus} /><div className={styles.actions}><Link href={`${routes.create}?edit=${encodeURIComponent(table.id)}`} aria-label={`مدیریت میز ${table.title}`}>مدیریت میز</Link><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به بازی با نقش DM</button><details className={styles.tableOptions}><summary>گزینه‌های میز</summary><div className={styles.actions}><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, genres: table.genres ?? [], imageData: table.imageData ?? null, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></details></div></article>)}</div>
         {selected && <section className={styles.panel}><h2>درخواست‌های میز</h2>{applications.map(application => <div key={application.id} className={styles.application}><strong>{application.email}</strong><span>{application.note || "بدون پیام"}</span><small>{application.status}</small>{application.status === "PENDING" && <div className={styles.actions}><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: true }), "درخواست پذیرفته شد.")}>پذیرش</button><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: false }), "درخواست رد شد.")}>رد</button></div>}</div>)}{!applications.length && <p>درخواستی ثبت نشده است.</p>}</section>}
         {!mine.hosted.length && <p className={styles.empty}>هنوز میزی نساخته‌ای. <Link href={routes.create}>اولین میزت را بساز ←</Link></p>}
         <h2>میزها و درخواست‌های من به‌عنوان پلیر</h2><div className={styles.grid}>{mine.applications.map(application => <article className={styles.card} key={application.id}><span className={styles.roleBadge}>{application.status === "ACCEPTED" ? "نقش من: پلیر · بازیکن" : "درخواست پیوستن به میز"}</span><h3>{application.title}</h3><p>{applicationStatusNames[application.status] ?? application.status} · {tableStatusNames[application.tableStatus ?? ""] ?? application.tableStatus}</p><SessionSummary status={application.sessionStatus} />{application.status === "ACCEPTED" && application.tableStatus === "PUBLISHED" && <button disabled={busy} onClick={() => void launch(application.tableId, "player")}>ورود به بازی</button>}{["PENDING", "ACCEPTED"].includes(application.status) && <button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/withdraw`, "POST"), "درخواست پس گرفته شد.")}>{application.status === "ACCEPTED" ? "ترک میز" : "لغو درخواست"}</button>}</article>)}</div>

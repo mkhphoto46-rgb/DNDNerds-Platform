@@ -6,8 +6,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createTownWorld } from "./town-world";
 import { XpBar } from "./xp-experience";
 import { SiteTour } from "./site-tour";
-import { GameNavigation } from "./game-navigation";
-import { AutoCloseMenu } from "./auto-close-menu";
+import { SiteMenu } from "./site-menu";
+
 
 const places = [
   { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "بازی پیدا کن، به میزت برگرد یا میز تازه بساز", action: "پیدا کردن بازی", href: "/find-game" },
@@ -150,13 +150,11 @@ export function HomeTownExperience() {
     <header className="town-hud">
       <Link className="town-brand" href="/" aria-label="DND Nerds، صفحه اصلی"><img className="town-logo" src="/brand/dnd-nerds-logo.png" width="100" height="100" alt="DND Nerds" /></Link>
       <div className="town-hud-actions">
-        <Link className="town-account-link" href="/account">حساب من</Link>
         <SiteTour onStageChange={go} onOpenChat={openChat} />
-        <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ صدای شهر روشن" : "♫ صدای شهر خاموش"}</button>
+        <button type="button" className="town-hud-button town-music-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn} aria-label={soundOn ? "خاموش کردن صدای شهر" : "روشن کردن صدای شهر"} title={soundOn ? "خاموش کردن صدا" : "روشن کردن صدا"}><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M13 23V5c7 0 6 7 12 7v5c-5 0-7-4-9-4v10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/><ellipse cx="10" cy="25" rx="5" ry="3.5" fill="currentColor"/>{!soundOn && <path d="M4 4L28 28" stroke="currentColor" strokeWidth="2.5"/>}</svg></button>
         <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
-        <AutoCloseMenu className="town-menu"><summary aria-label="بخش‌های دیگر">☰</summary><nav aria-label="بخش‌های دیگر سایت"><Link href="/find-dm">پیدا کردن DM</Link><Link href="/tavern">Tavern</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">آرنا</Link><Link href="/store">بازارچه</Link><button type="button" onClick={openChat}>دوستان و گفتگو</button><button type="button" onClick={() => window.dispatchEvent(new Event("dnd-open-tour"))}>راهنمای سایت</button></nav></AutoCloseMenu>
+        <SiteMenu city />
       </div>
-      <GameNavigation city />
     </header>
 
     <div className="town-xp-display"><XpBar compact /></div>

@@ -1,9 +1,9 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { dmProfiles, gameTableReviews, gameTables, playerCharacters, users } from "../db/schema.js";
+import { dmProfiles, gameTableReviews, gameTables, playerCharacters, playerProfiles, users } from "../db/schema.js";
 import { validProfileImage } from "./profile-image.js";
 
 const base = "/api/v1/game-hub";
@@ -35,6 +35,19 @@ function invalid(reply: { code: (status: number) => { send: (body: unknown) => u
 }
 
 export async function registerProfilePagesRoutes(app: FastifyInstance) {
+  const playerInput = z.object({ displayName: z.string().trim().min(2).max(100), bio: z.string().trim().max(1200), avatarData: image("avatar").optional(), bannerData: image("banner").optional() });
+  app.get(`${base}/players/me/page`, async (request, reply) => {
+    const user = await authenticated(request, reply); if (!user) return;
+    const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
+    return { data: profile ?? { userId: user.id, displayName: user.username ?? "بازیکن", bio: "", avatarData: null, bannerData: null } };
+  });
+  app.put(`${base}/players/me/page`, async (request, reply) => {
+    const user = await authenticated(request, reply); if (!user) return;
+    const parsed = playerInput.safeParse(request.body); if (!parsed.success) return invalid(reply);
+    const [profile] = await db.insert(playerProfiles).values({ userId: user.id, ...parsed.data }).onConflictDoUpdate({ target: playerProfiles.userId, set: { ...parsed.data, updatedAt: new Date() } }).returning();
+    return { data: profile };
+  });
+
   app.get(`${base}/dms/me/page`, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const [profile] = await db.select().from(dmProfiles).where(eq(dmProfiles.userId, user.id)).limit(1);
@@ -66,14 +79,14 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
         reviewerUserId: gameTableReviews.reviewerUserId, reviewerName: users.username, tableId: gameTables.id, tableTitle: gameTables.title })
         .from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id))
         .innerJoin(users, eq(gameTableReviews.reviewerUserId, users.id))
-        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN")))
+        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTableReviews.createdAt)).limit(100),
-      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, system: gameTables.system, levelRange: gameTables.levelRange })
-        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN")))
+      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, system: gameTables.system, levelRange: gameTables.levelRange, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData })
+        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTables.createdAt)).limit(30),
       db.select({ average: sql<number>`round(avg(${gameTableReviews.rating})::numeric, 1)::float`, count: sql<number>`count(*)::int` })
         .from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id))
-        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN"))),
+        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"]))),
     ]);
     return { data: { profile: profile.profile, rating: ratingRows[0]?.average ?? null, reviewCount: ratingRows[0]?.count ?? 0, reviews: reviews.map(review => ({ ...review, reviewerName: review.reviewerName ?? `بازیکن ${review.reviewerUserId.slice(0, 6)}` })), tables } };
   });
@@ -120,6 +133,8 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     const [player] = await db.select({ id: users.id, username: users.username, status: users.status }).from(users).where(eq(users.id, key.data)).limit(1);
     if (!player || player.status !== "ACTIVE") return reply.code(404).send({ error: { message: "صفحهٔ بازیکن پیدا نشد." } });
     const characters = await db.select().from(playerCharacters).where(and(eq(playerCharacters.userId, key.data), eq(playerCharacters.public, true))).orderBy(desc(playerCharacters.createdAt));
-    return { data: { player: { id: player.id, name: player.username ?? `بازیکن ${player.id.slice(0, 6)}` }, characters } };
+    const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, key.data)).limit(1);
+    const [dm] = await db.select({ userId: dmProfiles.userId }).from(dmProfiles).where(and(eq(dmProfiles.userId, key.data), eq(dmProfiles.visible, true))).limit(1);
+    return { data: { player: { id: player.id, name: profile?.displayName ?? player.username ?? `بازیکن ${player.id.slice(0, 6)}`, bio: profile?.bio ?? "", avatarData: profile?.avatarData ?? null, bannerData: profile?.bannerData ?? null, dmPage: Boolean(dm) }, characters } };
   });
 }
