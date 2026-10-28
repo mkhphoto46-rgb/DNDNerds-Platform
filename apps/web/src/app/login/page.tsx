@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { safeAuthDestination } from "@/lib/auth-destination";
 
 import {
   FormEvent,
   useState,
+  useEffect,
 } from "react";
 
 import {
@@ -16,6 +18,9 @@ import styles from "../auth.module.css";
 export default function LoginPage() {
   const router =
     useRouter();
+
+  const [authNext, setAuthNext] = useState("/");
+  useEffect(() => { setAuthNext(safeAuthDestination(new URLSearchParams(window.location.search).get("next"))); }, []);
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -128,8 +133,7 @@ export default function LoginPage() {
       }
 
       const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested && /^\/(?!\/)[a-z0-9/_-]*$/i.test(requested)
-        ? requested : "/";
+      const destination = safeAuthDestination(requested);
       window.dispatchEvent(new Event("dnd-auth-change"));
       if (typeof BroadcastChannel !== "undefined") {
         const channel = new BroadcastChannel("dnd-nerds-auth-state");
@@ -257,7 +261,7 @@ export default function LoginPage() {
         <div className={styles.switch}>
           حساب نداری؟
           {" "}
-          <Link href="/register">
+          <Link href={`/register?next=${encodeURIComponent(authNext)}`}>
             ساخت حساب
           </Link>
         </div>

@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createTownWorld } from "./town-world";
 import { XpBar } from "./xp-experience";
 import { SiteTour } from "./site-tour";
+import { GameNavigation } from "./game-navigation";
 import { AutoCloseMenu } from "./auto-close-menu";
 
 const places = [
-  { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "قدم بزن و شهر را کشف کن", action: "شروع ماجراجویی", href: "/register" },
+  { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "بازی پیدا کن، به میزت برگرد یا میز تازه بساز", action: "پیدا کردن بازی", href: "/find-game" },
   { name: "Tavern", title: "همراهت را پیدا کن", hint: "میزهای تازه همین نزدیکی‌اند", action: "ورود به Tavern", href: "/tavern" },
   { name: "میدان", title: "میز بازی آماده است", hint: "نقشه، تاس و قصه در یک جا", action: "ورود به میز", href: "/play" },
   { name: "دوستان و گفتگو", title: "با گروهت در تماس باش", hint: "دوستان و گفتگو همیشه در دسترس", action: "باز کردن گفتگو", href: null },
@@ -49,7 +50,7 @@ export function HomeTownExperience() {
   const go = useCallback((value: number) => setStage(Math.max(0, Math.min(places.length - 1, value))), []);
   const enterPlace = useCallback((key: string) => {
     if (key === "guild") { openChat(); return; }
-    const routes: Record<string,string> = { gate: "/register", tavern: "/tavern", play: "/play", cartography: "/cartography", blacksmith: "/blacksmith", market: "/store", arena: "/arena" };
+    const routes: Record<string,string> = { gate: "/find-game", tavern: "/tavern", play: "/play", cartography: "/cartography", blacksmith: "/blacksmith", market: "/store", arena: "/arena" };
     if (routes[key]) router.push(routes[key]);
   }, [router]);
   const startTransition = useCallback((key: string) => setEntering(key), []);
@@ -149,11 +150,13 @@ export function HomeTownExperience() {
     <header className="town-hud">
       <Link className="town-brand" href="/" aria-label="DND Nerds، صفحه اصلی"><img className="town-logo" src="/brand/dnd-nerds-logo.png" width="100" height="100" alt="DND Nerds" /></Link>
       <div className="town-hud-actions">
+        <Link className="town-account-link" href="/account">حساب من</Link>
         <SiteTour onStageChange={go} onOpenChat={openChat} />
         <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ صدای شهر روشن" : "♫ صدای شهر خاموش"}</button>
         <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
-        <AutoCloseMenu className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/tavern">Tavern</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></AutoCloseMenu>
+        <AutoCloseMenu className="town-menu"><summary aria-label="بخش‌های دیگر">☰</summary><nav aria-label="بخش‌های دیگر سایت"><Link href="/find-dm">پیدا کردن DM</Link><Link href="/tavern">Tavern</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">آرنا</Link><Link href="/store">بازارچه</Link><button type="button" onClick={openChat}>دوستان و گفتگو</button><button type="button" onClick={() => window.dispatchEvent(new Event("dnd-open-tour"))}>راهنمای سایت</button></nav></AutoCloseMenu>
       </div>
+      <GameNavigation city />
     </header>
 
     <div className="town-xp-display"><XpBar compact /></div>

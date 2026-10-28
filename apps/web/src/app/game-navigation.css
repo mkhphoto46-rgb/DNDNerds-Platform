@@ -1,0 +1,54 @@
+/* Keep the existing city and parchment palette; expose game destinations. */
+.game-navigation{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.game-navigation a{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 14px;border:1px solid var(--line-gold,#a48a5a);border-radius:12px;color:var(--parchment,#fff2d5);background:rgba(31,20,14,.82);font-size:14px;font-weight:700;line-height:1.5;text-decoration:none;white-space:nowrap}
+.game-navigation a:hover,.game-navigation a[aria-current=page]{background:#e2bd7c;color:#23150d;border-color:#e2bd7c}
+.game-navigation a:focus-visible,.town-hud a:focus-visible{outline:2px solid #ffe2a5;outline-offset:4px}
+.game-navigation .game-navigation-invite{background:transparent;font-weight:400}
+.site-header .header-inner{flex-wrap:wrap;gap:12px 20px}
+.site-header .brand{margin-inline-end:auto}
+.site-header .game-navigation{order:2}
+.site-header .header-actions{order:3}
+.site-header .mobile-menu{display:block;order:4}
+.site-header .mobile-menu>summary{cursor:pointer;list-style:none;padding:10px;border:1px solid var(--line-gold);border-radius:10px;font:inherit;color:var(--parchment);white-space:nowrap}
+.site-header .mobile-menu>summary::-webkit-details-marker{display:none}
+.site-header .mobile-menu-panel{position:absolute;inset-inline-end:0;top:calc(100% + 10px);min-width:220px;max-height:70svh;overflow:auto;padding:16px;display:grid;gap:12px;border:1px solid var(--line-gold);border-radius:14px;background:#160e0a;box-shadow:0 12px 32px #0009}
+.site-header .mobile-menu:not([open])>.mobile-menu-panel{display:none}
+.town-hud{flex-wrap:wrap;gap:8px 18px;align-items:center}
+.town-hud .game-navigation{flex-basis:100%;justify-content:center}
+.town-account-link{display:inline-flex;align-items:center;min-height:44px;padding:8px 12px;border:1px solid #e9d5ac;border-radius:99px;color:#fff8e9;background:#1f2d25d9;text-decoration:none;font-size:14px}
+.town-hud-actions{flex-wrap:wrap;justify-content:flex-end}
+.town-menu nav{max-height:65svh;overflow:auto}
+.town-xp-display{top:164px}
+.game-navigation-city a{background:rgba(31,45,37,.94);border-color:#c4b18d;color:#fff8e9;backdrop-filter:blur(8px)}
+@media(max-width:1200px){.site-header .brand-copy{display:none}.site-header .instagram-link{display:none}}
+@media(max-width:900px){
+  :root{--header-height:144px}
+  .site-header .header-inner{height:100%;align-content:center;gap:6px 12px}
+  .site-header .brand{order:0}.site-header .brand-logo-wrap,.site-header .brand-logo-small{width:52px;height:52px}
+  .site-header .header-actions{display:flex;order:1}.site-header .header-actions .instagram-link{display:none}
+  .site-header .mobile-menu{order:2}
+  .site-header .game-navigation{order:3;flex-basis:100%;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .site-header .game-navigation a{padding:7px 3px;font-size:13px;min-height:40px}
+  .site-header .game-navigation .game-navigation-invite{grid-column:1/-1;min-height:26px;padding:0;border:0;font-size:12px}
+}
+@media(max-width:700px){
+  .town-hud{padding:10px 14px;gap:8px}
+  .town-hud-actions{gap:6px;max-width:calc(100% - 76px)}
+  .town-hud-actions .town-chat-button,.town-hud-actions .site-tour-launch{display:none}
+  .town-hud-button{font-size:11px;min-height:38px;padding:0 9px}
+  .town-hud .game-navigation{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}
+  .town-hud .game-navigation a{font-size:12px;padding:7px 3px;min-height:42px}
+  .town-hud .game-navigation .game-navigation-invite{grid-column:1/-1;justify-self:center;padding:3px 14px;min-height:32px;background:#1f2d25e8}
+  .town-xp-display{top:178px;right:14px;width:150px}
+}
+@media(max-width:380px){.site-header .header-inner{column-gap:6px}.site-header .mobile-menu>summary{font-size:12px;padding:8px}.site-header .brand-logo-wrap,.site-header .brand-logo-small{width:40px;height:40px}}
+
+.town-menu nav button{font:inherit;text-align:start;border:0;background:transparent;color:inherit;padding:8px 10px;cursor:pointer;border-radius:7px}.town-menu nav button:hover{background:#ffffff1a}
+
+@media(max-width:900px){.site-header .header-actions summary>span:last-child{max-width:100px;overflow:hidden}.site-header .header-actions{min-width:0}}
+
+.site-header .mobile-menu>summary{width:auto;height:auto;min-height:42px}.site-header .mobile-menu{width:auto;flex-shrink:0}
+@media(max-width:900px){.site-header .header-actions a{font-size:12px;padding:8px 10px;min-height:40px}.site-header .header-actions>div{gap:8px}.site-header .mobile-menu>summary{font-size:12px;padding:8px}}
+
+@media(max-width:900px){.site-header .header-inner{display:grid;grid-template-columns:52px minmax(0,1fr) auto;gap:6px 8px}.site-header .brand{grid-column:1;grid-row:1}.site-header .header-actions{grid-column:2;grid-row:1;justify-self:center}.site-header .mobile-menu{grid-column:3;grid-row:1}.site-header .game-navigation{grid-column:1/-1;grid-row:2}}
+@media(max-width:380px){.site-header .header-inner{grid-template-columns:40px minmax(0,1fr) auto;column-gap:5px}.site-header .header-actions a{font-size:11px;padding:7px}.site-header .header-actions>div{gap:5px}.site-header .mobile-menu>summary{font-size:11px;padding:7px}}

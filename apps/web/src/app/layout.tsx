@@ -5,6 +5,7 @@ import "./globals.css";
 import "./scene-v2.css";
 import "./social-scene.css";
 import "./home-town.css";
+import "./game-navigation.css";
 
 import { GlobalMagicParticles } from "@/components/global-magic-particles";
 import { SiteFooter } from "@/components/site-footer";

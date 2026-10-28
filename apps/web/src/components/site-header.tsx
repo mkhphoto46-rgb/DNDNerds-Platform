@@ -1,13 +1,16 @@
 import Image from "next/image";
 import Link from "next/link";
+import { GameNavigation } from "@/components/game-navigation";
 import { AccountStatus } from "@/components/account-status";
 import { AutoCloseMenu } from "@/components/auto-close-menu";
 
 const navigation = [
-  { label: "میزهای من", href: "/play" },
-  { label: "پیدا کردن بازی", href: "/find-game" },
-  { label: "ساخت بازی", href: "/create-game" },
-  { label: "Marketplace", href: "/store" },
+  { label: "پیدا کردن DM", href: "/find-dm" },
+  { label: "Tavern", href: "/tavern" },
+  { label: "نقشه‌خانه", href: "/cartography" },
+  { label: "آهنگری", href: "/blacksmith" },
+  { label: "آرنا", href: "/arena" },
+  { label: "بازارچه", href: "/store" },
   { label: "اشتراک", href: "/pricing" },
 ];
 
@@ -82,23 +85,7 @@ export function SiteHeader() {
 
         </Link>
 
-        <nav
-          className="desktop-nav"
-          aria-label="منوی اصلی"
-        >
-
-          {navigation.map((item) => (
-
-            <Link
-              key={item.href}
-              href={item.href}
-            >
-              {item.label}
-            </Link>
-
-          ))}
-
-        </nav>
+        <GameNavigation />
 
         <div className="header-actions">
 
@@ -119,11 +106,7 @@ export function SiteHeader() {
 
         <AutoCloseMenu className="mobile-menu">
 
-          <summary aria-label="باز کردن منو">
-            <span />
-            <span />
-            <span />
-          </summary>
+          <summary>بخش‌های دیگر</summary>
 
           <div className="mobile-menu-panel">
 

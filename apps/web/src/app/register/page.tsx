@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import { safeAuthDestination } from "@/lib/auth-destination";
 
 import {
   FormEvent,
   useState,
+  useEffect,
 } from "react";
 
 import {
@@ -16,6 +18,9 @@ import styles from "../auth.module.css";
 export default function RegisterPage() {
   const router =
     useRouter();
+
+  const [authNext, setAuthNext] = useState("/");
+  useEffect(() => { setAuthNext(safeAuthDestination(new URLSearchParams(window.location.search).get("next"))); }, []);
 
   const [showPassword, setShowPassword] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -117,8 +122,7 @@ export default function RegisterPage() {
         channel.close();
       }
       const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested && /^\/(?!\/)[a-z0-9/_-]*$/i.test(requested)
-        ? requested : "/";
+      const destination = safeAuthDestination(requested);
       router.replace(destination);
       router.refresh();
     }
@@ -237,7 +241,7 @@ export default function RegisterPage() {
         <div className={styles.switch}>
           حساب داری؟
           {" "}
-          <Link href="/login">
+          <Link href={`/login?next=${encodeURIComponent(authNext)}`}>
             ورود
           </Link>
         </div>
