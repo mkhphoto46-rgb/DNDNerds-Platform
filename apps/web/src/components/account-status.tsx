@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./account-status.module.css";
+import { safeAuthDestination } from "@/lib/auth-destination";
 import { AutoCloseMenu } from "./auto-close-menu";
 
 type AccountUser = { id: string; email: string };
@@ -17,6 +18,19 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
   const router = useRouter();
   const pathname = usePathname();
   const [state, setState] = useState<SessionState>({ kind: "loading" });
+  const [authReturn, setAuthReturn] = useState("/");
+  useEffect(() => {
+    const updateReturn = () => {
+      const current = pathname === "/login" || pathname === "/register"
+        ? new URLSearchParams(window.location.search).get("next")
+        : window.location.pathname + window.location.search + window.location.hash;
+      setAuthReturn(safeAuthDestination(current));
+    };
+    updateReturn();
+    window.addEventListener("hashchange", updateReturn);
+    return () => window.removeEventListener("hashchange", updateReturn);
+  }, [pathname]);
+
   const [signingOut, setSigningOut] = useState(false);
   const latestRequest = useRef(0);
 
@@ -119,8 +133,8 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
   if (state.kind === "guest") {
     return (
       <div className={`${styles.guestActions} ${mobile ? styles.mobile : ""}`}>
-        <Link className={styles.textLink} href="/login">ورود</Link>
-        <Link className={styles.primaryLink} href="/register">ساخت حساب</Link>
+        <Link className={styles.textLink} href={`/login?next=${encodeURIComponent(authReturn)}`}>ورود</Link>
+        <Link className={styles.primaryLink} href={`/register?next=${encodeURIComponent(authReturn)}`}>ساخت حساب</Link>
       </div>
     );
   }

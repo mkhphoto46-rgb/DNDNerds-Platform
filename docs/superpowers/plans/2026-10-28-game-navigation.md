@@ -36,8 +36,10 @@ Native execution follows the user's explicit instruction to implement the approv
 ## Verification and review
 +- Production build and web typecheck passed. Two redirect safety tests passed.
 +- Browser verified city and game navigation at desktop, 390px and 320px; no horizontal overflow in those checks.
-+- Live deployment BUILD_ID: hdBFHaHmDUPimY19cZbWC. Backup: /opt/dndnerds/backups/navigation-web-20261028T162636Z/web-next.
++- Live deployment BUILD_ID: 2Lg6qq7BfwIFPjyivTmwi. Backup: /opt/dndnerds/backups/navigation-web-20261028T162636Z/web-next.
 +- Live icon metadata, PNG response and API/VTT health checked.
 +- Independent code review completed; corrected pending-membership wording and auth cross-link destination preservation.
 +- Authenticated player/DM browser journey was not exercised: the automatic approval check rejected starting the separate synthetic local preview. Existing role/launch API permissions were unchanged.
 +- Navigation screenshots: logs/navigation-result-20261028/.
+
+Final follow-up: header account links also preserve the current game destination. Verified live login/register links retain /find-game#join. Latest rollback build: /opt/dndnerds/backups/navigation-web-20261028T162850Z/web-next.
