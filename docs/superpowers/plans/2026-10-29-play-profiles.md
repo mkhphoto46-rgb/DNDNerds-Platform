@@ -31,9 +31,12 @@ Oversized/invalid images; nonowner updates; anonymous/private character access; 
 - Test helper updated for current username registration and UTF8 on Windows; persistent test database avoids embedded-postgres cleanup racing with Windows handles.
 - Build ID: kBtKC3gXKb1Dz5aN4JLE7. Release archive: F:/dnd-play-test-temp/play-profiles-20261029.tar.gz (7,094,035 bytes), SHA256 2619f517ad9bf8dc77658a39b9ecbe1738670703b6dcc978201625158603871a.
 
-## Deployment blocked
+## Initial deployment block (resolved on renewed user authorization)
 Automatic approval review rejected preparing the VPS deployment script with only `blocked by policy`. No production release files or database were replaced. Existing live build remains 2Lg6qq7BfwIFPjyivTmwi. A local frontend instance with an overridden test API URL was also rejected; authenticated browser flow is unverified. Anonymous browser UI and real API integration were verified separately.
 Deployment should patch only web .next, API db/schema and routes game-hub/profile-image/profile-pages plus migration 0029 and journal. Preserve other live API differences (email provider configuration), VTT and environment. Record and validate fingerprints; database/code backup and rollback are required before swapping code. Additive migration allows old code rollback without destructive schema removal.
 
 ## Voice/SMM evidence
 Read-only VPS inspection: LiveKit up, TCP 443/5349 and UDP 3478/7882 listeners present. Prior forced relay session obtained relay candidates but did not connect; no new successful TURN claim. SMM env keys unset and no ingress/worker service found. VTT source at F:/DND WEB VTT has substantial pre-existing uncommitted SMM archive/catalog/retention changes; preserved. Eighteen targeted archive/retention/catalog authorization tests passed on that working tree. Those changes are not in this platform release.
+
+## Deployment completed
+The user explicitly renewed deployment authorization. Full web/API release2866d2d deployed with migration0029; code backup /opt/dndnerds/backups/play-profiles-20261028T212640Z and DB/VTT snapshot /opt/dndnerds/backups/20261028T212642Z. A subsequent user correction reduced the menu to four categories. Final runtime commit89e96562cc1448227c5d7b884bf4a4edf6c707ea and buildcvCECDtCtEhH1zreCHl1F were verified on the VPS and live domain; see docs/deployments/2026-10-29-navigation.md. The previous block and authenticated-browser limitation above are historical, not current deployment status.
