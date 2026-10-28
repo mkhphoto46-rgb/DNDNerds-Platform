@@ -6,6 +6,7 @@ import { registerAccountRoutes } from "./routes/account.js";
 import { registerSocialRoutes } from "./routes/social.js";
 import { registerSocialGroupRoutes } from "./routes/social-groups.js";
 import { registerGameHubRoutes } from "./routes/game-hub.js";
+import { registerProfilePagesRoutes } from "./routes/profile-pages.js";
 import { registerXpRoutes } from "./routes/xp.js";
 import { registerPayoutDestinationRoutes } from "./routes/payout-destinations.js";
 import { registerRefundCaseRoutes } from "./routes/refund-cases.js";
@@ -327,6 +328,7 @@ export async function buildApp() {
   await app.register(registerSocialRoutes);
   await app.register(registerSocialGroupRoutes);
   await app.register(registerGameHubRoutes);
+  await app.register(registerProfilePagesRoutes);
   await app.register(registerXpRoutes);
 
 

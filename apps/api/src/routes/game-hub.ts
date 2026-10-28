@@ -91,7 +91,7 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     return { data: row };
   });
   app.get(`${base}/dms`, async () => {
-    const rows = await db.select({ userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears }).from(dmProfiles).where(eq(dmProfiles.visible, true)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
+    const rows = await db.select({ userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears, avatarData: dmProfiles.avatarData }).from(dmProfiles).where(eq(dmProfiles.visible, true)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
     const ratings = await db.select({ hostUserId: gameTables.hostUserId, average: sql<number>`round(avg(${gameTableReviews.rating})::numeric, 1)::float`, count: sql<number>`count(*)::int` }).from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id)).groupBy(gameTables.hostUserId);
     const byHost = new Map(ratings.map(row => [row.hostUserId, row]));
     return { data: rows.map(row => ({ ...row, rating: byHost.get(row.userId)?.average ?? null, reviewCount: byHost.get(row.userId)?.count ?? 0 })).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviewCount - a.reviewCount) };

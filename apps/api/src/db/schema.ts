@@ -4073,10 +4073,37 @@ export const dmProfiles = pgTable("dm_profiles", {
   languages: varchar("languages", { length: 120 }).notNull().default("فارسی"),
   experienceYears: integer("experience_years").notNull().default(0),
   visible: boolean("visible").notNull().default(true),
+  avatarData: text("avatar_data"),
+  bannerData: text("banner_data"),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   index("dm_profiles_visible_idx").on(t.visible),
   check("dm_profiles_experience_range", sql`${t.experienceYears} BETWEEN 0 AND 60`),
+]);
+
+export const playerCharacters = pgTable("player_characters", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  name: varchar("name", { length: 80 }).notNull(),
+  className: varchar("class_name", { length: 60 }).notNull().default(""),
+  subclass: varchar("subclass", { length: 80 }).notNull().default(""),
+  race: varchar("race", { length: 80 }).notNull().default(""),
+  background: varchar("background", { length: 120 }).notNull().default(""),
+  level: integer("level").notNull().default(1),
+  currentHp: integer("current_hp").notNull().default(1),
+  maxHp: integer("max_hp").notNull().default(1),
+  description: text("description").notNull().default(""),
+  story: text("story").notNull().default(""),
+  portraitData: text("portrait_data"),
+  public: boolean("public").notNull().default(true),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  index("player_characters_user_idx").on(t.userId, t.createdAt),
+  check("player_characters_level_range", sql`${t.level} BETWEEN 1 AND 20`),
+  check("player_characters_hp_range", sql`${t.maxHp} BETWEEN 1 AND 999 AND ${t.currentHp} BETWEEN 0 AND ${t.maxHp}`),
+  check("player_characters_story_length", sql`length(${t.story}) <= 3000`),
+  check("player_characters_description_length", sql`length(${t.description}) <= 1200`),
 ]);
 
 export const gameTables = pgTable("game_tables", {

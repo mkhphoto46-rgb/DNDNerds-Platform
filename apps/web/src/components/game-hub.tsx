@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./game-hub.module.css";
 
 type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
 type SessionStatus = { onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] } | null;
 type Table = { id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; updatedAt?: string; sessionStatus?: SessionStatus; rating?: number | null; reviewCount?: number };
-type Profile = { userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; visible?: boolean; rating?: number | null; reviewCount?: number };
+type Profile = { userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData?: string | null; rating?: number | null; reviewCount?: number };
 type Application = { id: string; tableId: string; title?: string; note: string; status: string; tableStatus?: string; tableUpdatedAt?: string; sessionStatus?: SessionStatus; email?: string };
 type Listing = { id: string; ownerUserId: string; opponentUserId?: string | null; mode: string; title: string; note: string; status: string };
 type Mine = { hosted: Table[]; applications: Application[] };
@@ -40,11 +41,12 @@ function SessionSummary({ status }: { status?: SessionStatus }) {
 }
 
 export function GameHub({ mode }: { mode: Mode }) {
+  const inAccount = usePathname().startsWith("/account/");
+  const routes = inAccount ? { play: "/account/games", find: "/account/find-game", create: "/account/create-game" } : { play: "/play", find: "/find-game", create: "/create-game" };
   const [tables, setTables] = useState<Table[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [listings, setListings] = useState<Listing[]>([]);
   const [mine, setMine] = useState<Mine | null>(null);
-  const [myProfile, setMyProfile] = useState<Profile | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [applications, setApplications] = useState<Application[]>([]);
   const [error, setError] = useState("");
@@ -54,7 +56,6 @@ export function GameHub({ mode }: { mode: Mode }) {
   const [filter, setFilter] = useState("");
   const [gamePage, setGamePage] = useState(1);
   const [gameSort, setGameSort] = useState<"newest" | "rating">("newest");
-  const [profileForm, setProfileForm] = useState({ displayName: "", bio: "", playStyle: "داستان‌محور", languages: "فارسی", experienceYears: 0, visible: true });
   const [tableForm, setTableForm] = useState({ title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
   const [inviteCode, setInviteCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
@@ -73,10 +74,7 @@ export function GameHub({ mode }: { mode: Mode }) {
     setLoading(true); setError("");
     try {
       if (mode === "find-game") setTables(await request<Table[]>("tables"));
-      if (mode === "find-dm") {
-        setProfiles(await request<Profile[]>("dms"));
-        try { const own = await request<Profile | null>("dms/me"); setMyProfile(own); if (own) setProfileForm({ ...own, visible: own.visible ?? true }); } catch { /* Guest can still browse. */ }
-      }
+      if (mode === "find-dm") setProfiles(await request<Profile[]>("dms"));
       if (mode === "play" || mode === "create-game") {
         try {
           const own = await request<Mine>("tables/me");
@@ -130,11 +128,11 @@ export function GameHub({ mode }: { mode: Mode }) {
   return <main className={styles.page}>
     <div className="shell">
       <header className={styles.intro}><span className="section-kicker">{heading.eyebrow}</span><h1>{heading.title}</h1><p>{heading.description}</p></header>
-      <nav className={styles.tabs} aria-label="بخش‌های بازی"><Link href="/play" aria-current={mode === "play" ? "page" : undefined}>میزهای من</Link><Link href="/find-game" aria-current={mode === "find-game" ? "page" : undefined}>پیدا کردن بازی</Link><Link href="/create-game" aria-current={mode === "create-game" ? "page" : undefined}>ساخت بازی</Link></nav>
+      <nav className={styles.tabs} aria-label="بخش‌های بازی"><Link href={routes.play} aria-current={mode === "play" ? "page" : undefined}>میزهای من</Link><Link href={routes.find} aria-current={mode === "find-game" ? "page" : undefined}>پیدا کردن بازی</Link><Link href={routes.create} aria-current={mode === "create-game" ? "page" : undefined}>ساخت بازی</Link><Link href="/find-dm" aria-current={mode === "find-dm" ? "page" : undefined}>DMها</Link>{inAccount && <Link href="/account">حساب من</Link>}</nav>
       {error && <p role="alert" className={styles.error}>{error}</p>}
       {notice && <p role="status" className={styles.notice}>{notice}</p>}
       {loading && <p role="status">در حال بارگذاری…</p>}
-      {(["find-game", "play", "create-game"] as Mode[]).includes(mode) && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول وارد حساب شو</h2><p>ساخت میز و پیوستن به بازی با حساب فعال سایت انجام می‌شود.</p><div className={styles.actions}><Link href={`/register?next=${encodeURIComponent(mode === "create-game" ? "/create-game" : mode === "play" ? "/play" : "/find-game")}`}>ساخت حساب</Link><Link href={`/login?next=${encodeURIComponent(mode === "create-game" ? "/create-game" : mode === "play" ? "/play" : "/find-game")}`}>حساب دارم؛ ورود</Link></div></section>}
+      {(["find-game", "play", "create-game"] as Mode[]).includes(mode) && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول وارد حساب شو</h2><p>ساخت میز و پیوستن به بازی با حساب فعال سایت انجام می‌شود.</p><div className={styles.actions}><Link href={`/register?next=${encodeURIComponent(mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find)}`}>ساخت حساب</Link><Link href={`/login?next=${encodeURIComponent(mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find)}`}>حساب دارم؛ ورود</Link></div></section>}
 
       {mode === "find-game" && !loading && <>
         {signedIn && <section className={styles.panel}><h2>ورود به میز خصوصی</h2><p>کد دعوتی را که DM فرستاده وارد کن تا با نمای Player وارد شوی.</p><form onSubmit={event => { event.preventDefault(); void joinWithCode(); }}><label>کد دعوت<input required value={codeInput} onChange={event => setCodeInput(event.target.value.toUpperCase())} autoComplete="off" /></label><button disabled={busy}>ورود با کد</button></form></section>}
@@ -145,21 +143,13 @@ export function GameHub({ mode }: { mode: Mode }) {
           <Link className={styles.detailLink} href={`/find-game/${table.id}`}>دیدن جزئیات کمپین ←</Link>
         </article>)}</div>
         {visibleGames.length > gamesPerPage && <nav className={styles.pagination} aria-label="صفحه‌های کمپین"><button disabled={gamePage === 1} onClick={() => setGamePage(page => page - 1)}>صفحهٔ پیشین</button><span>صفحهٔ {gamePage} از {Math.ceil(visibleGames.length / gamesPerPage)}</span><button disabled={gamePage * gamesPerPage >= visibleGames.length} onClick={() => setGamePage(page => page + 1)}>صفحهٔ بعدی</button></nav>}
-        {!tables.length && <div className={styles.empty}>هنوز میز منتشرشده‌ای وجود ندارد. اگر DM هستی، نخستین میز را بساز. <Link href="/play">ساخت میز</Link></div>}
+        {!tables.length && <div className={styles.empty}>هنوز میز منتشرشده‌ای وجود ندارد. اگر DM هستی، نخستین میز را بساز. <Link href={routes.create}>ساخت میز</Link></div>}
       </>}
 
       {mode === "find-dm" && !loading && <>
-        <div className={styles.grid}>{profiles.map((profile, index) => <article className={styles.card} key={profile.userId}><small>Dungeon Master · {profile.reviewCount ? `رتبهٔ ${index + 1}` : "بدون رتبه"}</small><h2>{profile.displayName}</h2><p className={styles.rating}>★ {profile.reviewCount ? `${profile.rating} از ۵ · ${profile.reviewCount} نظر` : "هنوز امتیازی ثبت نشده"}</p><p>{profile.bio || "این DM هنوز معرفی کوتاهی ثبت نکرده است."}</p><div className={styles.meta}><span>{profile.playStyle}</span><span>{profile.languages}</span><span>{profile.experienceYears} سال تجربه</span></div><Link href="/find-game">دیدن میزها ←</Link></article>)}</div>
+        <div className={styles.grid}>{profiles.map((profile, index) => <article className={styles.card} key={profile.userId}><small>Dungeon Master · {profile.reviewCount ? `رتبهٔ ${index + 1}` : "بدون رتبه"}</small>{profile.avatarData && <img src={profile.avatarData} alt="" width={72} height={72} style={{ borderRadius: "50%", objectFit: "cover" }} />}<h2>{profile.displayName}</h2><p className={styles.rating}>★ {profile.reviewCount ? `${profile.rating} از ۵ · ${profile.reviewCount} نظر` : "هنوز امتیازی ثبت نشده"}</p><p>{profile.bio || "این DM هنوز معرفی کوتاهی ثبت نکرده است."}</p><div className={styles.meta}><span>{profile.playStyle}</span><span>{profile.languages}</span><span>{profile.experienceYears} سال تجربه</span></div><Link href={`/dm/${profile.userId}`}>دیدن صفحهٔ DM ←</Link></article>)}</div>
         {!profiles.length && <div className={styles.empty}>هنوز پروفایل DM منتشر نشده است.</div>}
-        <section className={styles.panel}><h2>پروفایل DM خودت</h2><p>برای دیده‌شدن در این فهرست، مشخصاتت را ثبت کن.</p><form className={styles.profileForm} onSubmit={event => { event.preventDefault(); void act(() => request("dms/me", "PUT", profileForm), "پروفایل DM ذخیره شد."); }}>
-          <label>نام نمایشی<input required minLength={2} value={profileForm.displayName} onChange={e => setProfileForm({ ...profileForm, displayName: e.target.value })} /></label>
-          <label>معرفی<textarea rows={1} placeholder="معرفی کوتاه خودت را بنویس" value={profileForm.bio} maxLength={1200} onChange={e => setProfileForm({ ...profileForm, bio: e.target.value })} /></label>
-          <label>سبک اجرا<input required value={profileForm.playStyle} onChange={e => setProfileForm({ ...profileForm, playStyle: e.target.value })} /></label>
-          <label>زبان<input required value={profileForm.languages} onChange={e => setProfileForm({ ...profileForm, languages: e.target.value })} /></label>
-          <label>سال تجربه<input type="number" min="0" max="60" value={profileForm.experienceYears} onChange={e => setProfileForm({ ...profileForm, experienceYears: Number(e.target.value) })} /></label>
-          <label className={styles.check}><input type="checkbox" checked={profileForm.visible} onChange={e => setProfileForm({ ...profileForm, visible: e.target.checked })} /> نمایش عمومی</label>
-          <button disabled={busy}>ذخیره پروفایل</button>{myProfile && <small>پروفایل ثبت شده است.</small>}
-        </form></section>
+        <section className={styles.panel}><h2>صفحهٔ DM خودت</h2><p>از حساب من صفحه‌ات را فعال کن، تصویر و معرفی بگذار و میزهایت را نشان بده.</p><Link href="/account/dm">ساخت یا ویرایش صفحهٔ DM ←</Link></section>
       </>}
 
       {(mode === "play" || mode === "create-game") && !loading && <>
@@ -176,9 +166,9 @@ export function GameHub({ mode }: { mode: Mode }) {
           <label>نوع نمایش<select value={tableForm.visibility} onChange={e => setTableForm({ ...tableForm, visibility: e.target.value as "PUBLIC" | "PRIVATE" })}><option value="PUBLIC">عمومی؛ در فهرست بازی‌ها</option><option value="PRIVATE">خصوصی؛ فقط با کد دعوت</option></select></label>
           <label>وضعیت<select value={tableForm.status} onChange={e => setTableForm({ ...tableForm, status: e.target.value })}><option value="DRAFT">پیش‌نویس</option><option value="PUBLISHED">منتشرشده</option><option value="CLOSED">بسته</option></select></label>
           <button disabled={busy}>{editTableId ? "ذخیره تغییرات" : "ساخت میز"}</button>{editTableId && <button type="button" onClick={() => setEditTableId(null)}>لغو ویرایش</button>}
-        </form>{inviteCode && <p className={styles.notice}>کد دعوت خصوصی: <strong dir="ltr">{inviteCode}</strong> — آن را برای دوستانت بفرست. این کد پس از بستن صفحه دوباره نمایش داده نمی‌شود.</p>}<p><Link href="/play">بازگشت به میزهای من ←</Link></p></section>}
-        {mode === "play" && <><div className={styles.actions}><Link href="/create-game">ساخت بازی تازه ←</Link><Link href="/find-game">پیدا کردن بازی ←</Link></div>
-        <h2>میزهای میزبانی‌شده</h2><div className={styles.grid}>{mine.hosted.map(table => <article className={styles.card} key={table.id}><small>{tableStatusNames[table.status ?? ""] ?? table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><SessionSummary status={table.sessionStatus} /><div className={styles.actions}><button disabled={busy} onClick={() => window.location.assign(`/create-game?edit=${encodeURIComponent(table.id)}`)}>ویرایش</button><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به نمای DM</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></article>)}</div>
+        </form>{inviteCode && <p className={styles.notice}>کد دعوت خصوصی: <strong dir="ltr">{inviteCode}</strong> — آن را برای دوستانت بفرست. این کد پس از بستن صفحه دوباره نمایش داده نمی‌شود.</p>}<p><Link href={routes.play}>بازگشت به میزهای من ←</Link></p></section>}
+        {mode === "play" && <><div className={styles.actions}><Link href={routes.create}>ساخت بازی تازه ←</Link><Link href={routes.find}>پیدا کردن بازی ←</Link></div>
+        <h2>میزهای میزبانی‌شده</h2><div className={styles.grid}>{mine.hosted.map(table => <article className={styles.card} key={table.id}><small>{tableStatusNames[table.status ?? ""] ?? table.status} · {table.visibility === "PRIVATE" ? "خصوصی" : "عمومی"}</small><h3>{table.title}</h3><p>{table.description}</p><SessionSummary status={table.sessionStatus} /><div className={styles.actions}><button disabled={busy} onClick={() => window.location.assign(`${routes.create}?edit=${encodeURIComponent(table.id)}`)}>ویرایش</button><button disabled={busy || table.status === "HIDDEN"} onClick={() => void act(() => request(`tables/${table.id}`, "PUT", { title: table.title, description: table.description, system: table.system, language: table.language, playStyle: table.playStyle, levelRange: table.levelRange, schedule: table.schedule, capacity: table.capacity, visibility: table.visibility, status: table.status === "PUBLISHED" ? "CLOSED" : "PUBLISHED" }), "وضعیت میز تغییر کرد.")}>{table.status === "PUBLISHED" ? "بستن میز" : "انتشار میز"}</button><button disabled={busy} onClick={() => void launch(table.id, "dm")}>ورود به نمای DM</button>{table.visibility === "PRIVATE" && <button disabled={busy} onClick={() => void act(async () => { const result = await request<{inviteCode: string}>(`tables/${table.id}/invite/rotate`, "POST"); setInviteCode(result.inviteCode); }, "کد دعوت تازه ساخته شد؛ کد قبلی دیگر کار نمی‌کند.")}>ساخت کد دعوت تازه</button>}<button disabled={busy} onClick={() => { setSelected(table.id); void request<Application[]>(`tables/${table.id}/applications`).then(setApplications).catch(e => setError(e.message)); }}>اعضا</button></div></article>)}</div>
         {selected && <section className={styles.panel}><h2>درخواست‌های میز</h2>{applications.map(application => <div key={application.id} className={styles.application}><strong>{application.email}</strong><span>{application.note || "بدون پیام"}</span><small>{application.status}</small>{application.status === "PENDING" && <div className={styles.actions}><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: true }), "درخواست پذیرفته شد.")}>پذیرش</button><button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/respond`, "POST", { accept: false }), "درخواست رد شد.")}>رد</button></div>}</div>)}{!applications.length && <p>درخواستی ثبت نشده است.</p>}</section>}
         <h2>بازی‌هایی که در آن‌ها عضو هستم</h2><div className={styles.grid}>{mine.applications.map(application => <article className={styles.card} key={application.id}><h3>{application.title}</h3><p>{applicationStatusNames[application.status] ?? application.status} · {tableStatusNames[application.tableStatus ?? ""] ?? application.tableStatus}</p><SessionSummary status={application.sessionStatus} />{application.status === "ACCEPTED" && application.tableStatus === "PUBLISHED" && <button disabled={busy} onClick={() => void launch(application.tableId, "player")}>ورود به نمای Player</button>}{["PENDING", "ACCEPTED"].includes(application.status) && <button disabled={busy} onClick={() => void act(() => request(`applications/${application.id}/withdraw`, "POST"), "درخواست پس گرفته شد.")}>پس‌گرفتن درخواست</button>}</article>)}</div>
         </>}
