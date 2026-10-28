@@ -152,7 +152,7 @@ export function HomeTownExperience() {
       <div className="town-hud-actions">
         <SiteTour onStageChange={go} onOpenChat={openChat} />
         <button type="button" className="town-hud-button town-music-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn} aria-label={soundOn ? "خاموش کردن صدای شهر" : "روشن کردن صدای شهر"} title={soundOn ? "خاموش کردن صدا" : "روشن کردن صدا"}><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M13 23V5c7 0 6 7 12 7v5c-5 0-7-4-9-4v10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/><ellipse cx="10" cy="25" rx="5" ry="3.5" fill="currentColor"/>{!soundOn && <path d="M4 4L28 28" stroke="currentColor" strokeWidth="2.5"/>}</svg></button>
-        <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
+        <button type="button" className="town-hud-button town-chat-button" onClick={openChat} aria-label="دوستان و گفتگو" title="دوستان و گفتگو"><span className="town-control-label">دوستان و گفتگو</span><svg className="town-chat-icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-8l-6 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" strokeWidth="1.7"/><path d="M7 9h10M7 13h7" stroke="currentColor" strokeWidth="1.7"/></svg></button>
         <SiteMenu city />
       </div>
     </header>

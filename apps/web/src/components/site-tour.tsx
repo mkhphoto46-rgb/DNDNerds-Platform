@@ -40,7 +40,7 @@ export function SiteTour({ onStageChange, onOpenChat }: { onStageChange: (stage:
 
   const step = steps[index];
   return <>
-    <button type="button" className="town-hud-button site-tour-launch" onClick={() => { show(0); setOpen(true); }}>راهنمای سایت</button>
+    <button type="button" className="town-hud-button site-tour-launch" aria-label="راهنمای سایت" onClick={() => { show(0); setOpen(true); }}>راهنمای سایت</button>
     {open && <section className="site-tour" role="dialog" aria-label="راهنمای بخش‌های سایت" dir="rtl">
       <div className="site-tour-top"><span>راهنمای DND Nerds</span><button type="button" onClick={close} aria-label="بستن راهنما">×</button></div>
       <div className="site-tour-progress" aria-label={`مرحله ${index + 1} از ${steps.length}`}>

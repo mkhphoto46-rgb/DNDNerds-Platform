@@ -58,6 +58,8 @@ export default function AccountHomePage() {
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
+  const [logoutError, setLogoutError] = useState("");
   const latestRequest = useRef(0);
 
   const refresh = useCallback(async () => {
@@ -136,6 +138,17 @@ export default function AccountHomePage() {
     finally { setSavingUsername(false); }
   }
 
+  async function signOut() {
+    setSigningOut(true); setLogoutError("");
+    try {
+      const response = await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: "{}" });
+      if (!response.ok) throw new Error("خروج از حساب انجام نشد. دوباره تلاش کن.");
+      window.dispatchEvent(new Event("dnd-auth-change"));
+      if (typeof BroadcastChannel !== "undefined") { const channel = new BroadcastChannel("dnd-nerds-auth-state"); channel.postMessage("auth-change"); channel.close(); }
+      window.location.assign("/");
+    } catch (error) { setLogoutError(error instanceof Error ? error.message : "خروج از حساب انجام نشد."); setSigningOut(false); }
+  }
+
   return (
     <main className={styles.page}>
       <div className={styles.shell}>
@@ -150,7 +163,7 @@ export default function AccountHomePage() {
           <section className={styles.notice}>
             <h2>برای مشاهده حساب وارد شو</h2>
             <p>نشست فعالی پیدا نشد. اطلاعات شخصی فقط بعد از ورود نمایش داده می‌شوند.</p>
-            <Link className={styles.buttonPrimary} href="/login?next=%2Faccount">ورود به حساب</Link>
+            <Link className={styles.buttonPrimary} href="/login?next=%2Faccount">ورود به حساب</Link> <Link className={styles.textLink} href="/register?next=%2Faccount">ساخت حساب</Link>
           </section>
         )}
         {account.kind === "error" && (
@@ -184,24 +197,31 @@ export default function AccountHomePage() {
               </form>
             </section>
 
-            <section className={styles.panel} aria-labelledby="account-links-heading">
-              <div className={styles.sectionHeading}><div><span className={styles.miniLabel}>ACCOUNT CENTER</span><h2 id="account-links-heading">بخش‌های حساب</h2></div></div>
+            <section className={styles.panel} aria-labelledby="profile-links-heading">
+              <div className={styles.sectionHeading}><h2 id="profile-links-heading">پروفایل و شخصیت‌ها</h2></div>
               <div className={styles.actions}>
-                <Link className={styles.action} href="/account/games"><span className={styles.actionIcon}>⚔</span><span><strong>میزهای بازی من</strong><small>میزهای میزبانی‌شده، عضویت‌ها و سشن‌های بازی</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/find-game"><span className={styles.actionIcon}>⌕</span><span><strong>پیدا کردن بازی</strong><small>دیدن میزهای عمومی و ورود با کد دعوت</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/create-game"><span className={styles.actionIcon}>＋</span><span><strong>ساخت بازی</strong><small>ساخت و انتشار میز تازه برای بازیکنان</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/profile"><span className={styles.actionIcon}>◉</span><span><strong>ویرایش پروفایل من</strong><small>نام نمایشی، معرفی، آواتار و هدر</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/dm"><span className={styles.actionIcon}>✦</span><span><strong>صفحهٔ DM من</strong><small>فعال‌سازی و ویرایش معرفی، آواتار و بنر</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/characters"><span className={styles.actionIcon}>♙</span><span><strong>کاراکترهای من</strong><small>تا سه کاراکتر با تصویر، داستان و مشخصات کلی</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href={`/player/${account.user.id}`}><span className={styles.actionIcon}>◉</span><span><strong>صفحهٔ عمومی پلیر من</strong><small>نمایی که دیگران از کاراکترهای عمومی‌ات می‌بینند</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/find-dm"><span className={styles.actionIcon}>★</span><span><strong>پیدا کردن DM</strong><small>صفحه‌ها، امتیازها و نظرهای بازیکنان</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/arena"><span className={styles.actionIcon}>◈</span><span><strong>دعوت‌های آرنا</strong><small>چالش‌های ساخته‌شده و بازی‌های هماهنگ‌شده</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/orders"><span className={styles.actionIcon}>◈</span><span><strong>سفارش‌های من</strong><small>تاریخچه خرید و جزئیات سفارش</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/sessions"><span className={styles.actionIcon}>◇</span><span><strong>امنیت حساب</strong><small>مدیریت دستگاه‌ها و نشست‌های فعال</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/change-password"><span className={styles.actionIcon}>✧</span><span><strong>تغییر رمز عبور</strong><small>با رمز فعلی، یک رمز تازه برای حسابت انتخاب کن</small></span><span className={styles.arrow}>←</span></Link>
-                {account.user.emailVerified === false && <Link className={styles.action} href="/verify-email"><span className={styles.actionIcon}>✉</span><span><strong>تأیید ایمیل</strong><small>دریافت پیوند تأیید برای آدرس ایمیل حساب</small></span><span className={styles.arrow}>←</span></Link>}
-                <Link className={styles.action} href="/seller/dashboard"><span className={styles.actionIcon}>♜</span><span><strong>پنل فروشنده</strong><small>ویژه حساب‌های دارای دسترسی فروشندگی</small></span><span className={styles.arrow}>←</span></Link>
-                <div className={styles.action}><span className={styles.actionIcon}>✦</span><span><strong>درخواست فروشندگی</strong><small>پس از اجرای مراحل احراز اطلاعات، تماس تلفنی و تأیید مدیر فعال می‌شود.</small></span><span className={styles.arrow}>به‌زودی</span></div>
+                <Link className={styles.action} href="/account/profile"><span><strong>پروفایل من</strong><small>نام نمایشی، معرفی، آواتار و هدر</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/characters"><span><strong>کاراکترهای من</strong><small>شخصیت‌ها و انتخاب نمایش عمومی هرکدام</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/dm"><span><strong>صفحهٔ DM من</strong><small>معرفی بازی‌گردان و کمپین‌ها</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href={`/player/${account.user.id}`}><span><strong>دیدن صفحهٔ عمومی من</strong><small>نمایی که دوستان و بازیکنان می‌بینند</small></span><span className={styles.arrow}>←</span></Link>
+              </div>
+            </section>
+            <section className={styles.panel} aria-labelledby="security-links-heading">
+              <div className={styles.sectionHeading}><h2 id="security-links-heading">امنیت و ورود</h2></div>
+              <div className={styles.actions}>
+                <Link className={styles.action} href="/account/sessions"><span><strong>دستگاه‌ها و نشست‌ها</strong><small>مدیریت دسترسی به حساب</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/change-password"><span><strong>تغییر رمز عبور</strong><small>انتخاب رمز تازه با رمز فعلی</small></span><span className={styles.arrow}>←</span></Link>
+                {account.user.emailVerified === false && <Link className={styles.action} href="/verify-email"><span><strong>تأیید ایمیل</strong><small>دریافت پیوند تأیید حساب</small></span><span className={styles.arrow}>←</span></Link>}
+              </div>
+              <button type="button" className={styles.inlineButton} disabled={signingOut} onClick={() => void signOut()}>{signingOut ? "در حال خروج…" : "خروج از حساب"}</button>
+              {logoutError && <p role="alert">{logoutError}</p>}
+            </section>
+            <section className={styles.panel} aria-labelledby="purchase-links-heading">
+              <div className={styles.sectionHeading}><h2 id="purchase-links-heading">خرید و اشتراک</h2></div>
+              <div className={styles.actions}>
+                <Link className={styles.action} href="/orders"><span><strong>سفارش‌های من</strong><small>تاریخچه خرید و جزئیات سفارش</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/pricing"><span><strong>اشتراک</strong><small>مشاهدهٔ طرح‌ها و امکانات</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/seller/dashboard"><span><strong>پنل فروشنده</strong><small>ویژه حساب‌های دارای دسترسی فروشندگی</small></span><span className={styles.arrow}>←</span></Link>
               </div>
             </section>
 

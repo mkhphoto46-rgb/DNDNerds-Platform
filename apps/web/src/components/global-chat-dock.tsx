@@ -189,7 +189,7 @@ export function GlobalChatDock(){
         </>}
       </section>
       <button className={styles.launcher} type="button" aria-expanded={open} aria-controls="dnd-social-panel" onClick={()=>{setOpen(v=>!v);setNotice("");}}>
-        <span className={styles.spark}>✧</span><span>Friends & Chat</span><span className={styles.chevron}>{open?"⌄":"⌃"}</span>
+        <span className={styles.spark}>✧</span><span>دوستان و گفتگو</span><span className={styles.chevron}>{open?"⌄":"⌃"}</span>
       </button>
     </div>
   );

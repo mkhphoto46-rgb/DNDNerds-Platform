@@ -29,7 +29,7 @@ chown -R dndnerds:dndnerds "$app/.next"
 systemctl start dndnerds
 ready=false
 for attempt in $(seq 1 25); do
- if curl -fsS http://127.0.0.1:4100/health/ready >/dev/null && curl -fsS http://127.0.0.1:4200/api/health >/dev/null && curl -fsS https://dndnerds.ir/play >/dev/null && curl -fsS https://dndnerds.ir/create-game >/dev/null; then ready=true; break; fi
+ if curl -fsS http://127.0.0.1:4100/health/ready >/dev/null && curl -fsS http://127.0.0.1:4200/api/health >/dev/null && curl -fsS https://dndnerds.ir/play >/dev/null && curl -fsS https://dndnerds.ir/create-game >/dev/null && curl -fsS https://dndnerds.ir/games >/dev/null && curl -fsS https://dndnerds.ir/tools >/dev/null && curl -fsS https://dndnerds.ir/account >/dev/null; then ready=true; break; fi
  sleep 2
 done
 test "$ready" = true
