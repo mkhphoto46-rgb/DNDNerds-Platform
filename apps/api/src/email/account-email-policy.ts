@@ -4,7 +4,8 @@ export function accountEmailReady(env: Record<string, string | undefined> = proc
   const provider = env.EMAIL_PROVIDER?.trim().toLowerCase();
   const required = provider === "smtp"
     ? ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"]
-    : provider === "brevo" ? ["BREVO_API_KEY", "EMAIL_FROM"] : [];
+    : provider === "brevo" ? ["BREVO_API_KEY", "EMAIL_FROM"]
+    : provider === "resend" ? ["RESEND_API_KEY", "EMAIL_FROM"] : [];
   return required.length > 0 && required
     .every((key) => Boolean(env[key]?.trim()));
 }

@@ -242,6 +242,12 @@ export function productionReadinessIssues(
     }
   }
 
+  if (!freeLaunch && providers.email === "resend") {
+    for (const key of ["RESEND_API_KEY", "EMAIL_FROM"] as const) {
+      if (!env[key]) missing.push(key);
+    }
+  }
+
   if (
     !stableHttpsUrl(
       env
