@@ -51,10 +51,10 @@ const orderLabels: Record<string, string> = {
   EXPIRED: "منقضی‌شده",
 };
 
-export default function AccountHomePage() {
+export default function AccountHomePage({ commerceEnabled = true }: { commerceEnabled?: boolean }) {
   const [account, setAccount] = useState<AccountState>({ kind: "loading" });
   const [orders, setOrders] = useState<BuyerOrder[]>([]);
-  const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [ordersStatus, setOrdersStatus] = useState<"loading" | "ready" | "error" | "disabled">("loading");
   const [username, setUsername] = useState("");
   const [usernameMessage, setUsernameMessage] = useState("");
   const [savingUsername, setSavingUsername] = useState(false);
@@ -87,6 +87,7 @@ export default function AccountHomePage() {
       setAccount({ kind: "error", message: error instanceof Error ? error.message : "خطای ارتباط با سرور" });
       return;
     }
+    if (!commerceEnabled) { setOrdersStatus("disabled"); return; }
     try {
       const response = await fetch("/api/marketplace/orders", {
         method: "GET", credentials: "same-origin", cache: "no-store",
@@ -100,7 +101,7 @@ export default function AccountHomePage() {
     } catch {
       if (requestId === latestRequest.current) setOrdersStatus("error");
     }
-  }, []);
+  }, [commerceEnabled]);
 
   useEffect(() => {
     const reload = () => { void refresh(); };
@@ -200,17 +201,17 @@ export default function AccountHomePage() {
             <section className={styles.panel} aria-labelledby="profile-links-heading">
               <div className={styles.sectionHeading}><h2 id="profile-links-heading">پروفایل و شخصیت‌ها</h2></div>
               <div className={styles.actions}>
-                <Link className={styles.action} href="/account/profile"><span><strong>پروفایل من</strong><small>نام نمایشی، معرفی، آواتار و هدر</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/characters"><span><strong>کاراکترهای من</strong><small>شخصیت‌ها و انتخاب نمایش عمومی هرکدام</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/dm"><span><strong>صفحهٔ DM من</strong><small>معرفی بازی‌گردان و کمپین‌ها</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href={`/player/${account.user.id}`}><span><strong>دیدن صفحهٔ عمومی من</strong><small>نمایی که دوستان و بازیکنان می‌بینند</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/profile"><span><strong>پروفایل من</strong><small>نام، معرفی و تصویر</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/characters"><span><strong>کاراکترهای من</strong><small>شخصیت‌ها و نمایش عمومی</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/dm"><span><strong>صفحهٔ DM من</strong><small>معرفی و کمپین‌ها</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href={`/player/${account.user.id}`}><span><strong>پروفایل عمومی</strong><small>نمای پروفایل برای دیگران</small></span><span className={styles.arrow}>←</span></Link>
               </div>
             </section>
             <section className={styles.panel} aria-labelledby="security-links-heading">
               <div className={styles.sectionHeading}><h2 id="security-links-heading">امنیت و ورود</h2></div>
               <div className={styles.actions}>
-                <Link className={styles.action} href="/account/sessions"><span><strong>دستگاه‌ها و نشست‌ها</strong><small>مدیریت دسترسی به حساب</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/account/change-password"><span><strong>تغییر رمز عبور</strong><small>انتخاب رمز تازه با رمز فعلی</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/sessions"><span><strong>دستگاه‌ها و نشست‌ها</strong><small>مدیریت دستگاه‌های واردشده</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/account/change-password"><span><strong>تغییر رمز عبور</strong><small>انتخاب رمز تازه</small></span><span className={styles.arrow}>←</span></Link>
                 {account.user.emailVerified === false && <Link className={styles.action} href="/verify-email"><span><strong>تأیید ایمیل</strong><small>دریافت پیوند تأیید حساب</small></span><span className={styles.arrow}>←</span></Link>}
               </div>
               <button type="button" className={styles.inlineButton} disabled={signingOut} onClick={() => void signOut()}>{signingOut ? "در حال خروج…" : "خروج از حساب"}</button>
@@ -219,17 +220,18 @@ export default function AccountHomePage() {
             <section className={styles.panel} aria-labelledby="purchase-links-heading">
               <div className={styles.sectionHeading}><h2 id="purchase-links-heading">خرید و اشتراک</h2></div>
               <div className={styles.actions}>
-                <Link className={styles.action} href="/orders"><span><strong>سفارش‌های من</strong><small>تاریخچه خرید و جزئیات سفارش</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/pricing"><span><strong>اشتراک</strong><small>مشاهدهٔ طرح‌ها و امکانات</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/seller/dashboard"><span><strong>پنل فروشنده</strong><small>ویژه حساب‌های دارای دسترسی فروشندگی</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/orders"><span><strong>سفارش‌های من</strong><small>تاریخچهٔ خرید</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/pricing"><span><strong>اشتراک</strong><small>طرح‌ها و امکانات</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/seller/dashboard"><span><strong>پنل فروشنده</strong><small>مدیریت فروشگاه</small></span><span className={styles.arrow}>←</span></Link>
               </div>
             </section>
 
-            <section className={styles.panel} aria-labelledby="recent-heading">
+            <section className={`${styles.panel} ${styles.historyPanel}`} aria-labelledby="recent-heading">
               <div className={styles.sectionHeading}>
-                <div><span className={styles.miniLabel}>ORDER HISTORY</span><h2 id="recent-heading">آخرین سفارش‌ها</h2></div>
-                <Link className={styles.textLink} href="/orders">نمایش همه ←</Link>
+                <div><h2 id="recent-heading">آخرین سفارش‌ها</h2></div>
+                {commerceEnabled && <Link className={styles.textLink} href="/orders">نمایش همه ←</Link>}
               </div>
+              {ordersStatus === "disabled" && <p className={styles.empty}>خرید آنلاین هنوز فعال نشده است.</p>}
               {ordersStatus === "loading" && <p className={styles.empty}>در حال دریافت سفارش‌ها…</p>}
               {ordersStatus === "error" && <p className={styles.empty}>دریافت سفارش‌ها ناموفق بود. <button type="button" className={styles.inlineButton} onClick={() => void refresh()}>تلاش مجدد</button></p>}
               {ordersStatus === "ready" && orders.length === 0 && <p className={styles.empty}>هنوز سفارشی برای این حساب ثبت نشده است.</p>}
@@ -239,7 +241,6 @@ export default function AccountHomePage() {
                   <span className={styles.orderMeta}><strong>{money(order.customerTotalToman)}</strong><small>{orderLabels[order.status] ?? order.status}</small></span>
                 </Link>
               ))}
-              <p className={styles.hint}>وضعیت‌ها براساس اطلاعات فعلی سفارش نمایش داده می‌شوند؛ تاریخچه جزئیات زمانی رویدادهای سفارش در نسخه تکمیلی حساب اضافه می‌شود.</p>
             </section>
           </div>
         )}
