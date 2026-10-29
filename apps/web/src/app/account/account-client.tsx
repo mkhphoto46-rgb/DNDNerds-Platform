@@ -221,7 +221,7 @@ export default function AccountHomePage({ commerceEnabled = true }: { commerceEn
               <div className={styles.sectionHeading}><h2 id="purchase-links-heading">خرید و حمایت</h2></div>
               <div className={styles.actions}>
                 <Link className={styles.action} href="/orders"><span><strong>سفارش‌های من</strong><small>تاریخچهٔ خرید</small></span><span className={styles.arrow}>←</span></Link>
-                <Link className={styles.action} href="/support"><span><strong>حمایت از پروژه</strong><small>داوطلبانه؛ حساب‌ها فعلاً رایگان‌اند</small></span><span className={styles.arrow}>←</span></Link>
+                <Link className={styles.action} href="/support"><span><strong>حمایت از پروژه</strong><small>داوطلبانه؛ حساب‌ها رایگانند</small></span><span className={styles.arrow}>←</span></Link>
                 <Link className={styles.action} href="/seller/dashboard"><span><strong>پنل فروشنده</strong><small>مدیریت فروشگاه</small></span><span className={styles.arrow}>←</span></Link>
               </div>
             </section>
