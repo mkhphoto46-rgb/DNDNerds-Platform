@@ -50,6 +50,7 @@ export function XpExperience({ children }: { children: React.ReactNode }) {
       if (response.status === 401) { signedIn.current = false; previous.current = null; setXp(null); return; }
       if (!response.ok) return;
       const next = await response.json() as XpState;
+      if (version !== generation.current) return;
       if (previous.current && next.level > previous.current.level) {
         setCelebration(next.level);
         if (sound.current) playLevelSound(sound.current);
