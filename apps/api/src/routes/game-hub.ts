@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, ne, or, ilike, sql } from "drizzle-orm";
 import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
@@ -9,6 +9,9 @@ import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
 import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
+
+import { publicAccountId } from "../auth/public-identity.js";
+import { validProfileImage } from "./profile-image.js";
 
 const base = "/api/v1/game-hub";
 const id = z.string().uuid();
@@ -20,6 +23,8 @@ const profileInput = z.object({
 });
 const tableInput = z.object({
   title: z.string().trim().min(3).max(120), description: text(2000),
+  genres: z.array(z.enum(["فانتزی", "ماجراجویی", "وحشت", "معمایی", "علمی‌تخیلی", "حماسی", "طنز", "تاریخی", "نقش‌آفرینی", "نبردمحور"])).max(4).optional(),
+  imageData: z.union([z.string(), z.null()]).refine(value => validProfileImage(value, "campaign")).optional(),
   system: z.string().trim().min(2).max(80), language: z.string().trim().min(2).max(60),
   playStyle: z.string().trim().min(2).max(60), levelRange: z.string().trim().min(1).max(60),
   schedule: z.string().trim().min(2).max(160), capacity: z.number().int().min(2).max(8),
@@ -90,11 +95,17 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     await db.insert(marketplaceAdminAuditLogs).values({ adminUserId: admin.userId, action: "UPDATE_POST", entityType: "site_post", entityId: row.id, details: JSON.stringify({ title: row.title, status: row.status }) });
     return { data: row };
   });
-  app.get(`${base}/dms`, async () => {
-    const rows = await db.select({ userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears, avatarData: dmProfiles.avatarData }).from(dmProfiles).where(eq(dmProfiles.visible, true)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
+  app.get<{ Querystring: { q?: string; genre?: string } }>(`${base}/dms`, async (request, reply) => {
+    const parsed = z.object({ q: z.string().trim().max(120).optional(), genre: z.string().max(40).optional() }).safeParse(request.query);
+    if (!parsed.success) return invalid(reply);
+    const query = parsed.data.q, genre = parsed.data.genre;
+    const term = `%${query ?? ""}%`;
+    const matchesCampaign = sql`EXISTS (SELECT 1 FROM game_tables t WHERE t.host_user_id = ${dmProfiles.userId} AND t.visibility = 'PUBLIC' AND t.status = 'PUBLISHED' AND (${!query} OR t.title ILIKE ${term} OR t.description ILIKE ${term} OR t.genres::text ILIKE ${term}) AND (${!genre} OR t.genres @> ${JSON.stringify(genre ? [genre] : [])}::jsonb))`;
+    const publicIdMatch = sql`translate(rtrim(encode(substring(sha256(convert_to(${users.id}::text, 'UTF8')) from 1 for 9), 'base64'), '='), '+/', '-_') ILIKE ${term}`;
+    const rows = await db.select({ username: users.username, userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears, avatarData: dmProfiles.avatarData }).from(dmProfiles).innerJoin(users, eq(dmProfiles.userId, users.id)).where(and(eq(dmProfiles.visible, true), eq(users.status, "ACTIVE"), query ? or(ilike(dmProfiles.displayName, term), ilike(dmProfiles.bio, term), ilike(users.username, term), sql`${users.id}::text ILIKE ${term}`, publicIdMatch, matchesCampaign) : undefined, genre ? sql`EXISTS (SELECT 1 FROM game_tables t WHERE t.host_user_id = ${dmProfiles.userId} AND t.visibility = 'PUBLIC' AND t.status = 'PUBLISHED' AND t.genres @> ${JSON.stringify([genre])}::jsonb)` : undefined)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
     const ratings = await db.select({ hostUserId: gameTables.hostUserId, average: sql<number>`round(avg(${gameTableReviews.rating})::numeric, 1)::float`, count: sql<number>`count(*)::int` }).from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id)).groupBy(gameTables.hostUserId);
     const byHost = new Map(ratings.map(row => [row.hostUserId, row]));
-    return { data: rows.map(row => ({ ...row, rating: byHost.get(row.userId)?.average ?? null, reviewCount: byHost.get(row.userId)?.count ?? 0 })).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviewCount - a.reviewCount) };
+    return { data: rows.map(row => ({ ...row, publicId: publicAccountId(row.userId), rating: byHost.get(row.userId)?.average ?? null, reviewCount: byHost.get(row.userId)?.count ?? 0 })).sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.reviewCount - a.reviewCount) };
   });
   app.get(`${base}/dms/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
@@ -108,15 +119,19 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     return { data: row };
   });
 
-  app.get(`${base}/tables`, async () => {
-    const rows = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, title: gameTables.title, description: gameTables.description, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"))).orderBy(desc(gameTables.createdAt)).limit(80);
+  app.get<{ Querystring: { q?: string; genre?: string } }>(`${base}/tables`, async (request, reply) => {
+    const parsed = z.object({ q: z.string().trim().max(120).optional(), genre: z.string().max(40).optional() }).safeParse(request.query);
+    if (!parsed.success) return invalid(reply);
+    const query = parsed.data.q, genre = parsed.data.genre, term = `%${parsed.data.q ?? ""}%`;
+    const publicIdMatch = sql`translate(rtrim(encode(substring(sha256(convert_to(${users.id}::text, 'UTF8')) from 1 for 9), 'base64'), '='), '+/', '-_') ILIKE ${term}`;
+    const rows = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, title: gameTables.title, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData, hostUsername: users.username, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).innerJoin(users, eq(gameTables.hostUserId, users.id)).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"), query ? or(ilike(gameTables.title, term), ilike(gameTables.description, term), ilike(gameTables.system, term), ilike(gameTables.playStyle, term), ilike(dmProfiles.displayName, term), ilike(users.username, term), sql`${users.id}::text ILIKE ${term}`, publicIdMatch, sql`${gameTables.genres}::text ILIKE ${term}`) : undefined, genre ? sql`${gameTables.genres} @> ${JSON.stringify([genre])}::jsonb` : undefined)).orderBy(desc(gameTables.createdAt)).limit(80);
     const ratings = await db.select({ hostUserId: gameTables.hostUserId, average: sql<number>`round(avg(${gameTableReviews.rating})::numeric, 1)::float`, count: sql<number>`count(*)::int` }).from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id)).groupBy(gameTables.hostUserId);
     const byHost = new Map(ratings.map(row => [row.hostUserId, row]));
-    return { data: rows.map(row => ({ ...row, rating: byHost.get(row.hostUserId)?.average ?? null, reviewCount: byHost.get(row.hostUserId)?.count ?? 0 })) };
+    return { data: rows.map(row => ({ ...row, hostPublicId: publicAccountId(row.hostUserId), rating: byHost.get(row.hostUserId)?.average ?? null, reviewCount: byHost.get(row.hostUserId)?.count ?? 0 })) };
   });
   app.get<{ Params: { tableId: string } }>(`${base}/tables/:tableId`, async (request, reply) => {
     const key = id.safeParse(request.params.tableId); if (!key.success) return invalid(reply);
-    const [table] = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, hostBio: dmProfiles.bio, title: gameTables.title, description: gameTables.description, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.id, key.data), eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"))).limit(1);
+    const [table] = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, hostBio: dmProfiles.bio, title: gameTables.title, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData, hostUsername: users.username, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).innerJoin(users, eq(gameTables.hostUserId, users.id)).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.id, key.data), eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"))).limit(1);
     if (!table) return reply.code(404).send({ error: { message: "این کمپین پیدا نشد." } });
     const [reviews, ratingRows] = await Promise.all([
       db.select({ id: gameTableReviews.id, reviewerUserId: gameTableReviews.reviewerUserId, rating: gameTableReviews.rating, comment: gameTableReviews.comment, createdAt: gameTableReviews.createdAt, updatedAt: gameTableReviews.updatedAt }).from(gameTableReviews).where(eq(gameTableReviews.tableId, table.id)).orderBy(desc(gameTableReviews.updatedAt)).limit(100),

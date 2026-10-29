@@ -7,7 +7,7 @@ import styles from "@/components/profile-pages.module.css";
 
 type Character = { id: string; userId: string; name: string; className: string; subclass: string; race: string; background: string; level: number; currentHp: number; maxHp: number; description: string; story: string; portraitData: string | null; public: boolean };
 type Form = Omit<Character, "id" | "userId">;
-const blank: Form = { name: "", className: "", subclass: "", race: "", background: "", level: 1, currentHp: 1, maxHp: 1, description: "", story: "", portraitData: null, public: true };
+const blank: Form = { name: "", className: "", subclass: "", race: "", background: "", level: 1, currentHp: 1, maxHp: 1, description: "", story: "", portraitData: null, public: false };
 
 export default function CharacterEditor() {
   const [characters, setCharacters] = useState<Character[]>([]);

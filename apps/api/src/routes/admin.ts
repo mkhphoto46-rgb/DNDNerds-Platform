@@ -208,6 +208,7 @@ export async function registerAdminRoutes(
   });
 
   app.get("/api/v1/subscriptions/plan", async () => {
+    if (process.env.FREE_LAUNCH_MODE === "true") return { data: { free: true, priceRial: 0, durationDays: null, checkoutAvailable: false, supportUrl: "/support" } };
     const [settings] = await db.select({ priceRial: gameSubscriptionSettings.priceRial })
       .from(gameSubscriptionSettings).where(eq(gameSubscriptionSettings.id, 1)).limit(1);
     return { data: { priceRial: settings?.priceRial ?? 5990000, durationDays: 30, checkoutAvailable: false } };

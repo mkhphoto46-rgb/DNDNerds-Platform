@@ -5,6 +5,7 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import postgres from "postgres";
 
 import type { FastifyInstance, InjectOptions } from "fastify";
 
@@ -24,7 +25,12 @@ let counter = 0;
 
 export async function startApi(): Promise<TestApi> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dnd-api-test-"));
-  const pg = await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test" });
+  const pg = await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test", persistent: true });
+  // Windows initdb inherits WIN1252; Persian migration literals require UTF8.
+  const bootstrap = postgres(pg.url);
+  await bootstrap.unsafe("CREATE DATABASE dnd_nerds_test_utf8 TEMPLATE template0 ENCODING 'UTF8'");
+  await bootstrap.end();
+  pg.url = pg.url.replace("/dnd_nerds_test", "/dnd_nerds_test_utf8");
   const redis = await startRedis({ port: await freePort() });
   Object.assign(process.env, {
     NODE_ENV: "test",
@@ -63,7 +69,7 @@ export async function startApi(): Promise<TestApi> {
     const password = `Test-password-${randomBytes(6).toString("hex")}`;
     // Each test user gets its own client address, so the per-address rate limits stay out of the way.
     const address = `10.20.${Math.floor(counter / 250)}.${(counter % 250) + 1}`;
-    const response = await request({ method: "POST", url: "/api/v1/auth/register", payload: { email, password }, remoteAddress: address });
+    const response = await request({ method: "POST", url: "/api/v1/auth/register", payload: { email, password, username: `test_${randomBytes(6).toString("hex")}` }, remoteAddress: address });
     if (response.status !== 201) throw new Error(`register failed: ${response.status} ${JSON.stringify(response.body)}`);
     return { token: response.body.sessionToken, userId: response.body.user.id, email, password, address };
   };

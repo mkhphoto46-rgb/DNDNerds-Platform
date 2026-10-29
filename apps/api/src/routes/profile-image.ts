@@ -1,8 +1,9 @@
-export type ProfileImageKind = "avatar" | "banner" | "portrait";
+export type ProfileImageKind = "avatar" | "banner" | "portrait" | "campaign";
 
 const limits: Record<ProfileImageKind, { bytes: number; width: number; height: number }> = {
-  avatar: { bytes: 100_000, width: 512, height: 512 },
-  banner: { bytes: 230_000, width: 1400, height: 400 },
+  campaign: { bytes: 100_000, width: 512, height: 512 },
+  avatar: { bytes: 500_000, width: 512, height: 512 },
+  banner: { bytes: 1_000_000, width: 1400, height: 400 },
   portrait: { bytes: 190_000, width: 900, height: 1400 },
 };
 

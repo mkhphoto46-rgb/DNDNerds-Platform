@@ -1,6 +1,7 @@
 "use client";
 
 import { createContext, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { fetchSession } from "@/lib/session-client";
 import "./xp-experience.css";
 
 type XpState = { totalXp: number; level: number; levelXp: number; xpToNextLevel: number; leveledUp?: boolean };
@@ -30,15 +31,26 @@ export function XpExperience({ children }: { children: React.ReactNode }) {
   const previous = useRef<XpState | null>(null);
   const sound = useRef<AudioContext | null>(null);
   const busy = useRef(false);
+  const signedIn = useRef<boolean | null>(null);
+  const generation = useRef(0);
 
   const refresh = useCallback(async (heartbeat = false) => {
     if (busy.current || document.visibilityState !== "visible") return;
+    if (heartbeat && signedIn.current === false) return;
+    const version = generation.current;
     busy.current = true;
     try {
+      const session = await fetchSession();
+      if (version !== generation.current) return;
+      if (session.status === 401) { signedIn.current = false; previous.current = null; setXp(null); return; }
+      if (!session.ok) return;
+      signedIn.current = true;
       const response = await fetch(heartbeat ? "/api/xp/heartbeat" : "/api/xp", { method: heartbeat ? "POST" : "GET", cache: "no-store" });
-      if (response.status === 401) { previous.current = null; setXp(null); return; }
+      if (version !== generation.current) return;
+      if (response.status === 401) { signedIn.current = false; previous.current = null; setXp(null); return; }
       if (!response.ok) return;
       const next = await response.json() as XpState;
+      if (version !== generation.current) return;
       if (previous.current && next.level > previous.current.level) {
         setCelebration(next.level);
         if (sound.current) playLevelSound(sound.current);
@@ -46,13 +58,13 @@ export function XpExperience({ children }: { children: React.ReactNode }) {
       previous.current = next;
       setXp(next);
     } catch { /* The visible bar keeps its last known value when offline. */ }
-    finally { busy.current = false; }
+    finally { busy.current = false; if (version !== generation.current) void refresh(); }
   }, []);
 
   useEffect(() => {
     const unlock = () => { if (typeof AudioContext === "undefined") return; if (!sound.current) sound.current = new AudioContext(); void sound.current.resume().catch(() => {}); };
     const onVisible = () => { if (document.visibilityState === "visible") void refresh(); };
-    const onAuth = () => { previous.current = null; void refresh(); };
+    const onAuth = () => { generation.current++; signedIn.current = null; previous.current = null; setXp(null); void refresh(); };
     window.addEventListener("pointerdown", unlock, { passive: true });
     window.addEventListener("keydown", unlock);
     window.addEventListener("focus", onVisible);
