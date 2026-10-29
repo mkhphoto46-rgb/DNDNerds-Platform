@@ -6,6 +6,8 @@ import { db } from "../db/client.js";
 import { dmProfiles, gameTableReviews, gameTables, playerCharacters, playerProfiles, users } from "../db/schema.js";
 import { validProfileImage } from "./profile-image.js";
 
+import { registerFeedbackRoutes } from "./feedback.js";
+
 const base = "/api/v1/game-hub";
 const uuid = z.string().uuid();
 const image = (kind: "avatar" | "banner" | "portrait") => z.union([z.string(), z.null()]).refine(value => validProfileImage(value, kind), "تصویر باید WebP با حجم و ابعاد مجاز باشد.");
@@ -35,13 +37,14 @@ function invalid(reply: { code: (status: number) => { send: (body: unknown) => u
 }
 
 export async function registerProfilePagesRoutes(app: FastifyInstance) {
+  await registerFeedbackRoutes(app);
   const playerInput = z.object({ displayName: z.string().trim().min(2).max(100), bio: z.string().trim().max(1200), avatarData: image("avatar").optional(), bannerData: image("banner").optional() });
   app.get(`${base}/players/me/page`, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
     return { data: profile ?? { userId: user.id, displayName: user.username ?? "بازیکن", bio: "", avatarData: null, bannerData: null } };
   });
-  app.put(`${base}/players/me/page`, async (request, reply) => {
+  app.put(`${base}/players/me/page`, { bodyLimit: 2_200_000 }, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const parsed = playerInput.safeParse(request.body); if (!parsed.success) return invalid(reply);
     const [profile] = await db.insert(playerProfiles).values({ userId: user.id, ...parsed.data }).onConflictDoUpdate({ target: playerProfiles.userId, set: { ...parsed.data, updatedAt: new Date() } }).returning();
@@ -62,7 +65,7 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     return { data: profile };
   });
 
-  app.put(`${base}/dms/me/page`, async (request, reply) => {
+  app.put(`${base}/dms/me/page`, { bodyLimit: 2_200_000 }, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const parsed = dmInput.safeParse(request.body); if (!parsed.success) return invalid(reply);
     const [profile] = await db.insert(dmProfiles).values({ userId: user.id, ...parsed.data })

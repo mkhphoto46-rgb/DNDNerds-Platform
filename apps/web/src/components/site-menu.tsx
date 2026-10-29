@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { AutoCloseMenu } from "./auto-close-menu";
-const destinations = [["/games", "بازی‌ها"], ["/tools", "ابزارها"], ["/store", "بازارچه"], ["/account", "حساب من"]] as const;
+const destinations = [["/games", "بازی‌ها"], ["/tools", "ابزارها"], ["/store", "بازارچه"], ["/account", "حساب من"], ["/support", "حمایت از پروژه"], ["/feedback", "نظر و پیشنهاد"]] as const;
 export function SiteMenu({ city = false }: { city?: boolean }) {
   return <AutoCloseMenu className={`site-menu ${city ? "town-menu" : ""}`}>
     <summary aria-label="منوی سایت"><span aria-hidden="true">☰</span></summary>

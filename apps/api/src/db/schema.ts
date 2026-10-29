@@ -4226,3 +4226,14 @@ export const gameSubscriptionSettings = pgTable("game_subscription_settings", {
   check("game_subscription_settings_singleton", sql`${t.id} = 1`),
   check("game_subscription_settings_price_valid", sql`${t.priceRial} > 0`),
 ]);
+
+export const siteFeedback = pgTable("site_feedback", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ kind: varchar("kind", { length: 16 }).notNull(),
+ subject: varchar("subject", { length: 120 }).notNull(),
+ message: varchar("message", { length: 3000 }).notNull(),
+ status: varchar("status", { length: 16 }).notNull().default("NEW"),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("site_feedback_user_date_idx").on(t.userId,t.createdAt), check("site_feedback_kind_valid",sql`${t.kind} IN ('SUGGESTION','CRITICISM','COMMENT')`),check("site_feedback_status_valid",sql`${t.status} IN ('NEW','READ','RESOLVED')`)]);

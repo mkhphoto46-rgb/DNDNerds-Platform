@@ -1,0 +1,7 @@
+import Link from "next/link";
+import BankDetails from "./bank-details";
+import { getSupportDetails } from "@/lib/support-details";
+export const dynamic="force-dynamic";
+import styles from "@/components/community.module.css";
+export const metadata={title:"حمایت از DND Nerds",description:"حمایت داوطلبانه برای ادامهٔ ماجراجویی‌های DND Nerds؛ حساب‌ها فعلاً رایگان‌اند."};
+export default function Page(){const details=getSupportDetails();return <main className={styles.page}><div className={styles.shell}><header className={styles.hero}><span className={styles.badge}>حساب‌ها فعلاً رایگان‌اند</span><h1>توشهٔ این ماجراجویی را پُر کن</h1><p>اگر این میز جای خوبی برای ماجراجویی‌هایت شده، می‌توانی کمک کنی چراغش روشن بماند.</p></header><div className={styles.split}><section className={styles.card}><h2>یک سکه برای ادامهٔ راه</h2><p>DND Nerds با عشق به بازی و دورهم‌بودن ساخته می‌شود. حمایت تو کمک می‌کند هزینهٔ سرور و نگهداری را جلو ببریم و وقت بیشتری برای بهترکردن تجربهٔ بازی بگذاریم.</p><p>نه حداقل مبلغی وجود دارد و نه حمایت شرط ورود به بازی است. فعلاً حساب پولی و اشتراک اجباری نداریم؛ هر حمایتی کاملاً داوطلبانه است.</p><p>اگر هم کیسهٔ سکه‌ات خالی است، یک ایدهٔ خوب خودش غنیمت است!</p><Link href="/feedback">نظر یا پیشنهادت را بفرست ←</Link></section>{details.name && details.account && details.iban ? <BankDetails details={details}/> : <section className={styles.card}><h2>مشخصات واریز</h2><p>مشخصات حمایت در حال آماده‌سازی است.</p></section>}</div></div></main>;}

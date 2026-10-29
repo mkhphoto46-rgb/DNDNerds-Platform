@@ -25,8 +25,8 @@ export default function PlayerProfileEditor() {
     {form && <section className={styles.card}><form className={styles.form} onSubmit={e => void save(e)}>
       <label className={styles.field}>نام نمایشی<input required minLength={2} maxLength={100} value={form.displayName} onChange={e => setForm({ ...form, displayName: e.target.value })}/></label>
       <label className={`${styles.field} ${styles.wide}`}>معرفی<textarea maxLength={1200} value={form.bio} onChange={e => setForm({ ...form, bio: e.target.value })}/></label>
-      <label className={styles.field}>آواتار · حداکثر ۱۰۰ کیلوبایت<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void image(e.target.files?.[0], "avatar")}/>{form.avatarData && <img className={styles.preview} src={form.avatarData} alt="پیش‌نمایش آواتار"/>}</label>
-      <label className={styles.field}>هدر · حداکثر ۲۳۰ کیلوبایت<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void image(e.target.files?.[0], "banner")}/>{form.bannerData && <img className={styles.preview} src={form.bannerData} alt="پیش‌نمایش هدر"/>}</label>
+      <label className={styles.field}>آواتار · حداکثر ۵۰۰ کیلوبایت<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void image(e.target.files?.[0], "avatar")}/>{form.avatarData && <img className={styles.preview} src={form.avatarData} alt="پیش‌نمایش آواتار"/>}</label>
+      <label className={styles.field}>هدر · حداکثر ۱ مگابایت<input type="file" accept="image/png,image/jpeg,image/webp" onChange={e => void image(e.target.files?.[0], "banner")}/>{form.bannerData && <img className={styles.preview} src={form.bannerData} alt="پیش‌نمایش هدر"/>}</label>
       <div className={`${styles.actions} ${styles.wide}`}><button disabled={busy}>ذخیرهٔ پروفایل</button><button type="button" disabled={busy} onClick={() => setForm({ ...form, avatarData: null, bannerData: null })}>حذف تصاویر</button><Link href={`/player/${form.userId}`}>دیدن پروفایل عمومی ←</Link></div>
     </form></section>}
   </div></main>;

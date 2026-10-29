@@ -2,8 +2,8 @@ export type ProfileImageKind = "avatar" | "banner" | "portrait" | "campaign";
 
 const dimensions: Record<ProfileImageKind, { width: number; height: number; bytes: number; crop: boolean }> = {
   campaign: { width: 480, height: 320, bytes: 100_000, crop: true },
-  avatar: { width: 400, height: 400, bytes: 100_000, crop: true },
-  banner: { width: 1200, height: 300, bytes: 230_000, crop: true },
+  avatar: { width: 400, height: 400, bytes: 500_000, crop: true },
+  banner: { width: 1200, height: 300, bytes: 1_000_000, crop: true },
   portrait: { width: 600, height: 900, bytes: 190_000, crop: false },
 };
 
