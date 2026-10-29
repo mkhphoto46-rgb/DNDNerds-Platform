@@ -24,7 +24,10 @@ let counter = 0;
 
 export async function startApi(): Promise<TestApi> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dnd-api-test-"));
-  const pg = await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test" });
+  // Persistent: embedded-postgres then leaves the data folder alone on stop. Without it, stop()
+  // deletes the folder at once (no retries), which fails with EBUSY on Windows while the stopped
+  // server still holds its files; stop() below removes the whole temp folder with retries instead.
+  const pg = await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test", persistent: true });
   const redis = await startRedis({ port: await freePort() });
   Object.assign(process.env, {
     NODE_ENV: "test",
