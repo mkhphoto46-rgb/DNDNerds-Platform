@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { safeAuthDestination } from "@/lib/auth-destination";
 
@@ -111,7 +113,7 @@ export default function RegisterPage() {
         return;
       }
 
-      const sessionCheck = await fetch("/api/auth/me", { cache: "no-store", credentials: "same-origin" });
+      const sessionCheck = await fetchSession({ fresh: true });
       if (!sessionCheck.ok) {
         throw new Error("حساب ساخته شد، اما ورود خودکار تأیید نشد. با همان حساب از صفحه ورود وارد شو.");
       }

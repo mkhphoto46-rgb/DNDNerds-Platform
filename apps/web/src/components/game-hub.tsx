@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -75,7 +77,7 @@ export function GameHub({ mode }: { mode: Mode }) {
 
   useEffect(() => {
     let current = true;
-    void fetch("/api/auth/me", { cache: "no-store" }).then(response => { if (current) setSignedIn(response.ok); }).catch(() => { if (current) setSignedIn(false); });
+    void fetchSession().then(response => { if (current) setSignedIn(response.ok); }).catch(() => { if (current) setSignedIn(false); });
     return () => { current = false; };
   }, []);
 

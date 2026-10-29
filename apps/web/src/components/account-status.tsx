@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -37,11 +39,7 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
   const checkSession = useCallback(async () => {
     const requestId = ++latestRequest.current;
     try {
-      const response = await fetch("/api/auth/me", {
-        method: "GET",
-        credentials: "same-origin",
-        cache: "no-store",
-      });
+      const response = await fetchSession();
       if (requestId !== latestRequest.current) return;
       if (response.status === 401) {
         setState({ kind: "guest" });
@@ -76,19 +74,11 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
     window.addEventListener("pageshow", refresh);
     window.addEventListener("dnd-auth-change", refresh);
     document.addEventListener("visibilitychange", onVisible);
-    let channel: BroadcastChannel | undefined;
-    if (typeof BroadcastChannel !== "undefined") {
-      channel = new BroadcastChannel("dnd-nerds-auth-state");
-      channel.onmessage = (event: MessageEvent) => {
-        if (event.data === "auth-change") refresh();
-      };
-    }
     return () => {
       window.removeEventListener("focus", refresh);
       window.removeEventListener("pageshow", refresh);
       window.removeEventListener("dnd-auth-change", refresh);
       document.removeEventListener("visibilitychange", onVisible);
-      channel?.close();
     };
   }, [checkSession]);
 

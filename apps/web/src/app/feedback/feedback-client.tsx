@@ -1,4 +1,6 @@
 "use client";
+
+import { fetchSession } from "@/lib/session-client";
 import Link from "next/link";
 import { useEffect,useState } from "react";
 import { profileRequest } from "@/lib/profile-pages";
@@ -7,7 +9,7 @@ type Feedback={id:string;kind:string;subject:string;message:string;status:string
 const statuses:Record<string,string>={NEW:"ثبت شده",READ:"دیده شده",RESOLVED:"بررسی شده"};
 export default function FeedbackClient(){
  const [signedIn,setSignedIn]=useState<boolean|null>(null),[items,setItems]=useState<Feedback[]>([]),[kind,setKind]=useState("SUGGESTION"),[subject,setSubject]=useState(""),[message,setMessage]=useState(""),[notice,setNotice]=useState(""),[error,setError]=useState(""),[busy,setBusy]=useState(false);
- useEffect(()=>{let active=true;void fetch("/api/auth/me",{cache:"no-store"}).then(async r=>{if(!r.ok){if(active)setSignedIn(false);return;}const data=await profileRequest<Feedback[]>("feedback/me");if(active){setSignedIn(true);setItems(data);}}).catch(()=>{if(active)setError("دریافت اطلاعات انجام نشد. صفحه را تازه کن.");});return()=>{active=false;};},[]);
+ useEffect(()=>{let active=true;void fetchSession().then(async r=>{if(!r.ok){if(active)setSignedIn(false);return;}const data=await profileRequest<Feedback[]>("feedback/me");if(active){setSignedIn(true);setItems(data);}}).catch(()=>{if(active)setError("دریافت اطلاعات انجام نشد. صفحه را تازه کن.");});return()=>{active=false;};},[]);
  async function submit(e:React.FormEvent){e.preventDefault();setBusy(true);setError("");setNotice("");try{const created=await profileRequest<Feedback>("feedback","POST",{kind,subject,message});setItems(current=>[created,...current].slice(0,20));setSubject("");setMessage("");setNotice("پیامت ثبت شد. ممنون که به بهترشدن این میز کمک می‌کنی.");}catch(e){setError(e instanceof Error?e.message:"ثبت پیام انجام نشد.");}finally{setBusy(false);}}
  return <main className={styles.page}><div className={styles.shell}><header className={styles.hero}><h1>این میز با نظر تو بهتر می‌شود</h1><p>ایده‌ای داری، چیزی اذیتت کرده یا می‌خواهی نظرت را بگویی؟ همین‌جا بنویس. پیام‌ها فقط برای خودت و مدیران سایت قابل مشاهده‌اند.</p></header>
  {error&&<p role="alert" className={`${styles.notice} ${styles.error}`}>{error}</p>}{notice&&<p role="status" className={styles.notice}>{notice}</p>}

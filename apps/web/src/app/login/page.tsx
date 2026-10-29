@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { safeAuthDestination } from "@/lib/auth-destination";
 
@@ -125,7 +127,7 @@ export default function LoginPage() {
 
       // Confirm that the browser retained the HttpOnly session cookie.
       // This checks authentication without exposing or logging credentials.
-      const sessionCheck = await fetch("/api/auth/me", { cache: "no-store" });
+      const sessionCheck = await fetchSession({ fresh: true });
       if (!sessionCheck.ok) {
         throw new Error(
           "ورود تأیید شد، اما نشست در مرورگر ذخیره یا ارسال نشد. از localhost:3100 استفاده کن و تنظیمات Cookie را بررسی کن.",

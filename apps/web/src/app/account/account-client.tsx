@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { XpBar } from "@/components/xp-experience";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -68,9 +70,7 @@ export default function AccountHomePage({ commerceEnabled = true }: { commerceEn
     setOrders([]);
     setOrdersStatus("loading");
     try {
-      const response = await fetch("/api/auth/me", {
-        method: "GET", credentials: "same-origin", cache: "no-store",
-      });
+      const response = await fetchSession();
       if (requestId !== latestRequest.current) return;
       if (response.status === 401) {
         setAccount({ kind: "guest" });

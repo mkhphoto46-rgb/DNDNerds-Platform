@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -61,7 +63,7 @@ export function GlobalChatDock(){
   const refreshAccount=useCallback(async()=>{
     const seq=++accountSeq.current;
     try{
-      const res=await fetch("/api/auth/me",{credentials:"same-origin",cache:"no-store"});
+      const res=await fetchSession();
       if(seq!==accountSeq.current)return;
       if(res.status===401){setSession("guest");setMe("");setChat(null);setMessages([]);setFriends([]);setGroups([]);setCode("");return;}
       if(!res.ok)throw new Error("Session check failed");
@@ -82,12 +84,7 @@ export function GlobalChatDock(){
     const onAuth=()=>{void refreshAccount();};
     const onFocus=()=>{if(document.visibilityState==="visible")void refreshAccount();};
     window.addEventListener("dnd-auth-change",onAuth);window.addEventListener("focus",onFocus);
-    let bc:BroadcastChannel|undefined;
-    if(typeof BroadcastChannel!=="undefined"){
-      bc=new BroadcastChannel("dnd-nerds-auth-state");
-      bc.onmessage=()=>{void refreshAccount();};
-    }
-    return()=>{window.removeEventListener("dnd-auth-change",onAuth);window.removeEventListener("focus",onFocus);bc?.close();};
+    return()=>{window.removeEventListener("dnd-auth-change",onAuth);window.removeEventListener("focus",onFocus);};
   },[refreshAccount]);
 
   const refreshLists=useCallback(async()=>{
