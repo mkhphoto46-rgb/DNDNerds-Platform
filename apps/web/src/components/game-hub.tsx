@@ -127,7 +127,8 @@ export function GameHub({ mode }: { mode: Mode }) {
   async function joinWithCode() {
     setBusy(true); setError("");
     try {
-      const table = await request<Table>("tables/join-by-code", "POST", { code: codeInput });
+      const table = await request<Table | { launchUrl: string }>("tables/join-by-code", "POST", { code: codeInput });
+      if ("launchUrl" in table) { window.location.assign(table.launchUrl); return; }
       const result = await request<{ url: string }>(`tables/${table.id}/launch`, "POST", { role: "player" });
       window.location.assign(result.url);
     } catch (reason) { setError(reason instanceof Error ? reason.message : "کد دعوت پذیرفته نشد."); setBusy(false); }
@@ -147,7 +148,7 @@ export function GameHub({ mode }: { mode: Mode }) {
       {(["find-game", "play", "create-game"] as Mode[]).includes(mode) && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول وارد حساب شو</h2><p>ساخت میز و پیوستن به بازی با حساب فعال سایت انجام می‌شود.</p><div className={styles.actions}><Link href={`/register?next=${encodeURIComponent(returnTo || (mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find))}`}>ساخت حساب</Link><Link href={`/login?next=${encodeURIComponent(returnTo || (mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find))}`}>حساب دارم؛ ورود</Link></div></section>}
 
       {(mode === "play" || mode === "find-game") && <section id="join" className={`${styles.panel} ${styles.invitePanel}`} aria-labelledby="join-heading">
-        <h2 id="join-heading">کد دعوت داری؟</h2><p>کدی را که DM فرستاده وارد کن و به میز خصوصی بپیوند.</p>
+        <h2 id="join-heading">کد دعوت داری؟</h2><p>کد دعوت سایت یا کد شش‌حرفی داخل بازی را وارد کن و به میز DM بپیوند.</p>
         {signedIn ? <form onSubmit={event => { event.preventDefault(); void joinWithCode(); }}><label>کد دعوت<input required value={codeInput} onChange={event => setCodeInput(event.target.value.toUpperCase())} autoComplete="off" dir="ltr" /></label><button disabled={busy}>ورود با کد دعوت</button></form> : signedIn === false ? <div className={styles.actions}><Link href={`/login?next=${encodeURIComponent(`${routes.find}#join`)}`}>ورود به حساب و استفاده از کد</Link></div> : <p role="status">در حال بررسی حساب…</p>}
       </section>}
 

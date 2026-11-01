@@ -9,6 +9,7 @@ import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
 import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
+import { requestNativeVttInvite } from "../integrations/native-vtt-invite.js";
 
 import { publicAccountId } from "../auth/public-identity.js";
 import { validProfileImage } from "./profile-image.js";
@@ -193,7 +194,28 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
   });
   app.post(`${base}/tables/join-by-code`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
-    const parsed = z.object({ code: z.string().trim().min(8).max(32) }).safeParse(request.body); if (!parsed.success) return invalid(reply);
+    const parsed = z.object({ code: z.string().trim().toUpperCase().regex(/^(?:[A-Z2-9]{6}|[A-Z0-9_-]{8,32})$/) }).safeParse(request.body); if (!parsed.success) return invalid(reply);
+    if (parsed.data.code.length === 6) {
+      const secret = process.env.VTT_BRIDGE_SECRET?.trim() ?? "", baseUrl = process.env.VTT_PUBLIC_URL?.trim();
+      if (!baseUrl || secret.length < 32) return reply.code(503).send({ error: { message: "اتصال سرور بازی آماده نیست." } });
+      let target: URL;
+      try {
+        target = new URL("api/platform/launch", baseUrl.endsWith("/") ? baseUrl : `${baseUrl}/`);
+        if (!["https:", "http:"].includes(target.protocol) || (process.env.NODE_ENV === "production" && target.protocol !== "https:")) throw new Error();
+      } catch { return reply.code(503).send({ error: { message: "نشانی سرور بازی معتبر نیست." } }); }
+      const username = user.username && /^[a-z][a-z0-9_]{2,23}$/i.test(user.username) ? user.username : `player_${user.id.replaceAll("-", "").slice(0, 10)}`;
+      const result = await requestNativeVttInvite({ code: parsed.data.code, userId: user.id, username }, secret);
+      if (!result.ticket) return reply.code(result.status).send({ error: { message: result.status === 404 ? "کد دعوت معتبر نیست یا میز بایگانی شده است." : result.status === 409 ? "این میز متعلق به حساب DM شماست؛ از میزهای من وارد شوید." : result.status === 429 ? "کمی صبر کنید و دوباره تلاش کنید." : "ارتباط با سرور بازی برقرار نشد." } });
+      if (result.tableId) {
+        const [table] = await db.select().from(gameTables).where(eq(gameTables.id, result.tableId)).limit(1);
+        if (!table || table.hostUserId === user.id || !["PRIVATE", "PUBLIC"].includes(table.visibility)) return reply.code(409).send({ error: { message: "این میز برای ورود بازیکن باز نیست." } });
+        const seat = await reservePlayerSeat(table.id, user.id, table.visibility as "PRIVATE" | "PUBLIC");
+        if (seat !== "accepted") return reply.code(409).send({ error: { message: seat === "full" ? "ظرفیت میز تکمیل است." : "این میز دیگر باز نیست." } });
+      }
+      target.searchParams.set("ticket", result.ticket);
+      reply.header("Cache-Control", "no-store");
+      return { data: { launchUrl: target.toString() } };
+    }
     const [table] = await db.select().from(gameTables).where(and(eq(gameTables.inviteCodeHash, inviteHash(parsed.data.code)), eq(gameTables.visibility, "PRIVATE"), eq(gameTables.status, "PUBLISHED"))).limit(1);
     if (!table || table.hostUserId === user.id) return reply.code(404).send({ error: { message: "کد دعوت معتبر نیست." } });
     const result = await reservePlayerSeat(table.id, user.id, "PRIVATE", inviteHash(parsed.data.code));
