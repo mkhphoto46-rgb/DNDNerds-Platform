@@ -21,8 +21,3 @@ try {
  if(activeSeats&&!process.argv.includes('--allow-active-seats'))process.exitCode=2;
 }finally{await sql.end();}
 })().catch(error=>{console.error('Seat preflight failed: '+(error.code||error.message));process.exitCode=3;});
-
-
-
-
-
