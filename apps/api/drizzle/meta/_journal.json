@@ -239,6 +239,13 @@
       "when": 1793664000000,
       "tag": "0033_item_refund_allocations",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793664000001,
+      "tag": "0034_delivery_payout_policies",
+      "breakpoints": true
     }
   ]
 }

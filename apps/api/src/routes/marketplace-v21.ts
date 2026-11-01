@@ -5,6 +5,7 @@ import { sqlClient as q } from '../db/client.js';
 import { getAdmin, reauth } from './admin.js';
 import { cleanReferenceImage } from '../marketplace/private-media.js';
 import { registerCheckoutV21 } from '../marketplace/checkout.js';
+import { registerDeliveryReview } from '../marketplace/delivery-review.js';
 
 const id=z.string().uuid();
 const text=(max=500)=>z.string().trim().min(1).max(max);
@@ -31,6 +32,7 @@ async function validateOptions(category:string,value:Record<string,string>){
 }
 export async function registerMarketplaceV21(app:FastifyInstance){
   await registerCheckoutV21(app);
+  await registerDeliveryReview(app);
   const base='/api/v1/marketplace/v21';
   app.post(`${base}/media`,async(req,reply)=>{
     const u=await user(req);const b=parse(z.object({dataWebp:z.string().max(700000)}),req.body);const clean=cleanReferenceImage(b.dataWebp);if(!clean)fail(400,'تصویر WebP معتبر، حداکثر ۵۰۰ کیلوبایت و ۱۲۸۰×۸۰۰ لازم است.');
