@@ -1,6 +1,7 @@
 """Private additive recovery snapshot. No pruning or live service changes."""
 from pathlib import Path
 import hashlib, json, os, shutil, sqlite3, subprocess, sys, tarfile, time
+from contextlib import closing
 
 app, destination, pg_container, pg_user, pg_database = sys.argv[1:6]
 app = Path(app).resolve(); destination = Path(destination).resolve()
@@ -20,9 +21,13 @@ for source in data.rglob('*.sqlite'):
     if 'backups' in relative.parts: continue
     target = backup/'sqlite'/relative
     target.parent.mkdir(parents=True,exist_ok=True)
-    with sqlite3.connect(source.as_uri()+'?mode=ro',uri=True) as reader, sqlite3.connect(target) as writer:
+    with closing(sqlite3.connect(source.as_uri()+'?mode=ro',uri=True)) as reader, closing(sqlite3.connect(target)) as writer:
         reader.backup(writer)
         assert writer.execute('pragma integrity_check').fetchone()[0] == 'ok'
+        writer.commit()
+        # The backup is a standalone database, not a live WAL connection. Close
+        # it before hashing so no transient -wal/-shm enters the manifest.
+        assert writer.execute('pragma journal_mode=DELETE').fetchone()[0] == 'delete'
     count += 1
 with tarfile.open(backup/'media.tar.gz','w:gz') as bundle:
     def media_filter(item):
