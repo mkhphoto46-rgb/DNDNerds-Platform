@@ -1,3 +1,4 @@
+import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
 import { assertProductionReady } from "./config/production-guards.js";
 import { registerPayoutProviderRoutes } from "./routes/payout-provider.js";
@@ -328,6 +329,7 @@ export async function buildApp() {
   await app.register(registerSocialRoutes);
   await app.register(registerSocialGroupRoutes);
   await app.register(registerGameHubRoutes);
+  await app.register(registerTableDeletionRoutes);
   await app.register(registerProfilePagesRoutes);
   await app.register(registerXpRoutes);
 

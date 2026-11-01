@@ -111,3 +111,6 @@ secrets.json
 # Local Python deployment validation artifacts.
 **/__pycache__/
 *.pyc
+
+# Private implementation progress ledger.
+/.superpowers/

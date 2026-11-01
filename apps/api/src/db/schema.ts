@@ -4159,7 +4159,7 @@ export const gameTableReviews = pgTable("game_table_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
   reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  rating: integer("rating").notNull(),
+  rating: integer("rating"),
   comment: varchar("comment", { length: 1200 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4167,7 +4167,48 @@ export const gameTableReviews = pgTable("game_table_reviews", {
   uniqueIndex("game_table_reviews_table_reviewer_uq").on(t.tableId, t.reviewerUserId),
   index("game_table_reviews_table_date_idx").on(t.tableId, t.createdAt),
   check("game_table_reviews_rating_range", sql`${t.rating} BETWEEN 1 AND 5`),
-  check("game_table_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 10 AND 1200`),
+  check("game_table_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 3 AND 1200`),
+]);
+
+export const gameTableDeletions = pgTable("game_table_deletions", {
+ tableId: uuid("table_id").primaryKey().references(() => gameTables.id, { onDelete: "cascade" }),
+ requestedBy: uuid("requested_by").notNull().references(() => users.id),
+ requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+ attemptCount: integer("attempt_count").notNull().default(0), lastError: text("last_error"),
+ leaseUntil: timestamp("lease_until", { withTimezone: true }),
+});
+export const gameTableReactions = pgTable("game_table_reactions", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ value: integer("value").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("game_table_reactions_target_user_uq").on(t.tableId, t.reviewerUserId),
+ check("game_table_reactions_value_valid", sql`${t.value} IN (-1,1)`),
+]);
+export const dmReactions = pgTable("dm_reactions", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ dmUserId: uuid("dm_user_id").notNull().references(() => dmProfiles.userId, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ value: integer("value").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("dm_reactions_target_user_uq").on(t.dmUserId, t.reviewerUserId),
+ check("dm_reactions_value_valid", sql`${t.value} IN (-1,1)`),
+]);
+export const dmReviews = pgTable("dm_reviews", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ dmUserId: uuid("dm_user_id").notNull().references(() => dmProfiles.userId, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ comment: varchar("comment", { length: 1200 }).notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("dm_reviews_target_user_uq").on(t.dmUserId, t.reviewerUserId),
+ check("dm_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 3 AND 1200`),
 ]);
 
 export const arenaListings = pgTable("arena_listings", {
