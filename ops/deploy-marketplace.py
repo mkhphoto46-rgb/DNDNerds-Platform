@@ -35,7 +35,8 @@ assert archive.parent==BASE/'staging' and metadata.parent==BASE/'staging'
 assert sha(archive)==meta['sha256']
 assert (APP/'apps/web/.next/BUILD_ID').read_text().strip()==meta['beforeBuild']
 assert all(sha(APP/name)==value for name,value in meta['before'].items()), 'Live runtime changed'
-assert pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')=='1793491200000'
+baseline_migration=pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')
+assert baseline_migration==meta['migrationWhen'] and baseline_migration in ['1793491200000','1793577600000']
 old_journal=json.loads((APP/'apps/api/drizzle/meta/_journal.json').read_text())
 stage=BASE/'staging'/('marketplace-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()))
 stage.mkdir(mode=0o700)
@@ -46,7 +47,7 @@ with tarfile.open(archive) as bundle:
     bundle.extractall(stage,filter='data')
 assert (stage/'apps/web/.next/BUILD_ID').read_text().strip()==meta['webBuild']
 new_journal=json.loads((stage/'apps/api/drizzle/meta/_journal.json').read_text())
-assert new_journal['entries'][:-1]==old_journal['entries']
+assert (new_journal==old_journal if baseline_migration=='1793577600000' else new_journal['entries'][:-1]==old_journal['entries'])
 assert new_journal['entries'][-1]['tag']=='0032_marketplace_v21'
 for name in meta['apiFiles']: subprocess.run(['node','--check',str(stage/'apps/api/dist'/name)],check=True)
 # Validate the exact intended mixed runtime, preserving unrelated live patches.
@@ -153,6 +154,7 @@ try:
     for attempt in range(40):
         try:
             for url in ['http://127.0.0.1:4100/health/ready','http://127.0.0.1:4200/api/health','https://dndnerds.ir/store','https://dndnerds.ir/seller/marketplace','https://dndnerds.ir/play','https://dndnerds.ir/find-game','https://dndnerds.ir/find-dm','https://dndnerds.ir/vtt/']:get(url)
+            assert 'کارگاه فروشگاه من' in get('https://dndnerds.ir/seller/marketplace').decode(), 'Seller portal was redirected or missing'
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',401,b'{}',{'Content-Type':'application/json','Origin':'https://dndnerds.ir'})
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',403,b'{}',{'Content-Type':'application/json','Origin':'https://untrusted.example'})
             gates=json.loads(get('http://127.0.0.1:4100/api/v1/marketplace/v21/readiness'));assert gates['livePayments'] is False and gates['livePayouts'] is False
