@@ -33,7 +33,7 @@ The load tool never accepts an arbitrary target URL; it starts its own isolated 
 
 ## Not implemented or not established
 
-- Item/quantity-specific partial refund execution and shipping-refund allocation; existing engine supports whole-parent/whole-suborder paths only.
+- Partial refunds are implemented and validated locally in migration0033, not yet deployed. Remaining acceptance: production provider evidence, buyer return UI, and scoped settlement holds.
 - Time-window production capacity and scheduling beyond finite per-SKU inventory/capacity counts.
 - Versioned final seller agreements and their re-acceptance enforcement.
 - Independent delivery review and policy/return-window based financial release. Seller self-confirmation is blocked; this is not the completed replacement settlement workflow.
@@ -42,3 +42,5 @@ The load tool never accepts an arbitrary target URL; it starts its own isolated 
 - External gates G-01..G-12 require actual evidence; gate registry remains pending. An approved deploy does not manufacture PSP/legal/KYC/carrier evidence.
 
 These are remaining work, not silently completed requirements. The public release must retain purchase/settlement disabled until its independent domain gaps and external gates are resolved.
+
+Local Phase B:19/19 focused tests passed (marketplace3, v21 integration9, allocation5, worker1, cart1), API/Web production builds passed. Subsequently added approved-refund fulfillment hold and reran the partial-refund integration successfully. It seeds synthetic evidence/contact prerequisites, exercises real admin /decision, refunds shipping3+4+4 separately,100concurrent duplicate claims, repeated finalization, remaining-quantity display and forced shipment-state interleaving. These changes are not deployed at this checkpoint. No real PSP or carrier behavior claimed.

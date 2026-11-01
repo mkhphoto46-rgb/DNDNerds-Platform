@@ -1,6 +1,8 @@
 import type {
   FastifyInstance,
 } from "fastify";
+import { isDeepStrictEqual } from 'node:util';
+import { buildItemRefundSnapshot } from '../refunds/item-refund-snapshot.js';
 
 import {
   verify,
@@ -87,6 +89,10 @@ const evidenceParams =
 
 const createBody =
   z.object({
+    scope: z.object({
+      items: z.array(z.object({ itemId: z.string().uuid(), quantity: z.number().int().min(1).max(999) })).max(100),
+      shippingRial: z.number().int().min(0).max(2_000_000_000),
+    }).optional(),
     reason:
       z.enum([
         "DAMAGED",
@@ -189,6 +195,8 @@ function publicCase(
       .$inferSelect,
 ) {
   return {
+    requestedScope: refundCase.requestedScope,
+    itemAllocation: refundCase.itemAllocation,
     id:
       refundCase.id,
 
@@ -644,6 +652,9 @@ export async function registerRefundCaseRoutes(
                   .limit(1);
 
               if (existing) {
+                if (!isDeepStrictEqual(existing.requestedScope, body.data.scope ?? null)) {
+                  throw new Error('ITEM_REFUND_ACTIVE_SCOPE_CONFLICT');
+                }
                 return {
                   refundCase:
                     existing,
@@ -653,12 +664,22 @@ export async function registerRefundCaseRoutes(
                 };
               }
 
+              await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`refund:${sellerOrder.orderId}`}, 0))`);
+              if (body.data.scope) {
+                await buildItemRefundSnapshot(tx, sellerOrder.sellerOrderId, body.data.scope);
+              } else {
+                const [prior] = await tx.select({ id: marketplaceRefundCases.id }).from(marketplaceRefundCases).where(and(
+                  eq(marketplaceRefundCases.sellerOrderId, sellerOrder.sellerOrderId), eq(marketplaceRefundCases.status, 'REFUNDED'),
+                )).limit(1);
+                if (prior) throw new Error('ITEM_REFUND_REMAINING_SCOPE_REQUIRED');
+              }
               const [created] =
                 await tx
                   .insert(
                     marketplaceRefundCases,
                   )
                   .values({
+                    requestedScope: body.data.scope ?? null,
                     orderId:
                       sellerOrder.orderId,
 
@@ -765,6 +786,9 @@ export async function registerRefundCaseRoutes(
           });
       }
       catch (error) {
+        if (error instanceof Error && error.message.startsWith('ITEM_REFUND_')) {
+          return reply.code(409).send({ error: { code: error.message, message: 'Refund item selection exceeds the remaining purchase or conflicts with an active case.' } });
+        }
         if (
           error instanceof Error &&
           error.message ===
@@ -2564,8 +2588,17 @@ export async function registerRefundCaseRoutes(
                   );
                 }
 
-                financialPlan =
-                  buildSellerOrderRefundPlan({
+                await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`refund:${refundCase.orderId}`}, 0))`);
+                await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`seller-balance:${refundCase.storeId}`}, 0))`);
+                if (!refundCase.requestedScope) {
+                  const [prior] = await tx.select({ id: marketplaceRefundCases.id }).from(marketplaceRefundCases).where(and(
+                    eq(marketplaceRefundCases.sellerOrderId, sellerOrder.id), eq(marketplaceRefundCases.status, 'REFUNDED'),
+                  )).limit(1);
+                  if (prior) throw new Error('ITEM_REFUND_REMAINING_SCOPE_REQUIRED');
+                }
+                financialPlan = refundCase.requestedScope
+                  ? await buildItemRefundSnapshot(tx, sellerOrder.id, refundCase.requestedScope)
+                  : buildSellerOrderRefundPlan({
                     grossRial:
                       sellerOrder.grossRial,
 
@@ -2613,6 +2646,9 @@ export async function registerRefundCaseRoutes(
                       financialPlan
                         ?.refundAmountRial ??
                       null,
+
+                    itemAllocation: financialPlan && 'version' in financialPlan
+                      ? financialPlan as import('../refunds/item-refund-allocation.js').ItemRefundAllocation : null,
 
                     commissionReversalRial:
                       financialPlan
@@ -2782,6 +2818,9 @@ export async function registerRefundCaseRoutes(
             });
         }
 
+        if (error instanceof Error && error.message.startsWith('ITEM_REFUND_')) {
+          return reply.code(409).send({ error: { code: error.message, message: 'The requested quantities or shipping have already been refunded or no longer match the paid snapshot.' } });
+        }
         throw error;
       }
     },

@@ -23,6 +23,7 @@ import {
 import {
   db,
 } from "../db/client.js";
+import { remainingFulfillment } from '../refunds/remaining-fulfillment.js';
 
 import {
   releaseDeliveredFunds,
@@ -31,6 +32,7 @@ import {
 import {
   inventory,
   marketplaceConfig,
+  marketplaceRefundCases,
   marketplaceSellerOrders,
   marketplaceShipments,
   productVariants,
@@ -107,9 +109,11 @@ const fulfillmentBody =
   z.discriminatedUnion("action", [
     z.object({
       action: z.literal("PROCESSING"),
+      items: z.array(z.object({itemId:z.string().uuid(),quantity:z.number().int().min(1).max(999)})).max(100).optional(),
     }),
     z.object({
       action: z.literal("SHIP"),
+      items: z.array(z.object({itemId:z.string().uuid(),quantity:z.number().int().min(1).max(999)})).max(100).optional(),
       carrier: z.string().trim().min(2).max(120),
       trackingCode: z.string().trim().min(3).max(160),
     }),
@@ -772,6 +776,23 @@ export async function registerSellerRoutes(
 
         const now = new Date();
 
+        if (body.data.action === 'PROCESSING' || body.data.action === 'SHIP') {
+          const [held] = await tx.select({ id: marketplaceRefundCases.id }).from(marketplaceRefundCases).where(and(
+            eq(marketplaceRefundCases.sellerOrderId, order.id),
+            sql`${marketplaceRefundCases.status} IN ('APPROVED','RETURN_REQUIRED','REFUND_PROCESSING')`,
+          )).limit(1);
+          if (held) return reply.code(409).send({ error: { code: 'FULFILLMENT_REFUND_HOLD', message: 'Resolve the approved or processing refund before fulfillment.' } });
+          const lines = await remainingFulfillment(tx, order.id);
+          const expected = lines.filter(l => l.remainingQuantity > 0);
+          const accepted = body.data.items;
+          if (!expected.length || (lines.some(l => l.refundedQuantity > 0) && !accepted) ||
+              (accepted && (accepted.length !== expected.length || new Set(accepted.map(i => i.itemId)).size !== accepted.length ||
+                expected.some(l => !accepted.some(i => i.itemId === l.itemId && i.quantity === l.remainingQuantity))))) {
+            return reply.code(409).send({ error: { code: 'FULFILLMENT_QUANTITY_ACCEPTANCE_REQUIRED',
+              message: 'Review and accept the remaining item quantities after refunds.', items: lines } });
+          }
+        }
+
         if (body.data.action === "PROCESSING") {
           if (order.status !== "PAID") {
             return reply.code(409).send({
@@ -800,6 +821,8 @@ export async function registerSellerRoutes(
             });
           }
 
+          const shipmentLines = (await remainingFulfillment(tx, order.id)).filter(l => l.remainingQuantity > 0);
+          await tx.execute(sql`UPDATE marketplace_seller_orders SET fulfillment_snapshot=${JSON.stringify(shipmentLines)}::jsonb WHERE id=${order.id}`);
           const [shipment] = await tx
             .select()
             .from(marketplaceShipments)

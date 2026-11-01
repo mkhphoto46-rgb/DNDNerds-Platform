@@ -1,4 +1,5 @@
 import { and, eq, sql } from "drizzle-orm";
+import { isDeepStrictEqual } from 'node:util';
 import { db } from "../db/client.js";
 import {
   financialLedgerPostings, financialLedgerTransactions, inventory, marketplaceAdminAuditLogs,
@@ -11,15 +12,32 @@ import { RefundProviderUncertainError } from "../providers/contracts/refund-prov
 import { findRefundProvider } from "../providers/refund/registry.js";
 import { hasCompleteRefundPlan } from "./seller-order-refund-plan.js";
 import { decideSellerOrderRefundScope } from "./seller-order-refund-policy.js";
+import { buildItemRefundSnapshot } from './item-refund-snapshot.js';
 
 const refundableSellerStates = ["PAID", "PROCESSING", "SHIPPED", "DELIVERED"] as const;
 function conflict(code: string, message: string): never {
   throw new PaymentDomainError(409, code, message);
 }
-function assertCasePlan(
+async function assertCasePlan(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   refundCase: typeof marketplaceRefundCases.$inferSelect,
   sellerOrder: typeof marketplaceSellerOrders.$inferSelect,
 ) {
+  if (refundCase.itemAllocation) {
+    if (!refundCase.requestedScope) conflict('ITEM_REFUND_SCOPE_MISSING', 'Item refund scope is missing.');
+    const expected = await buildItemRefundSnapshot(tx, sellerOrder.id, refundCase.requestedScope);
+    if (!isDeepStrictEqual(expected, refundCase.itemAllocation) ||
+        expected.refundAmountRial !== refundCase.refundAmountRial ||
+        expected.commissionReversalRial !== refundCase.commissionReversalRial ||
+        expected.sellerNetReversalRial !== refundCase.sellerNetReversalRial || !hasCompleteRefundPlan(refundCase)) {
+      conflict('ITEM_REFUND_SNAPSHOT_MISMATCH', 'Item refund allocation changed after approval.');
+    }
+    return;
+  }
+  const previous = await tx.select({ id: marketplaceRefundCases.id }).from(marketplaceRefundCases).where(and(
+    eq(marketplaceRefundCases.sellerOrderId, sellerOrder.id), eq(marketplaceRefundCases.status, 'REFUNDED'),
+  )).limit(1);
+  if (previous.length) conflict('SELLER_REFUND_ALREADY_PARTIALLY_REFUNDED', 'Use the remaining item quantities after a partial refund.');
   if (!hasCompleteRefundPlan(refundCase) ||
       refundCase.refundAmountRial !== sellerOrder.grossRial ||
       refundCase.commissionReversalRial !== sellerOrder.platformCommissionRial ||
@@ -57,7 +75,7 @@ export async function executeSellerOrderRefundCase(caseId: string, adminUserId: 
         !refundableSellerStates.includes(sellerOrder.status as typeof refundableSellerStates[number])) {
       conflict("SELLER_REFUND_SCOPE_INVALID", "Purchase, ownership, order or store scope failed verification.");
     }
-    assertCasePlan(refundCase, sellerOrder);
+    await assertCasePlan(tx, refundCase, sellerOrder);
     const [payment] = await tx.select().from(payments)
       .where(eq(payments.orderId, order.id)).limit(1);
     if (!payment || !["SUCCEEDED", "PARTIALLY_REFUNDED"].includes(payment.status) ||
@@ -189,6 +207,9 @@ export async function finalizeSellerOrderRefund(refundId: string) {
       conflict("SELLER_REFUND_NOT_FINALIZABLE", "Refund is not in a finalizable financial state.");
     }
     await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`refund:${refund.orderId}`}, 0))`);
+    // Fulfillment shares this lock. Read its state only after acquiring it so a
+    // shipment committed while we waited cannot be mistaken for unshipped stock.
+    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`seller-balance:${refundCase.storeId}`}, 0))`);
     const [order] = await tx.select().from(marketplaceOrders)
       .where(eq(marketplaceOrders.id, refund.orderId)).limit(1);
     const [sellerOrder] = await tx.select().from(marketplaceSellerOrders)
@@ -208,7 +229,7 @@ export async function finalizeSellerOrderRefund(refundId: string) {
         refund.amountRial !== refundCase.refundAmountRial) {
       conflict("SELLER_REFUND_FINAL_SCOPE_INVALID", "Snapshot, scope or payment state failed finalization checks.");
     }
-    assertCasePlan(refundCase, sellerOrder);
+    await assertCasePlan(tx, refundCase, sellerOrder);
     const adapter = findRefundProvider(refund.provider);
     if (!adapter || (refund.provider !== "mock" && refund.provider !== "mock-secondary")) {
       conflict("SELLER_REFUND_FINAL_PROVIDER_BLOCKED", "Live provider financial settlement is not activated.");
@@ -218,7 +239,6 @@ export async function finalizeSellerOrderRefund(refundId: string) {
       sellerRefundRial: refund.amountRial,
       providerCanPartialRefund: adapter.capabilities.partialRefund,
     });
-    await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`seller-balance:${sellerOrder.storeId}`}, 0))`);
     // Re-read after lock (other authorized balance operations may have changed this row).
     const [lockedBalance] = await tx.select().from(sellerBalances)
       .where(eq(sellerBalances.storeId, sellerOrder.storeId)).limit(1);
@@ -247,20 +267,29 @@ export async function finalizeSellerOrderRefund(refundId: string) {
     ]);
     // Like the existing full-order engine: only put stock back when inventory was never shipped.
     if (sellerOrder.status === "PAID") {
-      const lines = await tx.select({ variantId: marketplaceOrderItems.variantId, quantity: marketplaceOrderItems.quantity })
+      const lines = await tx.select({ id: marketplaceOrderItems.id, variantId: marketplaceOrderItems.variantId, quantity: marketplaceOrderItems.quantity })
         .from(marketplaceOrderItems).where(eq(marketplaceOrderItems.sellerOrderId, sellerOrder.id));
       for (const line of lines) {
+        const selected = refundCase.itemAllocation
+          ? refundCase.itemAllocation.items.filter(i => i.itemId === line.id).reduce((n, i) => n + i.quantity, 0)
+          : line.quantity;
+        if (!selected) continue;
         await tx.update(inventory).set({
-          quantityOnHand: sql`${inventory.quantityOnHand} + ${line.quantity}`, updatedAt: now,
+          quantityOnHand: sql`${inventory.quantityOnHand} + ${selected}`, updatedAt: now,
         }).where(eq(inventory.variantId, line.variantId));
       }
     }
-    await tx.update(marketplaceSellerOrders).set({ status: "REFUNDED", updatedAt: now })
+    const priorAmounts = await tx.select({ amount: marketplaceRefundCases.refundAmountRial }).from(marketplaceRefundCases)
+      .where(and(eq(marketplaceRefundCases.sellerOrderId, sellerOrder.id), eq(marketplaceRefundCases.status, 'REFUNDED')));
+    const cumulative = priorAmounts.reduce((n, c) => n + (c.amount ?? 0), refund.amountRial);
+    if (!Number.isSafeInteger(cumulative) || cumulative > sellerOrder.grossRial) conflict('SELLER_REFUND_TOTAL_EXCEEDED', 'Refund exceeds seller order capture.');
+    const sellerFullyRefunded = cumulative === sellerOrder.grossRial;
+    if (sellerFullyRefunded) await tx.update(marketplaceSellerOrders).set({ status: "REFUNDED", updatedAt: now })
       .where(eq(marketplaceSellerOrders.id, sellerOrder.id));
     const allSellerOrders = await tx.select({ id: marketplaceSellerOrders.id, status: marketplaceSellerOrders.status })
       .from(marketplaceSellerOrders).where(eq(marketplaceSellerOrders.orderId, order.id));
     const allRefunded = allSellerOrders.length > 0 && allSellerOrders.every(row =>
-      row.id === sellerOrder.id || row.status === "REFUNDED");
+      (row.id === sellerOrder.id && sellerFullyRefunded) || row.status === "REFUNDED");
     if (allRefunded && decision.paymentStatus !== "REFUNDED") {
       conflict("SELLER_REFUND_PARENT_PAYMENT_MISMATCH", "All seller orders refunded but payment retains money.");
     }

@@ -71,7 +71,14 @@ export async function registerMarketplaceV21(app:FastifyInstance){
       coalesce(jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'priceRial',v.price_rial,'stock',i.quantity_on_hand,'reserved',i.quantity_reserved,'options',v.options,'perOrderLimit',v.per_order_limit,'discountRial',v.discount_rial,'discountStartsAt',v.discount_starts_at,'discountEndsAt',v.discount_ends_at) order by v.created_at) filter(where v.id is not null),'[]') variants
       from products p join store_members m on m.store_id=p.store_id and m.user_id=${u.id} left join product_variants v on v.product_id=p.id left join inventory i on i.variant_id=v.id group by p.id order by p.created_at desc limit 200`;
     const articles=await q`select a.id,a.store_id as "storeId",a.title,a.status from marketplace_articles a join store_members m on m.store_id=a.store_id and m.user_id=${u.id} order by a.created_at desc limit 100`;
-    const orders=await q`select so.id,so.store_id as "storeId",so.status,so.gross_rial as "grossRial",so.seller_net_rial as "netRial",so.shipping_snapshot as shipping from marketplace_seller_orders so join store_members m on m.store_id=so.store_id and m.user_id=${u.id} and m.role in ('OWNER','MANAGER','ORDER_MANAGER') order by so.created_at desc limit 100`;
+    const orders=await q`select so.id,so.store_id as "storeId",so.status,so.gross_rial as "grossRial",so.seller_net_rial as "netRial",so.shipping_snapshot as shipping,
+      (select coalesce(jsonb_agg(jsonb_build_object('itemId',oi.id,'name',oi.product_name_snapshot,'variantName',oi.variant_name_snapshot,'purchasedQuantity',oi.quantity,'refundedQuantity',r.n,'remainingQuantity',oi.quantity-r.n) order by oi.id),'[]'::jsonb)
+       from marketplace_order_items oi cross join lateral (
+         select coalesce(sum(case when c.item_allocation is null then oi.quantity else
+           coalesce((select sum((x->>'quantity')::int) from jsonb_array_elements(c.item_allocation->'items') x where x->>'itemId'=oi.id::text),0) end),0)::int n
+         from marketplace_refund_cases c where c.seller_order_id=so.id and c.status='REFUNDED'
+       ) r where oi.seller_order_id=so.id) as items
+      from marketplace_seller_orders so join store_members m on m.store_id=so.store_id and m.user_id=${u.id} and m.role in ('OWNER','MANAGER','ORDER_MANAGER') order by so.created_at desc limit 100`;
     const notifications=await q`select n.id,n.store_id as "storeId",n.event_type as "eventType",n.created_at as "createdAt" from seller_notification_outbox n join store_members m on m.store_id=n.store_id and m.user_id=${u.id} where n.recipient_user_id=${u.id} and n.channel='IN_APP' order by n.created_at desc limit 100`;
     return {stores,products,articles,orders,notifications};
   });

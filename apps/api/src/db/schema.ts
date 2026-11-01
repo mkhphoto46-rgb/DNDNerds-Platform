@@ -3543,6 +3543,9 @@ export const marketplaceRefundCases =
           "seller_net_reversal_rial",
         ),
 
+      requestedScope: jsonb("requested_scope").$type<import("../refunds/item-refund-allocation.js").ItemRefundRequest>(),
+      itemAllocation: jsonb("item_allocation").$type<import("../refunds/item-refund-allocation.js").ItemRefundAllocation>(),
+
       financialPlanCreatedAt:
         j2naTimestamp(
           "financial_plan_created_at",
