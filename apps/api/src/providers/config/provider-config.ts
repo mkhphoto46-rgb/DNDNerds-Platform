@@ -76,6 +76,10 @@ function readConfigFile():
   return parsed;
 }
 
+export function configuredEmailProvider(env: Record<string, string | undefined> = process.env): string {
+  return normalized(env.EMAIL_PROVIDER ?? readConfigFile().email, "development");
+}
+
 export function getProviderConfig():
   ProviderConfig {
   const file =
@@ -90,13 +94,7 @@ export function getProviderConfig():
         "mock",
       ),
 
-    email:
-      normalized(
-        file.email ??
-          process.env
-            .EMAIL_PROVIDER,
-        "development",
-      ),
+    email: configuredEmailProvider(),
 
     payout:
       normalized(

@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useRef, useState } from "react";
@@ -61,7 +63,7 @@ export function GlobalChatDock(){
   const refreshAccount=useCallback(async()=>{
     const seq=++accountSeq.current;
     try{
-      const res=await fetch("/api/auth/me",{credentials:"same-origin",cache:"no-store"});
+      const res=await fetchSession();
       if(seq!==accountSeq.current)return;
       if(res.status===401){setSession("guest");setMe("");setChat(null);setMessages([]);setFriends([]);setGroups([]);setCode("");return;}
       if(!res.ok)throw new Error("Session check failed");
@@ -82,12 +84,7 @@ export function GlobalChatDock(){
     const onAuth=()=>{void refreshAccount();};
     const onFocus=()=>{if(document.visibilityState==="visible")void refreshAccount();};
     window.addEventListener("dnd-auth-change",onAuth);window.addEventListener("focus",onFocus);
-    let bc:BroadcastChannel|undefined;
-    if(typeof BroadcastChannel!=="undefined"){
-      bc=new BroadcastChannel("dnd-nerds-auth-state");
-      bc.onmessage=()=>{void refreshAccount();};
-    }
-    return()=>{window.removeEventListener("dnd-auth-change",onAuth);window.removeEventListener("focus",onFocus);bc?.close();};
+    return()=>{window.removeEventListener("dnd-auth-change",onAuth);window.removeEventListener("focus",onFocus);};
   },[refreshAccount]);
 
   const refreshLists=useCallback(async()=>{
@@ -176,7 +173,7 @@ export function GlobalChatDock(){
                 {requests.incoming.length>0&&<><h3>درخواست‌های دریافتی</h3>{requests.incoming.map(r=><div className={styles.entry} key={r.id}><span dir="ltr">{r.friendCode??"درخواست دوستی"}</span><button disabled={busy} onClick={()=>void action(()=>api(`requests/${r.id}/accept`,"POST",{}))}>قبول</button><button disabled={busy} onClick={()=>void action(()=>api(`requests/${r.id}/decline`,"POST",{}))}>رد</button></div>)}</>}
                 {requests.outgoing.length>0&&<><h3>در انتظار پذیرش</h3>{requests.outgoing.map(r=><p className={styles.pending} key={r.id} dir="ltr">{r.friendCode??"Pending"}</p>)}</>}
                 <h3>دوستان من</h3>{friends.length===0&&<p className={styles.empty}>هنوز دوستی اضافه نکردی.</p>}
-                {friends.map(f=><div className={styles.entry} key={f.userId}><span dir="ltr">{f.friendCode??"Friend"}</span><button onClick={()=>startChat("direct",f.userId,f.friendCode??"دوست")}>چت</button><button disabled={busy} title="حذف دوست" onClick={()=>void action(async()=>{if(window.confirm("این دوست حذف شود؟"))await api(`friends/${f.userId}/remove`,"POST",{});})}>×</button></div>)}
+                {friends.map(f=><div className={styles.entry} key={f.userId}><a dir="ltr" href={`/player/${f.userId}`}>{f.friendCode??"Friend"}</a><button onClick={()=>startChat("direct",f.userId,f.friendCode??"دوست")}>چت</button><button disabled={busy} title="حذف دوست" onClick={()=>void action(async()=>{if(window.confirm("این دوست حذف شود؟"))await api(`friends/${f.userId}/remove`,"POST",{});})}>×</button></div>)}
               </>}
               {tab==="chats"&&<><h3>گفتگوهای خصوصی</h3><p className={styles.empty}>برای شروع گفتگو، یکی از دوستان را انتخاب کن.</p>{friends.map(f=><button key={f.userId} className={styles.chatRow} onClick={()=>startChat("direct",f.userId,f.friendCode??"دوست")}>◉ {f.friendCode??"Friend"}</button>)}<h3>گفتگوهای گروهی</h3>{groups.map(g=><button key={g.id} className={styles.chatRow} onClick={()=>startChat("group",g.id,g.title)}>◈ {g.title}</button>)}</>}
               {tab==="groups"&&<><h3>ساخت گروه خصوصی</h3><form className={styles.add} onSubmit={e=>{e.preventDefault();void action(async()=>{await api("groups","POST",{title:groupTitle});setGroupTitle("");});}}><input maxLength={80} value={groupTitle} onChange={e=>setGroupTitle(e.target.value)} placeholder="نام گروه"/><button disabled={busy||groupTitle.trim().length<2}>ساخت</button></form>
@@ -189,7 +186,7 @@ export function GlobalChatDock(){
         </>}
       </section>
       <button className={styles.launcher} type="button" aria-expanded={open} aria-controls="dnd-social-panel" onClick={()=>{setOpen(v=>!v);setNotice("");}}>
-        <span className={styles.spark}>✧</span><span>Friends & Chat</span><span className={styles.chevron}>{open?"⌄":"⌃"}</span>
+        <span className={styles.spark}>✧</span><span>دوستان و گفتگو</span><span className={styles.chevron}>{open?"⌄":"⌃"}</span>
       </button>
     </div>
   );

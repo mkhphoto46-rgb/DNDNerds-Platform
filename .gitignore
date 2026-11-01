@@ -104,3 +104,13 @@ secrets.json
 /.serena/
 /MARKETPLACE_WEB_CURRENT_SOURCE.txt
 /START_DND_NERDS_DEV.ps1
+
+# Deployment-only public transfer details; do not commit personal bank information.
+/apps/web/support-public.json
+
+# Local Python deployment validation artifacts.
+**/__pycache__/
+*.pyc
+
+# Private implementation progress ledger.
+/.superpowers/

@@ -1,7 +1,9 @@
+import { configuredEmailProvider } from "../providers/config/provider-config.js";
+
 export type EmailActionKind = "VERIFY_EMAIL" | "PASSWORD_RESET";
 
 export function accountEmailReady(env: Record<string, string | undefined> = process.env): boolean {
-  const provider = env.EMAIL_PROVIDER?.trim().toLowerCase();
+  const provider = configuredEmailProvider(env);
   const required = provider === "smtp"
     ? ["SMTP_HOST", "SMTP_PORT", "SMTP_USER", "SMTP_PASS", "EMAIL_FROM"]
     : provider === "brevo" ? ["BREVO_API_KEY", "EMAIL_FROM"]

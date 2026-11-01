@@ -4081,6 +4081,14 @@ export const dmProfiles = pgTable("dm_profiles", {
   check("dm_profiles_experience_range", sql`${t.experienceYears} BETWEEN 0 AND 60`),
 ]);
 
+export const playerProfiles = pgTable("player_profiles", {
+  userId: uuid("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  displayName: varchar("display_name", { length: 100 }).notNull(),
+  bio: varchar("bio", { length: 1200 }).notNull().default(""),
+  avatarData: text("avatar_data"), bannerData: text("banner_data"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
 export const playerCharacters = pgTable("player_characters", {
   id: uuid("id").primaryKey().defaultRandom(),
   userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -4113,6 +4121,8 @@ export const gameTables = pgTable("game_tables", {
   inviteCodeHash: varchar("invite_code_hash", { length: 64 }),
   title: varchar("title", { length: 120 }).notNull(),
   description: varchar("description", { length: 2000 }).notNull().default(""),
+  genres: jsonb("genres").$type<string[]>().notNull().default([]),
+  imageData: text("image_data"),
   system: varchar("system", { length: 80 }).notNull().default("D&D 5e"),
   language: varchar("language", { length: 60 }).notNull().default("فارسی"),
   playStyle: varchar("play_style", { length: 60 }).notNull().default("داستان‌محور"),
@@ -4149,7 +4159,7 @@ export const gameTableReviews = pgTable("game_table_reviews", {
   id: uuid("id").primaryKey().defaultRandom(),
   tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
   reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  rating: integer("rating").notNull(),
+  rating: integer("rating"),
   comment: varchar("comment", { length: 1200 }).notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -4157,7 +4167,48 @@ export const gameTableReviews = pgTable("game_table_reviews", {
   uniqueIndex("game_table_reviews_table_reviewer_uq").on(t.tableId, t.reviewerUserId),
   index("game_table_reviews_table_date_idx").on(t.tableId, t.createdAt),
   check("game_table_reviews_rating_range", sql`${t.rating} BETWEEN 1 AND 5`),
-  check("game_table_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 10 AND 1200`),
+  check("game_table_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 3 AND 1200`),
+]);
+
+export const gameTableDeletions = pgTable("game_table_deletions", {
+ tableId: uuid("table_id").primaryKey().references(() => gameTables.id, { onDelete: "cascade" }),
+ requestedBy: uuid("requested_by").notNull().references(() => users.id),
+ requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+ attemptCount: integer("attempt_count").notNull().default(0), lastError: text("last_error"),
+ leaseUntil: timestamp("lease_until", { withTimezone: true }),
+});
+export const gameTableReactions = pgTable("game_table_reactions", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ tableId: uuid("table_id").notNull().references(() => gameTables.id, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ value: integer("value").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("game_table_reactions_target_user_uq").on(t.tableId, t.reviewerUserId),
+ check("game_table_reactions_value_valid", sql`${t.value} IN (-1,1)`),
+]);
+export const dmReactions = pgTable("dm_reactions", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ dmUserId: uuid("dm_user_id").notNull().references(() => dmProfiles.userId, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ value: integer("value").notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("dm_reactions_target_user_uq").on(t.dmUserId, t.reviewerUserId),
+ check("dm_reactions_value_valid", sql`${t.value} IN (-1,1)`),
+]);
+export const dmReviews = pgTable("dm_reviews", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ dmUserId: uuid("dm_user_id").notNull().references(() => dmProfiles.userId, { onDelete: "cascade" }),
+ reviewerUserId: uuid("reviewer_user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ comment: varchar("comment", { length: 1200 }).notNull(),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+ uniqueIndex("dm_reviews_target_user_uq").on(t.dmUserId, t.reviewerUserId),
+ check("dm_reviews_comment_length", sql`length(btrim(${t.comment})) BETWEEN 3 AND 1200`),
 ]);
 
 export const arenaListings = pgTable("arena_listings", {
@@ -4216,3 +4267,14 @@ export const gameSubscriptionSettings = pgTable("game_subscription_settings", {
   check("game_subscription_settings_singleton", sql`${t.id} = 1`),
   check("game_subscription_settings_price_valid", sql`${t.priceRial} > 0`),
 ]);
+
+export const siteFeedback = pgTable("site_feedback", {
+ id: uuid("id").primaryKey().defaultRandom(),
+ userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+ kind: varchar("kind", { length: 16 }).notNull(),
+ subject: varchar("subject", { length: 120 }).notNull(),
+ message: varchar("message", { length: 3000 }).notNull(),
+ status: varchar("status", { length: 16 }).notNull().default("NEW"),
+ createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+ updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [index("site_feedback_user_date_idx").on(t.userId,t.createdAt), check("site_feedback_kind_valid",sql`${t.kind} IN ('SUGGESTION','CRITICISM','COMMENT')`),check("site_feedback_status_valid",sql`${t.status} IN ('NEW','READ','RESOLVED')`)]);

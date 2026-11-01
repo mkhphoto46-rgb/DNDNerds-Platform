@@ -1,10 +1,14 @@
 import type { FastifyInstance, FastifyRequest } from "fastify";
-import { and, desc, eq, ne, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { dmProfiles, gameTableReviews, gameTables, playerCharacters, users } from "../db/schema.js";
+import { dmProfiles, gameTableReviews, gameTables, playerCharacters, playerProfiles, users } from "../db/schema.js";
 import { validProfileImage } from "./profile-image.js";
+
+import { registerFeedbackRoutes } from "./feedback.js";
+
+import { discoveryFeedback } from "./discovery-feedback.js";
 
 const base = "/api/v1/game-hub";
 const uuid = z.string().uuid();
@@ -35,6 +39,20 @@ function invalid(reply: { code: (status: number) => { send: (body: unknown) => u
 }
 
 export async function registerProfilePagesRoutes(app: FastifyInstance) {
+  await registerFeedbackRoutes(app);
+  const playerInput = z.object({ displayName: z.string().trim().min(2).max(100), bio: z.string().trim().max(1200), avatarData: image("avatar").optional(), bannerData: image("banner").optional() });
+  app.get(`${base}/players/me/page`, async (request, reply) => {
+    const user = await authenticated(request, reply); if (!user) return;
+    const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
+    return { data: profile ?? { userId: user.id, displayName: user.username ?? "بازیکن", bio: "", avatarData: null, bannerData: null } };
+  });
+  app.put(`${base}/players/me/page`, { bodyLimit: 2_200_000 }, async (request, reply) => {
+    const user = await authenticated(request, reply); if (!user) return;
+    const parsed = playerInput.safeParse(request.body); if (!parsed.success) return invalid(reply);
+    const [profile] = await db.insert(playerProfiles).values({ userId: user.id, ...parsed.data }).onConflictDoUpdate({ target: playerProfiles.userId, set: { ...parsed.data, updatedAt: new Date() } }).returning();
+    return { data: profile };
+  });
+
   app.get(`${base}/dms/me/page`, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const [profile] = await db.select().from(dmProfiles).where(eq(dmProfiles.userId, user.id)).limit(1);
@@ -49,7 +67,7 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     return { data: profile };
   });
 
-  app.put(`${base}/dms/me/page`, async (request, reply) => {
+  app.put(`${base}/dms/me/page`, { bodyLimit: 2_200_000 }, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
     const parsed = dmInput.safeParse(request.body); if (!parsed.success) return invalid(reply);
     const [profile] = await db.insert(dmProfiles).values({ userId: user.id, ...parsed.data })
@@ -61,21 +79,20 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     const parsed = uuid.safeParse(request.params.userId); if (!parsed.success) return invalid(reply);
     const [profile] = await db.select({ profile: dmProfiles }).from(dmProfiles).innerJoin(users, eq(dmProfiles.userId, users.id)).where(and(eq(dmProfiles.userId, parsed.data), eq(dmProfiles.visible, true), eq(users.status, "ACTIVE"))).limit(1);
     if (!profile) return reply.code(404).send({ error: { message: "صفحهٔ DM پیدا نشد." } });
-    const [reviews, tables, ratingRows] = await Promise.all([
+    const [reviews, tables] = await Promise.all([
       db.select({ id: gameTableReviews.id, rating: gameTableReviews.rating, comment: gameTableReviews.comment, createdAt: gameTableReviews.createdAt,
         reviewerUserId: gameTableReviews.reviewerUserId, reviewerName: users.username, tableId: gameTables.id, tableTitle: gameTables.title })
         .from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id))
         .innerJoin(users, eq(gameTableReviews.reviewerUserId, users.id))
-        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN")))
+        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTableReviews.createdAt)).limit(100),
-      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, system: gameTables.system, levelRange: gameTables.levelRange })
-        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN")))
+      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, system: gameTables.system, levelRange: gameTables.levelRange, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData })
+        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTables.createdAt)).limit(30),
-      db.select({ average: sql<number>`round(avg(${gameTableReviews.rating})::numeric, 1)::float`, count: sql<number>`count(*)::int` })
-        .from(gameTableReviews).innerJoin(gameTables, eq(gameTableReviews.tableId, gameTables.id))
-        .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), ne(gameTables.status, "HIDDEN"))),
     ]);
-    return { data: { profile: profile.profile, rating: ratingRows[0]?.average ?? null, reviewCount: ratingRows[0]?.count ?? 0, reviews: reviews.map(review => ({ ...review, reviewerName: review.reviewerName ?? `بازیکن ${review.reviewerUserId.slice(0, 6)}` })), tables } };
+    const viewer = await requireAuthUser(request);
+    const summary = await discoveryFeedback("dm", profile.profile.userId, profile.profile.userId, viewer?.id);
+    return { data: { profile: profile.profile, ...summary, canReview: summary.canReact, campaignReviews: reviews.map(({rating: _rating, ...review}) => ({ ...review, author: review.reviewerName ?? `بازیکن ${review.reviewerUserId.slice(0,6)}`, mine: review.reviewerUserId === viewer?.id })), tables } };
   });
 
   app.get(`${base}/characters/me`, async (request, reply) => {
@@ -120,6 +137,8 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     const [player] = await db.select({ id: users.id, username: users.username, status: users.status }).from(users).where(eq(users.id, key.data)).limit(1);
     if (!player || player.status !== "ACTIVE") return reply.code(404).send({ error: { message: "صفحهٔ بازیکن پیدا نشد." } });
     const characters = await db.select().from(playerCharacters).where(and(eq(playerCharacters.userId, key.data), eq(playerCharacters.public, true))).orderBy(desc(playerCharacters.createdAt));
-    return { data: { player: { id: player.id, name: player.username ?? `بازیکن ${player.id.slice(0, 6)}` }, characters } };
+    const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, key.data)).limit(1);
+    const [dm] = await db.select({ userId: dmProfiles.userId }).from(dmProfiles).where(and(eq(dmProfiles.userId, key.data), eq(dmProfiles.visible, true))).limit(1);
+    return { data: { player: { id: player.id, name: profile?.displayName ?? player.username ?? `بازیکن ${player.id.slice(0, 6)}`, bio: profile?.bio ?? "", avatarData: profile?.avatarData ?? null, bannerData: profile?.bannerData ?? null, dmPage: Boolean(dm) }, characters } };
   });
 }

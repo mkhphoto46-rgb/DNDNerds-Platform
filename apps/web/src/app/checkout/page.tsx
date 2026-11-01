@@ -1,5 +1,7 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
 
 import {
@@ -117,13 +119,7 @@ export default function CheckoutPage() {
       async function loadMe() {
         try {
           const response =
-            await fetch(
-              "/api/auth/me",
-              {
-                cache:
-                  "no-store",
-              },
-            );
+            await fetchSession();
 
           const data:
             MeResponse =

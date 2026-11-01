@@ -6,10 +6,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { createTownWorld } from "./town-world";
 import { XpBar } from "./xp-experience";
 import { SiteTour } from "./site-tour";
-import { AutoCloseMenu } from "./auto-close-menu";
+import { SiteMenu } from "./site-menu";
+
 
 const places = [
-  { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "قدم بزن و شهر را کشف کن", action: "شروع ماجراجویی", href: "/register" },
+  { name: "دروازه شهر", title: "ماجرا از اینجا شروع می‌شود", hint: "بازی پیدا کن، به میزت برگرد یا میز تازه بساز", action: "پیدا کردن بازی", href: "/find-game" },
   { name: "Tavern", title: "همراهت را پیدا کن", hint: "میزهای تازه همین نزدیکی‌اند", action: "ورود به Tavern", href: "/tavern" },
   { name: "میدان", title: "میز بازی آماده است", hint: "نقشه، تاس و قصه در یک جا", action: "ورود به میز", href: "/play" },
   { name: "دوستان و گفتگو", title: "با گروهت در تماس باش", hint: "دوستان و گفتگو همیشه در دسترس", action: "باز کردن گفتگو", href: null },
@@ -49,7 +50,7 @@ export function HomeTownExperience() {
   const go = useCallback((value: number) => setStage(Math.max(0, Math.min(places.length - 1, value))), []);
   const enterPlace = useCallback((key: string) => {
     if (key === "guild") { openChat(); return; }
-    const routes: Record<string,string> = { gate: "/register", tavern: "/tavern", play: "/play", cartography: "/cartography", blacksmith: "/blacksmith", market: "/store", arena: "/arena" };
+    const routes: Record<string,string> = { gate: "/find-game", tavern: "/tavern", play: "/play", cartography: "/cartography", blacksmith: "/blacksmith", market: "/store", arena: "/arena" };
     if (routes[key]) router.push(routes[key]);
   }, [router]);
   const startTransition = useCallback((key: string) => setEntering(key), []);
@@ -150,9 +151,9 @@ export function HomeTownExperience() {
       <Link className="town-brand" href="/" aria-label="DND Nerds، صفحه اصلی"><img className="town-logo" src="/brand/dnd-nerds-logo.png" width="100" height="100" alt="DND Nerds" /></Link>
       <div className="town-hud-actions">
         <SiteTour onStageChange={go} onOpenChat={openChat} />
-        <button type="button" className="town-hud-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn}>{soundOn ? "♫ صدای شهر روشن" : "♫ صدای شهر خاموش"}</button>
-        <button type="button" className="town-hud-button town-chat-button" onClick={openChat}>دوستان و گفتگو</button>
-        <AutoCloseMenu className="town-menu"><summary aria-label="باز کردن مسیرها">☰</summary><nav aria-label="مسیرهای سایت"><Link href="/register">شروع ماجراجویی</Link><Link href="/tavern">Tavern</Link><Link href="/play">میز بازی</Link><Link href="/find-game">پیدا کردن بازی</Link><Link href="/find-dm">میزهای DM</Link><Link href="/cartography">نقشه‌خانه</Link><Link href="/blacksmith">آهنگری</Link><Link href="/arena">Arena</Link><Link href="/store">بازارچه</Link><Link href="/account">حساب من</Link></nav></AutoCloseMenu>
+        <button type="button" className="town-hud-button town-music-button" onClick={() => setSoundOn(v => !v)} aria-pressed={soundOn} aria-label={soundOn ? "خاموش کردن صدای شهر" : "روشن کردن صدای شهر"} title={soundOn ? "خاموش کردن صدا" : "روشن کردن صدا"}><svg viewBox="0 0 32 32" width="30" height="30" aria-hidden="true"><path d="M13 23V5c7 0 6 7 12 7v5c-5 0-7-4-9-4v10" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinejoin="round"/><ellipse cx="10" cy="25" rx="5" ry="3.5" fill="currentColor"/>{!soundOn && <path d="M4 4L28 28" stroke="currentColor" strokeWidth="2.5"/>}</svg></button>
+        <button type="button" className="town-hud-button town-chat-button" onClick={openChat} aria-label="دوستان و گفتگو" title="دوستان و گفتگو"><span className="town-control-label">دوستان و گفتگو</span><svg className="town-chat-icon" viewBox="0 0 24 24" width="24" height="24" aria-hidden="true"><path d="M5 4h14a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-8l-6 4v-4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" fill="none" stroke="currentColor" strokeWidth="1.7"/><path d="M7 9h10M7 13h7" stroke="currentColor" strokeWidth="1.7"/></svg></button>
+        <SiteMenu city />
       </div>
     </header>
 
