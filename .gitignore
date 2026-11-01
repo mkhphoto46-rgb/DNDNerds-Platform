@@ -107,3 +107,7 @@ secrets.json
 
 # Deployment-only public transfer details; do not commit personal bank information.
 /apps/web/support-public.json
+
+# Local Python deployment validation artifacts.
+**/__pycache__/
+*.pyc

@@ -1,4 +1,5 @@
 import { createHmac } from "node:crypto";
+import { resolveVttOrigin } from "./vtt-origin.js";
 
 export type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
 export type VttTableStatus = { tableId: string; onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] };
@@ -11,8 +12,8 @@ export async function fetchVttTableStatuses(tableIds: string[]): Promise<Record<
   if (!tableIds.length) return {};
   const secret = process.env.VTT_BRIDGE_SECRET?.trim();
   if (!secret || secret.length < 32) return null;
-  const origin = new URL(process.env.VTT_INTERNAL_URL ?? "http://127.0.0.1:4200");
-  if (origin.protocol !== "http:" || !["127.0.0.1", "localhost"].includes(origin.hostname)) return null;
+  const origin = resolveVttOrigin(process.env.VTT_INTERNAL_URL);
+  if (!origin) return null;
   const ids = [...new Set(tableIds)].slice(0, 80);
   const timestamp = String(Date.now());
   try {

@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { createHmac } from "node:crypto";
 import { apiFetch } from "@/lib/bff-api";
+import { vttPresenceUrl } from "@/lib/vtt-origin";
 
 export async function POST(request: Request) {
   try {
     const body = await request.json().catch(() => ({})) as { mode?: unknown };
     let init: RequestInit = { method: "POST" };
     if (body.mode === "game") {
-      const presence = await fetch("http://127.0.0.1:4200/api/platform/xp-presence", {
+      const presence = await fetch(vttPresenceUrl(), {
         headers: { Cookie: request.headers.get("cookie") ?? "" }, cache: "no-store",
       });
       if (!presence.ok) return NextResponse.json({ error: { message: "حضور در بازی تأیید نشد." } }, { status: 403 });

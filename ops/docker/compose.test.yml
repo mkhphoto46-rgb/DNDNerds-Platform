@@ -1,0 +1,72 @@
+name: dndnerds-docker-test
+services:
+  postgres:
+    image: postgres:18-alpine
+    environment:
+      POSTGRES_DB: dnd_test
+      POSTGRES_USER: dnd_test
+      POSTGRES_PASSWORD: isolated-test-only
+    volumes: [test-postgres:/var/lib/postgresql]
+    networks: [test]
+    healthcheck:
+      test: [CMD, pg_isready, -U, dnd_test, -d, dnd_test]
+      interval: 3s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    command: [redis-server, --appendonly, "yes"]
+    volumes: [test-redis:/data]
+    networks: [test]
+    healthcheck:
+      test: [CMD, redis-cli, ping]
+      interval: 3s
+      retries: 20
+  api:
+    image: dndnerds-api:${RELEASE_TAG:?release required}
+    environment:
+      NODE_ENV: production
+      FREE_LAUNCH_MODE: "true"
+      API_HOST: 0.0.0.0
+      API_PORT: "4100"
+      DATABASE_URL: postgres://dnd_test:isolated-test-only@postgres:5432/dnd_test
+      REDIS_URL: redis://redis:6379
+      AUTH_SESSION_SECRET: isolated-test-only-not-a-production-signing-key-0001
+      # Public disposable test values, never production credentials.
+      MFA_ENCRYPTION_KEY: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      PAYOUT_DESTINATION_ENCRYPTION_KEY: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      WEB_ORIGIN: http://localhost:23100
+      # These HTTPS placeholders pass real production guards; no mail is sent.
+      PUBLIC_APP_URL: https://local-test.invalid
+      PUBLIC_API_URL: https://api.local-test.invalid
+      FINANCE_RECONCILE_INTERVAL_MS: "60000"
+      FINANCE_RECONCILE_LIMIT: "50"
+      EMAIL_PROVIDER: development
+    ports: ["127.0.0.1:24100:4100"]
+    networks: [test]
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  web:
+    image: dndnerds-web:${RELEASE_TAG:?release required}
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3100"
+      MARKETPLACE_API_BASE_URL: http://api:4100
+      FREE_LAUNCH_MODE: "true"
+    ports: ["127.0.0.1:23100:3100"]
+    networks: [test]
+    depends_on: [api]
+  migrate:
+    image: dndnerds-api:${RELEASE_TAG:?release required}
+    profiles: [migration-test]
+    environment:
+      DATABASE_URL: postgres://dnd_test:isolated-test-only@postgres:5432/dnd_test
+    command: [node, dist/db/migrate-production.js]
+    networks: [test]
+    depends_on:
+      postgres: {condition: service_healthy}
+networks:
+  test: {}
+volumes:
+  test-postgres: {}
+  test-redis: {}

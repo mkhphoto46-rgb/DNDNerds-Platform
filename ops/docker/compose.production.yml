@@ -1,0 +1,88 @@
+# Does not create, migrate, replace or own the existing Postgres/Redis/VTT.
+name: dndnerds-staged
+x-api: &api
+  image: dndnerds-api:${RELEASE_TAG:?immutable release tag required}
+  platform: linux/amd64
+  env_file:
+    - ${API_RUNTIME_ENV:?private API runtime file required}
+  environment:
+    API_HOST: 0.0.0.0
+    API_PORT: "4100"
+    PROVIDER_CONFIG_FILE: /app/config/providers.json
+    REFUND_EVIDENCE_ROOT: /app/data/refund-evidence
+    VTT_INTERNAL_URL: http://host.docker.internal:4200
+  extra_hosts:
+    - host.docker.internal:host-gateway
+  networks: [app, existing_data]
+  init: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs: ["/tmp:size=64m,mode=1777"]
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  mem_limit: 768m
+  cpus: "1.0"
+  volumes:
+    - type: bind
+      source: ${REFUND_EVIDENCE_DIR:?existing private evidence path required}
+      target: /app/data/refund-evidence
+      bind:
+        create_host_path: false
+services:
+  api:
+    <<: *api
+    ports: ["127.0.0.1:${API_STAGE_PORT:-14100}:4100"]
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:4100/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+  web:
+    image: dndnerds-web:${RELEASE_TAG:?immutable release tag required}
+    platform: linux/amd64
+    env_file:
+      - ${WEB_RUNTIME_ENV:?private Web runtime file required}
+    environment:
+      HOSTNAME: 0.0.0.0
+      PORT: "3100"
+      MARKETPLACE_API_BASE_URL: http://api:4100
+      VTT_INTERNAL_URL: http://host.docker.internal:4200
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks: [app]
+    ports: ["127.0.0.1:${WEB_STAGE_PORT:-13100}:3100"]
+    depends_on:
+      api: {condition: service_healthy}
+    init: true
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /app/apps/web/.next/cache:size=128m,uid=1000,gid=1000
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 1024m
+    cpus: "1.5"
+    volumes:
+      - type: bind
+        source: ${SUPPORT_CONFIG_FILE:?existing private support file required}
+        target: /app/apps/web/support-public.json
+        read_only: true
+        bind:
+          create_host_path: false
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://127.0.0.1:3100/login').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 25s
+  finance-worker:
+    <<: *api
+    profiles: [finance-approved]
+    command: [node, dist/jobs/finance-reconciliation-worker.js]
+networks:
+  app: {}
+  existing_data:
+    external: true
+    name: ${EXISTING_DATA_NETWORK:?verified existing database network required}
