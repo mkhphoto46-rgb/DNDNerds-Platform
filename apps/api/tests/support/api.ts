@@ -6,6 +6,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import postgres from "postgres";
+import {isolatedPostgres} from './postgres.js';
 
 import type { FastifyInstance, InjectOptions } from "fastify";
 
@@ -28,12 +29,15 @@ export async function startApi(): Promise<TestApi> {
   // Persistent: embedded-postgres then leaves the data folder alone on stop. Without it, stop()
   // deletes the folder at once (no retries), which fails with EBUSY on Windows while the stopped
   // server still holds its files; stop() below removes the whole temp folder with retries instead.
-  const pg = await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test", persistent: true });
+  const externalTestServer=process.env.TEST_POSTGRES_ADMIN_URL;
+  const pg = externalTestServer ? await isolatedPostgres(externalTestServer) : await startPostgres({ dir, port: await freePort(), database: "dnd_nerds_test", persistent: true });
   // Windows initdb inherits WIN1252; Persian migration literals require UTF8.
+  if(!externalTestServer){
   const bootstrap = postgres(pg.url);
   await bootstrap.unsafe("CREATE DATABASE dnd_nerds_test_utf8 TEMPLATE template0 ENCODING 'UTF8'");
   await bootstrap.end();
   pg.url = pg.url.replace("/dnd_nerds_test", "/dnd_nerds_test_utf8");
+  }
   const redis = await startRedis({ port: await freePort() });
   Object.assign(process.env, {
     NODE_ENV: "test",
@@ -48,6 +52,10 @@ export async function startApi(): Promise<TestApi> {
     NOTIFICATION_DESTINATION_KEY_HEX: randomBytes(32).toString("hex"),
   });
   await migrateDatabase(pg.url);
+  // Production migration creates this singleton too; bare migrations alone do not.
+  const defaults = postgres(pg.url);
+  await defaults`insert into marketplace_config (id) values ('global') on conflict do nothing`;
+  await defaults.end();
 
   // Imported only now: the config is read when these modules load.
   const { buildApp } = await import("../../src/app.js");

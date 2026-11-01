@@ -710,6 +710,10 @@ export async function registerSellerRoutes(
   app.post(
     "/api/v1/seller/stores/:storeId/orders/:sellerOrderId/fulfillment",
     async (request, reply) => {
+      if ((request.body as { action?: string })?.action === "DELIVER") {
+        return reply.code(403).send({ error: { code: "INDEPENDENT_DELIVERY_REQUIRED", message: "Seller claims cannot confirm delivery or release funds." } });
+      }
+
       const params = sellerOrderParams.safeParse(request.params);
       const body = fulfillmentBody.safeParse(request.body);
 

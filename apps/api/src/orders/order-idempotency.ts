@@ -3,6 +3,7 @@ import {
 } from "node:crypto";
 
 export type OrderHashInput = {
+  checkoutSnapshotId?: string;
   address: {
     fullName: string;
     phone: string;
@@ -16,6 +17,9 @@ export type OrderHashInput = {
   items:
     Array<{
       productId: string;
+      quoteId?: string;
+      variantId?: string;
+      expectedPriceRial?: number;
       quantity: number;
     }>;
 };
@@ -27,6 +31,7 @@ export function hashOrderRequest(
   const canonical = {
     version:
       1,
+    ...(input.checkoutSnapshotId ? {checkoutSnapshotId:input.checkoutSnapshotId}:{}),
 
     address: {
       fullName:
@@ -62,8 +67,8 @@ export function hashOrderRequest(
             left,
             right,
           ) =>
-            left.productId.localeCompare(
-              right.productId,
+            `${left.productId}:${left.variantId ?? ""}`.localeCompare(
+              `${right.productId}:${right.variantId ?? ""}`,
             ),
         )
         .map(
@@ -71,6 +76,8 @@ export function hashOrderRequest(
             productId:
               item.productId,
 
+            ...(item.variantId ? { variantId:item.variantId, expectedPriceRial:item.expectedPriceRial } : {}),
+            ...(item.quoteId ? {quoteId:item.quoteId}:{}),
             quantity:
               item.quantity,
           }),

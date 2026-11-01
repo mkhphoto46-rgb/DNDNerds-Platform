@@ -3,6 +3,7 @@ import "dotenv/config";
 import { z } from "zod";
 
 const schema = z.object({
+  API_RATE_LIMIT_MAX: z.coerce.number().int().min(60).max(1_000_000).default(180),
   NODE_ENV: z
     .enum(["development", "test", "production"])
     .default("development"),

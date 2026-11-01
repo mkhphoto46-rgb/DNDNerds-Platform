@@ -6,6 +6,7 @@ export const CART_CHANGED_EVENT =
 
 export type CartItem = {
   productId: string;
+  variantId?: string;
   storeSlug: string;
   productSlug: string;
   productName: string;
@@ -14,6 +15,8 @@ export type CartItem = {
   inventory: number;
   quantity: number;
 };
+
+export function cartItemKey(item: Pick<CartItem,'productId'|'variantId'>){return `${item.productId}:${item.variantId??'default'}`;}
 
 function sanitizeQuantity(
   value: number,
@@ -129,8 +132,7 @@ export function addCartItem(
   const existing =
     current.find(
       (item) =>
-        item.productId ===
-        incoming.productId,
+        item.productId === incoming.productId && item.variantId === incoming.variantId,
     );
 
   let next:
@@ -141,8 +143,7 @@ export function addCartItem(
       current.map(
         (item) => {
           if (
-            item.productId !==
-            incoming.productId
+            item.productId !== incoming.productId || item.variantId !== incoming.variantId
           ) {
             return item;
           }
@@ -187,55 +188,11 @@ export function addCartItem(
   return next;
 }
 
-export function setCartItemQuantity(
-  productId: string,
-  quantity: number,
-) {
-  const current =
-    readCart();
-
-  const next =
-    current
-      .map(
-        (item) => {
-          if (
-            item.productId !==
-            productId
-          ) {
-            return item;
-          }
-
-          return {
-            ...item,
-
-            quantity:
-              sanitizeQuantity(
-                quantity,
-                item.inventory,
-              ),
-          };
-        },
-      );
-
-  writeCart(next);
-
-  return next;
+export function setCartItemQuantity(key:string,quantity:number){
+ const target=key.includes(':')?key:`${key}:default`;
+ const next=readCart().map(item=>cartItemKey(item)===target?{...item,quantity:sanitizeQuantity(quantity,item.inventory)}:item);writeCart(next);return next;
 }
-
-export function removeCartItem(
-  productId: string,
-) {
-  const next =
-    readCart().filter(
-      (item) =>
-        item.productId !==
-        productId,
-    );
-
-  writeCart(next);
-
-  return next;
-}
+export function removeCartItem(key:string){const target=key.includes(':')?key:`${key}:default`;const next=readCart().filter(item=>cartItemKey(item)!==target);writeCart(next);return next;}
 
 export function clearCart() {
   if (typeof window === "undefined") {

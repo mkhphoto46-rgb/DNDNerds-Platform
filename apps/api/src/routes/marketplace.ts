@@ -1,3 +1,4 @@
+import { registerCatalog } from "../marketplace/catalog.js";
 import type {
   FastifyInstance,
 } from "fastify";
@@ -6,6 +7,7 @@ import {
   and,
   count,
   eq,
+  sql,
 } from "drizzle-orm";
 
 import {
@@ -39,12 +41,13 @@ const checkoutPreviewSchema =
             productId:
               z.string().uuid(),
 
+            variantId:z.string().uuid().optional(),
             quantity:
               z
                 .number()
                 .int()
                 .min(1)
-                .max(99),
+                .max(999),
           }),
         )
         .min(1)
@@ -107,6 +110,7 @@ async function getCommissionBps(
 
 async function getDefaultVariant(
   productId: string,
+  variantId?: string,
 ) {
   const [row] =
     await db
@@ -114,8 +118,8 @@ async function getDefaultVariant(
         variantId:
           productVariants.id,
 
-        priceRial:
-          productVariants.priceRial,
+        priceRial:sql<number>`CASE WHEN now()>=${productVariants}.discount_starts_at AND now()<${productVariants}.discount_ends_at THEN ${productVariants}.discount_rial ELSE ${productVariants.priceRial} END`.mapWith(Number),
+        perOrderLimit:sql<number>`${productVariants}.per_order_limit`.mapWith(Number),
 
         quantityOnHand:
           inventory.quantityOnHand,
@@ -140,10 +144,7 @@ async function getDefaultVariant(
             productId,
           ),
 
-          eq(
-            productVariants.isDefault,
-            true,
-          ),
+          variantId ? eq(productVariants.id,variantId) : eq(productVariants.isDefault,true),
 
           eq(
             productVariants.status,
@@ -309,567 +310,7 @@ export async function registerMarketplaceRoutes(
     },
   );
 
-  app.get(
-    "/api/v1/stores",
-
-    async () => {
-      const config =
-        await getGlobalConfig();
-
-      const rows =
-        await db
-          .select()
-          .from(
-            stores,
-          )
-          .where(
-            eq(
-              stores.status,
-              "ACTIVE",
-            ),
-          )
-          .orderBy(
-            stores.name,
-          );
-
-      const data = [];
-
-      for (
-        const store
-        of rows
-      ) {
-        const [productCount] =
-          await db
-            .select({
-              value:
-                count(),
-            })
-            .from(
-              products,
-            )
-            .where(
-              and(
-                eq(
-                  products.storeId,
-                  store.id,
-                ),
-
-                eq(
-                  products.status,
-                  "PUBLISHED",
-                ),
-              ),
-            );
-
-        const commissionBps =
-          await getCommissionBps(
-            store.id,
-            config.defaultCommissionBps,
-          );
-
-        data.push({
-          id:
-            store.id,
-
-          slug:
-            store.slug,
-
-          name:
-            store.name,
-
-          description:
-            store.description,
-
-          category:
-            store.category,
-
-          rating:
-            store.ratingHundredths /
-            100,
-
-          reviewCount:
-            store.reviewCount,
-
-          verified:
-            store.verified,
-
-          fulfillmentMode:
-            store.fulfillmentMode,
-
-          productCount:
-            Number(
-              productCount?.value ??
-              0,
-            ),
-
-          commissionBps,
-
-          commissionPercent:
-            bpsToPercent(
-              commissionBps,
-            ),
-        });
-      }
-
-      return {
-        data,
-        source:
-          "postgresql",
-      };
-    },
-  );
-
-  app.get(
-    "/api/v1/stores/:storeSlug",
-
-    async (
-      request,
-      reply,
-    ) => {
-      const {
-        storeSlug,
-      } =
-        request.params as {
-          storeSlug:
-            string;
-        };
-
-      const [store] =
-        await db
-          .select()
-          .from(
-            stores,
-          )
-          .where(
-            and(
-              eq(
-                stores.slug,
-                storeSlug,
-              ),
-
-              eq(
-                stores.status,
-                "ACTIVE",
-              ),
-            ),
-          )
-          .limit(1);
-
-      if (!store) {
-        return reply
-          .code(404)
-          .send({
-            error: {
-              code:
-                "STORE_NOT_FOUND",
-
-              message:
-                "Store not found",
-            },
-          });
-      }
-
-      const config =
-        await getGlobalConfig();
-
-      const commissionBps =
-        await getCommissionBps(
-          store.id,
-          config.defaultCommissionBps,
-        );
-
-      const productRows =
-        await db
-          .select()
-          .from(
-            products,
-          )
-          .where(
-            and(
-              eq(
-                products.storeId,
-                store.id,
-              ),
-
-              eq(
-                products.status,
-                "PUBLISHED",
-              ),
-            ),
-          );
-
-      const hydrated = [];
-
-      for (
-        const product
-        of productRows
-      ) {
-        const variant =
-          await getDefaultVariant(
-            product.id,
-          );
-
-        if (!variant) {
-          continue;
-        }
-
-        hydrated.push({
-          id:
-            product.id,
-
-          slug:
-            product.slug,
-
-          name:
-            product.name,
-
-          description:
-            product.description,
-
-          category:
-            product.category,
-
-          priceRial:
-            variant.priceRial,
-
-          priceToman:
-            rialToToman(
-              variant.priceRial,
-            ),
-
-          inventory:
-            availableInventory(
-              variant.quantityOnHand,
-              variant.quantityReserved,
-            ),
-        });
-      }
-
-      return {
-        id:
-          store.id,
-
-        slug:
-          store.slug,
-
-        name:
-          store.name,
-
-        description:
-          store.description,
-
-        category:
-          store.category,
-
-        rating:
-          store.ratingHundredths /
-          100,
-
-        reviewCount:
-          store.reviewCount,
-
-        verified:
-          store.verified,
-
-        fulfillmentMode:
-          store.fulfillmentMode,
-
-        commissionBps,
-
-        commissionPercent:
-          bpsToPercent(
-            commissionBps,
-          ),
-
-        products:
-          hydrated,
-
-        source:
-          "postgresql",
-      };
-    },
-  );
-
-  app.get(
-    "/api/v1/products",
-
-    async () => {
-      const rows =
-        await db
-          .select()
-          .from(
-            products,
-          )
-          .where(
-            eq(
-              products.status,
-              "PUBLISHED",
-            ),
-          )
-          .orderBy(
-            products.name,
-          );
-
-      const data = [];
-
-      for (
-        const product
-        of rows
-      ) {
-        const [store] =
-          await db
-            .select()
-            .from(
-              stores,
-            )
-            .where(
-              eq(
-                stores.id,
-                product.storeId,
-              ),
-            )
-            .limit(1);
-
-        const variant =
-          await getDefaultVariant(
-            product.id,
-          );
-
-        if (
-          !store ||
-          !variant
-        ) {
-          continue;
-        }
-
-        data.push({
-          id:
-            product.id,
-
-          storeId:
-            store.id,
-
-          slug:
-            product.slug,
-
-          name:
-            product.name,
-
-          description:
-            product.description,
-
-          category:
-            product.category,
-
-          priceRial:
-            variant.priceRial,
-
-          priceToman:
-            rialToToman(
-              variant.priceRial,
-            ),
-
-          inventory:
-            availableInventory(
-              variant.quantityOnHand,
-              variant.quantityReserved,
-            ),
-
-          store: {
-            id:
-              store.id,
-
-            slug:
-              store.slug,
-
-            name:
-              store.name,
-
-            verified:
-              store.verified,
-          },
-        });
-      }
-
-      return {
-        data,
-
-        pagination: {
-          returned:
-            data.length,
-        },
-
-        source:
-          "postgresql",
-      };
-    },
-  );
-
-  app.get(
-    "/api/v1/stores/:storeSlug/products/:productSlug",
-
-    async (
-      request,
-      reply,
-    ) => {
-      const {
-        storeSlug,
-        productSlug,
-      } =
-        request.params as {
-          storeSlug:
-            string;
-
-          productSlug:
-            string;
-        };
-
-      const [store] =
-        await db
-          .select()
-          .from(
-            stores,
-          )
-          .where(
-            and(
-              eq(
-                stores.slug,
-                storeSlug,
-              ),
-
-              eq(
-                stores.status,
-                "ACTIVE",
-              ),
-            ),
-          )
-          .limit(1);
-
-      if (!store) {
-        return reply
-          .code(404)
-          .send({
-            error: {
-              code:
-                "STORE_NOT_FOUND",
-
-              message:
-                "Store not found",
-            },
-          });
-      }
-
-      const [product] =
-        await db
-          .select()
-          .from(
-            products,
-          )
-          .where(
-            and(
-              eq(
-                products.storeId,
-                store.id,
-              ),
-
-              eq(
-                products.slug,
-                productSlug,
-              ),
-
-              eq(
-                products.status,
-                "PUBLISHED",
-              ),
-            ),
-          )
-          .limit(1);
-
-      if (!product) {
-        return reply
-          .code(404)
-          .send({
-            error: {
-              code:
-                "PRODUCT_NOT_FOUND",
-
-              message:
-                "Product not found",
-            },
-          });
-      }
-
-      const variant =
-        await getDefaultVariant(
-          product.id,
-        );
-
-      if (!variant) {
-        return reply
-          .code(404)
-          .send({
-            error: {
-              code:
-                "VARIANT_NOT_FOUND",
-
-              message:
-                "No active default variant",
-            },
-          });
-      }
-
-      return {
-        id:
-          product.id,
-
-        storeId:
-          store.id,
-
-        slug:
-          product.slug,
-
-        name:
-          product.name,
-
-        description:
-          product.description,
-
-        category:
-          product.category,
-
-        priceRial:
-          variant.priceRial,
-
-        priceToman:
-          rialToToman(
-            variant.priceRial,
-          ),
-
-        inventory:
-          availableInventory(
-            variant.quantityOnHand,
-            variant.quantityReserved,
-          ),
-
-        store: {
-          id:
-            store.id,
-
-          slug:
-            store.slug,
-
-          name:
-            store.name,
-
-          verified:
-            store.verified,
-        },
-
-        source:
-          "postgresql",
-      };
-    },
-  );
+  await registerCatalog(app);
 
   if (process.env.FREE_LAUNCH_MODE !== "true") app.post(
     "/api/v1/marketplace/checkout/preview",
@@ -925,6 +366,7 @@ export async function registerMarketplaceRoutes(
 
             items:
               Array<{
+                variantId?: string;
                 productId:
                   string;
 
@@ -1020,6 +462,7 @@ export async function registerMarketplaceRoutes(
         const variant =
           await getDefaultVariant(
             product.id,
+            cartItem.variantId,
           );
 
         if (!variant) {
@@ -1084,6 +527,7 @@ export async function registerMarketplaceRoutes(
             lineTotalToman;
 
           existing.items.push({
+            variantId:variant.variantId,
             productId:
               product.id,
 
@@ -1118,6 +562,7 @@ export async function registerMarketplaceRoutes(
 
               items: [
                 {
+                  variantId:variant.variantId,
                   productId:
                     product.id,
 

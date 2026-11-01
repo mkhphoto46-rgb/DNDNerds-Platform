@@ -1,14 +1,13 @@
+import { CustomRequest } from "@/components/marketplace/custom-request";
+import { ProductOptions } from "@/components/marketplace/product-options";
 import Link from "next/link";
 import {
   notFound,
 } from "next/navigation";
 
-import {
-  AddToCartButton,
-} from "@/components/marketplace/add-to-cart-button";
+
 
 import {
-  formatToman,
   getMarketplaceProduct,
   marketplaceTone,
 } from "@/lib/marketplace-api";
@@ -17,6 +16,12 @@ import styles from "../../marketplace.module.css";
 
 export const dynamic =
   "force-dynamic";
+export async function generateMetadata({params}:{params:Promise<{storeSlug:string;productSlug:string}>}){
+ const {storeSlug,productSlug}=await params;const p=await getMarketplaceProduct(storeSlug,productSlug);if(!p)return {title:'محصول یافت نشد'};
+ const url=`https://dndnerds.ir/store/${encodeURIComponent(storeSlug)}/${encodeURIComponent(productSlug)}`;
+ return {title:p.name,description:p.description,alternates:{canonical:url},openGraph:{title:p.name,description:p.description,url,type:'website',...(p.imageUrl?{images:[new URL(p.imageUrl,'https://dndnerds.ir').href]}:{})}};
+}
+
 
 function toneClass(
   tone: string,
@@ -57,7 +62,7 @@ export default async function ProductPage({
     marketplaceTone(
       `${product.store.slug}:${product.slug}`,
     );
-  const catalogOnly = process.env.FREE_LAUNCH_MODE === "true";
+  const catalogOnly = process.env.NODE_ENV === "production" || process.env.FREE_LAUNCH_MODE === "true";
 
   return (
     <main className={styles.page}>
@@ -87,9 +92,7 @@ export default async function ProductPage({
           <div
             className={`${styles.productArt} ${styles.productDetailArt} ${toneClass(tone)}`}
           >
-            <span className={styles.productGlyph}>
-              ✦
-            </span>
+            {product.imageUrl ? <img src={product.imageUrl} alt={product.name} style={{width:"100%",height:"100%",objectFit:"contain"}}/> : <span className={styles.productGlyph}>✦</span>}
           </div>
 
           <div className={styles.productDetailCopy}>
@@ -108,35 +111,8 @@ export default async function ProductPage({
               {product.description}
             </p>
 
-            <div className={styles.bigPrice}>
-              {formatToman(
-                product.priceToman,
-              )}
-            </div>
-
-            <div className={styles.fulfillmentNotice}>
-              موجودی فعلی:
-              {" "}
-              {product.inventory}
-              <br />
-
-              ارسال و Fulfillment این محصول
-              مستقیماً توسط
-              {" "}
-              {product.store.name}
-              {" "}
-              انجام می‌شود
-            </div>
-
-            {catalogOnly ? <p className={styles.fulfillmentNotice}>این محصول فعلاً برای نمایش است. ثبت سفارش و پرداخت بعداً فعال می‌شود.</p> : <AddToCartButton
-              productId={product.id}
-              productSlug={product.slug}
-              productName={product.name}
-              storeSlug={product.store.slug}
-              storeName={product.store.name}
-              unitPriceToman={product.priceToman}
-              inventory={product.inventory}
-            />}
+            <ProductOptions product={product} catalogOnly={catalogOnly} />
+            {product.productType === "CUSTOM_DESIGN" && <CustomRequest storeId={product.store.id} />}
 
           </div>
 

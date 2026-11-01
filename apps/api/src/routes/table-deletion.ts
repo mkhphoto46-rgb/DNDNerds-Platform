@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { requireAuthUser } from '../auth/session.js';
 import { sqlClient } from '../db/client.js';
 import { processTableDeletion } from '../jobs/table-deletion.js';
+import { shouldRunTableDeletionWorker } from '../jobs/table-deletion-worker-policy.js';
 
 export async function registerTableDeletionRoutes(app: FastifyInstance) {
  app.delete<{Params:{tableId:string}}>('/api/v1/game-hub/tables/:tableId',async(request,reply) => {
@@ -29,6 +30,6 @@ export async function registerTableDeletionRoutes(app: FastifyInstance) {
   running = processTableDeletion().then(()=>{}).catch(error=>app.log.error({err:error},'Table deletion retry failed')).finally(()=>{running=undefined;});
  };
  let timer:ReturnType<typeof setInterval>|undefined;
- app.addHook('onReady',async()=>{if(process.env.NODE_ENV!=='test'){timer=setInterval(tick,20000);timer.unref();tick();}});
+ app.addHook('onReady',async()=>{if(shouldRunTableDeletionWorker(process.env)){timer=setInterval(tick,20000);timer.unref();tick();}});
  app.addHook('onClose',async()=>{if(timer)clearInterval(timer);await running;});
 }

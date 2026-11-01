@@ -1,3 +1,4 @@
+import { StoreCommunity } from "@/components/marketplace/store-community";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -160,6 +161,7 @@ export default async function StorePage({
             )}
           </div>
         </section>
+        <StoreCommunity storeId={store.id} />
       </div>
     </main>
   );

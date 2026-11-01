@@ -309,6 +309,8 @@ export default function CheckoutPage() {
                     item => ({
                       productId:
                         item.productId,
+                      variantId:item.variantId,
+                      expectedPriceRial:Math.round(item.unitPriceToman*10),
 
                       quantity:
                         item.quantity,

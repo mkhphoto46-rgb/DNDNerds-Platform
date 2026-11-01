@@ -11,6 +11,7 @@ import {
 import {
   CART_CHANGED_EVENT,
   clearCart,
+  cartItemKey,
   readCart,
   removeCartItem,
   setCartItemQuantity,
@@ -20,6 +21,7 @@ import {
 import styles from "./cart.module.css";
 
 type PreviewLine = {
+  variantId?: string;
   productId: string;
   productName: string;
   quantity: number;
@@ -163,6 +165,7 @@ export default function CartPage() {
                         (item) => ({
                           productId:
                             item.productId,
+                          variantId:item.variantId,
 
                           quantity:
                             item.quantity,
@@ -252,7 +255,7 @@ export default function CartPage() {
             of seller.items
           ) {
             map.set(
-              line.productId,
+              cartItemKey(line),
               line,
             );
           }
@@ -372,7 +375,7 @@ export default function CartPage() {
                   (item) => {
                     const line =
                       currentLines.get(
-                        item.productId,
+                        cartItemKey(item),
                       );
 
                     const unitPrice =
@@ -386,7 +389,7 @@ export default function CartPage() {
 
                     return (
                       <article
-                        key={item.productId}
+                        key={cartItemKey(item)}
                         className={styles.itemCard}
                       >
 
@@ -423,7 +426,7 @@ export default function CartPage() {
                             onClick={
                               () =>
                                 setQuantity(
-                                  item.productId,
+                                  cartItemKey(item),
                                   Math.max(
                                     1,
                                     item.quantity -
@@ -448,7 +451,7 @@ export default function CartPage() {
                             onClick={
                               () =>
                                 setQuantity(
-                                  item.productId,
+                                  cartItemKey(item),
                                   Math.min(
                                     item.inventory,
                                     item.quantity +
@@ -480,7 +483,7 @@ export default function CartPage() {
                             onClick={
                               () =>
                                 remove(
-                                  item.productId,
+                                  cartItemKey(item),
                                 )
                             }
                           >
@@ -575,7 +578,7 @@ export default function CartPage() {
                             {order.items.map(
                               (line) => (
                                 <div
-                                  key={line.productId}
+                                  key={cartItemKey(line)}
                                   className={styles.sellerLine}
                                 >
                                   <span>

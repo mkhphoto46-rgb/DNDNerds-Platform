@@ -1,3 +1,4 @@
+import { registerMarketplaceV21 } from "./routes/marketplace-v21.js";
 import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
 import { assertProductionReady } from "./config/production-guards.js";
@@ -134,7 +135,7 @@ export async function buildApp() {
     rateLimit,
     {
       max:
-        180,
+        config.API_RATE_LIMIT_MAX,
 
       timeWindow:
         "1 minute",
@@ -339,8 +340,9 @@ export async function buildApp() {
 
 
   await app.register(registerAdminRoutes);
+  await app.register(registerMarketplaceV21);
 
-  if (process.env.FREE_LAUNCH_MODE !== "true") {
+  if (process.env.FREE_LAUNCH_MODE !== "true" && config.NODE_ENV !== "production") {
     await app.register(registerOrderRoutes);
     await app.register(registerPaymentRoutes);
     await app.register(registerSellerRoutes);

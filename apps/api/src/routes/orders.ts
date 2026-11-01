@@ -97,6 +97,7 @@ const createOrderSchema =
           /^[A-Za-z0-9._:-]+$/,
         ),
 
+    checkoutSnapshotId: z.string().uuid().optional(),
     address:
       addressSchema,
 
@@ -107,11 +108,14 @@ const createOrderSchema =
             z.string()
               .uuid(),
 
+          quoteId: z.string().uuid().optional(),
+          variantId: z.string().uuid().optional(),
+          expectedPriceRial: z.number().int().min(1000).max(2_000_000_000).optional(),
           quantity:
             z.number()
               .int()
               .min(1)
-              .max(99),
+              .max(999),
         }),
       )
         .min(1)
@@ -131,7 +135,7 @@ const createOrderSchema =
         ) {
           if (
             seen.has(
-              item.productId,
+              `${item.productId}:${item.variantId ?? "default"}`,
             )
           ) {
             context.addIssue({
@@ -152,7 +156,7 @@ const createOrderSchema =
           }
 
           seen.add(
-            item.productId,
+            `${item.productId}:${item.variantId ?? "default"}`,
           );
         }
       },
@@ -610,6 +614,7 @@ export async function registerOrderRoutes(
 
       const {
         idempotencyKey,
+        checkoutSnapshotId,
         items,
         address,
       } =
@@ -788,6 +793,10 @@ export async function registerOrderRoutes(
                     item.productId,
                 );
 
+              // Serialize exposure across every SKU of a store in a stable lock order.
+              const scopedStores = await tx.select({id:products.storeId}).from(products).where(inArray(products.id,productIds));
+              await tx.select({id:stores.id}).from(stores).where(inArray(stores.id,[...new Set(scopedStores.map(r=>r.id))])).orderBy(stores.id).for("update");
+
               const productRows =
                 await tx
                   .select({
@@ -818,8 +827,10 @@ export async function registerOrderRoutes(
                     sku:
                       productVariants.sku,
 
-                    priceRial:
-                      productVariants.priceRial,
+                    priceRial: sql<number>`CASE WHEN now() >= ${productVariants}.discount_starts_at AND now() < ${productVariants}.discount_ends_at THEN ${productVariants}.discount_rial ELSE ${productVariants.priceRial} END`.mapWith(Number),
+                    isDefault: productVariants.isDefault,
+                    perOrderLimit: sql<number>`${productVariants}.per_order_limit`.mapWith(Number),
+                    productType: sql<string>`${products}.product_type`,
 
                     quantityOnHand:
                       inventory.quantityOnHand,
@@ -843,11 +854,6 @@ export async function registerOrderRoutes(
                       eq(
                         productVariants.productId,
                         products.id,
-                      ),
-
-                      eq(
-                        productVariants.isDefault,
-                        true,
                       ),
 
                       eq(
@@ -880,11 +886,10 @@ export async function registerOrderRoutes(
                         "ACTIVE",
                       ),
                     ),
-                  );
+                  ).orderBy(productVariants.id).for("update");
 
               if (
-                productRows.length !==
-                items.length
+                productRows.length === 0
               ) {
                 throw new CheckoutConflict(
                   409,
@@ -900,7 +905,7 @@ export async function registerOrderRoutes(
                 >(
                   productRows.map(
                     (row) => [
-                      row.productId,
+                      `${row.productId}:${row.variantId}`,
                       row,
                     ],
                   ),
@@ -952,14 +957,37 @@ export async function registerOrderRoutes(
                   ),
                 );
 
+              const quoteRows = new Map<string,Record<string,unknown>>();
+              for(const item of items.filter(x=>x.quoteId)) {
+                const result=await tx.execute(sql`SELECT v.*,r.buyer_id,r.store_id,r.quantity FROM marketplace_quotes v JOIN marketplace_custom_requests r ON r.id=v.request_id WHERE v.id=${item.quoteId!} FOR UPDATE OF v`);
+                const v=result[0];
+                if(!v || v.buyer_id!==authUser.id || !v.accepted_at || v.order_id || new Date(String(v.expires_at))<=new Date() || Number(v.quantity)!==item.quantity)throw new CheckoutConflict(409,"QUOTE_INVALID","Quote expired, consumed or not accepted.");
+                if(quoteRows.has(item.quoteId!))throw new CheckoutConflict(409,"DUPLICATE_QUOTE","Quote cannot be used twice.");
+                quoteRows.set(item.quoteId!,v);
+              }
+              const shippingByStore = new Map<string,{storeId:string;feeRial:number;version:number;method:string;dispatchDays:number}>();
+              if(checkoutSnapshotId){
+                const verified=await tx.execute(sql`SELECT u.email_verified,b.mobile_verified_at,b.evidence_ref FROM users u LEFT JOIN marketplace_buyer_verifications b ON b.user_id=u.id WHERE u.id=${authUser.id}`);
+                if(!verified[0]?.email_verified||!verified[0]?.mobile_verified_at||!verified[0]?.evidence_ref)throw new CheckoutConflict(403,"BUYER_VERIFICATION_REQUIRED","Verify email and mobile before checkout.");
+                const snap=await tx.execute(sql`SELECT * FROM marketplace_checkout_snapshots WHERE id=${checkoutSnapshotId} AND user_id=${authUser.id} FOR UPDATE`);
+                const snapshot=snap[0];
+                if(!snapshot||snapshot.order_id||new Date(String(snapshot.expires_at))<=new Date())throw new CheckoutConflict(409,"SNAPSHOT_EXPIRED","Review checkout again.");
+                const accepted=snapshot.items as typeof items;
+                if(accepted.length!==items.length||accepted.some(a=>!items.some(b=>a.productId===b.productId&&a.variantId===b.variantId&&a.quantity===b.quantity&&a.expectedPriceRial===b.expectedPriceRial&&a.quoteId===b.quoteId)))throw new CheckoutConflict(409,"SNAPSHOT_MISMATCH","Accepted checkout items changed.");
+                for(const shipping of snapshot.shipping as Array<{storeId:string;feeRial:number;version:number;method:string;dispatchDays:number}>){
+                  const current=await tx.execute(sql`SELECT * FROM marketplace_shipping_profiles WHERE store_id=${shipping.storeId} FOR UPDATE`);
+                  if(!current[0]||Number(current[0].version)!==shipping.version||Number(current[0].fee_rial)!==shipping.feeRial)throw new CheckoutConflict(409,"SHIPPING_CHANGED","Shipping changed; review and accept again.");
+                  shippingByStore.set(shipping.storeId,shipping);
+                }
+              }
+
               const prepared:
                 PreparedLine[] =
                 items.map(
                   (requested) => {
-                    const row =
-                      rowByProductId.get(
-                        requested.productId,
-                      );
+                    const row = requested.variantId
+                      ? rowByProductId.get(`${requested.productId}:${requested.variantId}`)
+                      : productRows.find(r=>r.productId===requested.productId && r.isDefault);
 
                     if (!row) {
                       throw new CheckoutConflict(
@@ -972,6 +1000,15 @@ export async function registerOrderRoutes(
                         },
                       );
                     }
+
+                    if (row.productType === "CUSTOM_DESIGN") {
+                      const quote=requested.quoteId?quoteRows.get(requested.quoteId):undefined;
+                      if(!quote||quote.store_id!==row.storeId)throw new CheckoutConflict(409,"QUOTE_REQUIRED","Custom products require an accepted quote for this store.");
+                      row.priceRial=Number(quote.price_rial);
+                    } else if(requested.quoteId)throw new CheckoutConflict(409,"QUOTE_TYPE_MISMATCH","Only custom products can use a quote.");
+                    if (requested.quantity > row.perOrderLimit) throw new CheckoutConflict(409,"QUANTITY_LIMIT","Variant purchase limit exceeded.");
+                    if (requested.variantId && requested.expectedPriceRial === undefined) throw new CheckoutConflict(409,"PRICE_ACCEPTANCE_REQUIRED","Accept the current variant price.");
+                    if (requested.expectedPriceRial !== undefined && requested.expectedPriceRial !== row.priceRial) throw new CheckoutConflict(409,"PRICE_CHANGED","Price changed; review and accept the current price.");
 
                     const commissionBps =
                       overrideByStore.get(
@@ -1008,7 +1045,16 @@ export async function registerOrderRoutes(
                   },
                 );
 
-              const customerTotalRial =
+              if(new Set(prepared.map(r=>r.variantId)).size!==prepared.length)throw new CheckoutConflict(409,"DUPLICATE_VARIANT","The same SKU cannot occur more than once.");
+
+              for(const storeId of [...new Set(prepared.map(r=>r.storeId))]) {
+                const result = await tx.execute(sql`SELECT s.risk_cap_rial as cap,coalesce((SELECT sum(so.gross_rial) FROM marketplace_seller_orders so WHERE so.store_id=s.id AND so.status NOT IN ('CANCELLED','REFUNDED')),0) as exposure FROM stores s WHERE s.id=${storeId}`);
+                const incoming=prepared.filter(r=>r.storeId===storeId).reduce((n,r)=>n+r.lineTotalRial,0)+(shippingByStore.get(storeId)?.feeRial??0);
+                if(Number(result[0]?.exposure??0)+incoming>Number(result[0]?.cap??0))throw new CheckoutConflict(409,"SELLER_EXPOSURE_LIMIT","Seller open exposure limit exceeded.");
+              }
+
+              const shippingTotalRial=[...shippingByStore.values()].reduce((n,s)=>n+s.feeRial,0);
+              const customerTotalRial = shippingTotalRial +
                 prepared.reduce(
                   (
                     total,
@@ -1018,6 +1064,8 @@ export async function registerOrderRoutes(
                     item.lineTotalRial,
                   0,
                 );
+
+              if(!Number.isSafeInteger(customerTotalRial)||customerTotalRial>2_000_000_000)throw new CheckoutConflict(409,"ORDER_AMOUNT_LIMIT","Order total exceeds the supported payment amount.");
 
               const platformCommissionRial =
                 prepared.reduce(
@@ -1087,6 +1135,10 @@ export async function registerOrderRoutes(
                   "Order insert failed.",
                 );
               }
+
+              await tx.execute(sql`UPDATE marketplace_orders SET shipping_total_rial=${shippingTotalRial} WHERE id=${createdOrder.id}`);
+              if(checkoutSnapshotId)await tx.execute(sql`UPDATE marketplace_checkout_snapshots SET order_id=${createdOrder.id} WHERE id=${checkoutSnapshotId}`);
+              for(const quoteId of quoteRows.keys())await tx.execute(sql`UPDATE marketplace_quotes SET order_id=${createdOrder.id} WHERE id=${quoteId}`);
 
               await tx
                 .insert(
@@ -1205,7 +1257,7 @@ export async function registerOrderRoutes(
                 ]
                 of preparedByStore
               ) {
-                const grossRial =
+                const grossRial = (shippingByStore.get(storeId)?.feeRial??0) +
                   group.reduce(
                     (
                       total,
@@ -1279,6 +1331,8 @@ export async function registerOrderRoutes(
                     "Seller order insert failed.",
                   );
                 }
+
+                if(shippingByStore.has(storeId))await tx.execute(sql`UPDATE marketplace_seller_orders SET shipping_snapshot=${JSON.stringify(shippingByStore.get(storeId))}::jsonb WHERE id=${sellerOrder.id}`);
 
                 for (
                   const item
