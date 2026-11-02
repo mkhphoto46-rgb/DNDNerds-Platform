@@ -121,6 +121,34 @@ test("an order beyond the stock is refused; an unknown product too", async () =>
   assert.ok(unknown.status >= 400 && unknown.status < 500, `${unknown.status} ${JSON.stringify(unknown.body)}`);
 });
 
+test('separate paid orders accumulate seller balances beyond signed 32-bit without money loss', async () => {
+  const { productId, storeId } = await sellerWithProduct(5, 1_500_000_000);
+  const buyer = await api.register('large-balance');
+  await sql(q => q`update stores set risk_cap_rial=10000000000 where id=${storeId}`);
+  for (let n = 0; n < 2; n++) {
+    const placed = await api.request({ method: 'POST', url: '/api/v1/marketplace/orders', token: buyer.token,
+      payload: { idempotencyKey: key('large-order'), address, items: [{ productId, quantity: 1 }] } });
+    ok(placed);
+    const orderId = find(placed.body, 'orderId') ?? find(find(placed.body, 'order'), 'id');
+    const intent = await api.request({ method: 'POST', url: `/api/v1/marketplace/orders/${orderId}/payment-intent`, token: buyer.token,
+      payload: { idempotencyKey: key('large-intent') } });
+    ok(intent);
+    const intentId = find(intent.body, 'intentId') ?? find(find(intent.body, 'intent'), 'id') ?? find(find(intent.body, 'paymentIntent'), 'id');
+    ok(await signedWebhook({ eventId: key('large-event'), type: 'payment.succeeded', intentId, providerPaymentId: key('large-payment') }));
+  }
+  const [row] = await sql<any[]>(q => q`select b.pending_rial,(select sum(seller_net_rial) from marketplace_seller_orders where store_id=${storeId} and status='PAID') expected from seller_balances b where b.store_id=${storeId}`);
+  assert.ok(Number(row.pending_rial) > 2_147_483_647);
+  assert.equal(row.pending_rial, row.expected);
+  await sql(async q => {
+    const narrow = await q`select table_name,column_name from information_schema.columns where table_schema='public'
+      and table_name in ('payment_intents','payments','refunds','seller_balances','financial_ledger_postings','seller_payout_requests','marketplace_refund_cases')
+      and right(column_name,5)='_rial' and data_type<>'bigint'`;
+    assert.equal(narrow.length,0,JSON.stringify(narrow));
+    await assert.rejects(q`update seller_balances set pending_rial=${'9007199254740992'} where store_id=${storeId}`);
+  });
+  assert.equal(await ledgerImbalance(), 0);
+});
+
 test('item refunds execute once per quantity, restore only selected units and conserve the paid ledger', async () => {
   const { productId, storeId, seller } = await sellerWithProduct(5, 100003);
   const buyer = await api.register('partial-refund');

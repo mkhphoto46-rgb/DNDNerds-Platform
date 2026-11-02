@@ -1587,9 +1587,7 @@ export const paymentIntents =
           ),
 
       amountRial:
-        deInteger(
-          "amount_rial",
-        )
+        bigint("amount_rial", { mode: "number" })
           .notNull(),
 
       currency:
@@ -1817,15 +1815,11 @@ export const payments =
           .notNull(),
 
       amountRial:
-        deInteger(
-          "amount_rial",
-        )
+        bigint("amount_rial", { mode: "number" })
           .notNull(),
 
       refundedRial:
-        deInteger(
-          "refunded_rial",
-        )
+        bigint("refunded_rial", { mode: "number" })
           .notNull()
           .default(0),
 
@@ -1956,9 +1950,7 @@ export const refunds =
           .notNull(),
 
       amountRial:
-        deInteger(
-          "amount_rial",
-        )
+        bigint("amount_rial", { mode: "number" })
           .notNull(),
 
       currency:
@@ -2062,30 +2054,22 @@ export const sellerBalances =
           ),
 
       pendingRial:
-        deInteger(
-          "pending_rial",
-        )
+        bigint("pending_rial", { mode: "number" })
           .notNull()
           .default(0),
 
       availableRial:
-        deInteger(
-          "available_rial",
-        )
+        bigint("available_rial", { mode: "number" })
           .notNull()
           .default(0),
 
       negativeRial:
-        deInteger(
-          "negative_rial",
-        )
+        bigint("negative_rial", { mode: "number" })
           .notNull()
           .default(0),
 
       paidOutRial:
-        deInteger(
-          "paid_out_rial",
-        )
+        bigint("paid_out_rial", { mode: "number" })
           .notNull()
           .default(0),
 
@@ -2235,9 +2219,7 @@ export const financialLedgerPostings =
           ),
 
       amountRial:
-        deInteger(
-          "amount_rial",
-        )
+        bigint("amount_rial", { mode: "number" })
           .notNull(),
 
       createdAt:
@@ -2499,7 +2481,7 @@ export const sellerPayoutRequests =
           ),
 
       amountRial:
-        hInteger("amount_rial")
+        bigint("amount_rial", { mode: "number" })
           .notNull(),
 
       currency:
@@ -3529,19 +3511,13 @@ export const marketplaceRefundCases =
         ),
 
       refundAmountRial:
-        j2naInteger(
-          "refund_amount_rial",
-        ),
+        bigint("refund_amount_rial", { mode: "number" }),
 
       commissionReversalRial:
-        j2naInteger(
-          "commission_reversal_rial",
-        ),
+        bigint("commission_reversal_rial", { mode: "number" }),
 
       sellerNetReversalRial:
-        j2naInteger(
-          "seller_net_reversal_rial",
-        ),
+        bigint("seller_net_reversal_rial", { mode: "number" }),
 
       requestedScope: jsonb("requested_scope").$type<import("../refunds/item-refund-allocation.js").ItemRefundRequest>(),
       itemAllocation: jsonb("item_allocation").$type<import("../refunds/item-refund-allocation.js").ItemRefundAllocation>(),

@@ -44,6 +44,7 @@ function validateBalance(
     balance.paidOutRial,
     "paidOutRial",
   );
+  return balance;
 }
 
 export function applyRefundClawback(
@@ -81,7 +82,7 @@ export function applyRefundClawback(
   remaining -=
     fromAvailable;
 
-  return {
+  return validateBalance({
     pendingRial:
       balance.pendingRial -
       fromPending,
@@ -96,7 +97,7 @@ export function applyRefundClawback(
 
     paidOutRial:
       balance.paidOutRial,
-  };
+  });
 }
 
 export function releaseDeliveredFunds(
@@ -128,7 +129,7 @@ export function releaseDeliveredFunds(
       amountRial,
     );
 
-  return {
+  return validateBalance({
     pendingRial:
       balance.pendingRial -
       amountRial,
@@ -146,7 +147,7 @@ export function releaseDeliveredFunds(
 
     paidOutRial:
       balance.paidOutRial,
-  };
+  });
 }
 
 export function releasePayoutReservation(
@@ -169,7 +170,7 @@ export function releasePayoutReservation(
       amountRial,
     );
 
-  return {
+  return validateBalance({
     pendingRial:
       balance.pendingRial,
 
@@ -186,5 +187,5 @@ export function releasePayoutReservation(
 
     paidOutRial:
       balance.paidOutRial,
-  };
+  });
 }
