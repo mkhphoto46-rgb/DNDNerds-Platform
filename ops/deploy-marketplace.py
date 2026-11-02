@@ -1,7 +1,7 @@
 """Guarded catalog/draft release. Restore-test PostgreSQL first; never enable live money."""
 from pathlib import Path
 import fcntl, hashlib, json, os, re, shutil, socket, subprocess, sys, tarfile, time, urllib.request, urllib.error
-from marketplace_release_files import restore_web
+from marketplace_release_files import restore_web, validate_journal_upgrade
 
 APP = Path('/opt/dndnerds/app')
 BASE = APP.parent
@@ -36,7 +36,8 @@ assert sha(archive)==meta['sha256']
 assert (APP/'apps/web/.next/BUILD_ID').read_text().strip()==meta['beforeBuild']
 assert all(sha(APP/name)==value for name,value in meta['before'].items()), 'Live runtime changed'
 baseline_migration=pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')
-assert baseline_migration==meta['migrationWhen'] and baseline_migration in ['1793491200000','1793577600000']
+assert baseline_migration==meta['migrationWhen']
+target_migration=str(meta.get('targetMigrationWhen','1793577600000'))
 old_journal=json.loads((APP/'apps/api/drizzle/meta/_journal.json').read_text())
 stage=BASE/'staging'/('marketplace-'+time.strftime('%Y%m%dT%H%M%SZ',time.gmtime()))
 stage.mkdir(mode=0o700)
@@ -47,8 +48,11 @@ with tarfile.open(archive) as bundle:
     bundle.extractall(stage,filter='data')
 assert (stage/'apps/web/.next/BUILD_ID').read_text().strip()==meta['webBuild']
 new_journal=json.loads((stage/'apps/api/drizzle/meta/_journal.json').read_text())
-assert (new_journal==old_journal if baseline_migration=='1793577600000' else new_journal['entries'][:-1]==old_journal['entries'])
-assert new_journal['entries'][-1]['tag']=='0032_marketplace_v21'
+pending_migrations=validate_journal_upgrade(old_journal,new_journal,baseline_migration,target_migration)
+for entry in old_journal['entries']:
+    path='apps/api/drizzle/'+entry['tag']+'.sql'
+    if (stage/path).exists():assert sha(stage/path)==sha(APP/path), 'Applied migration content changed'
+migration_paths=pending_migrations+['apps/api/drizzle/meta/_journal.json']
 for name in meta['apiFiles']: subprocess.run(['node','--check',str(stage/'apps/api/dist'/name)],check=True)
 # Validate the exact intended mixed runtime, preserving unrelated live patches.
 for source in (APP/'apps/api/dist').rglob('*.js'):
@@ -92,7 +96,7 @@ try:
     wrapper.write_text("const path=require('path');require('/opt/dndnerds/app/apps/api/node_modules/dotenv').config({path:'/opt/dndnerds/app/.env',quiet:true});const u=new URL(process.env.DATABASE_URL);u.pathname='/'+process.argv[2];process.env.DATABASE_URL=u.href;process.env.NODE_ENV='production';process.env.FREE_LAUNCH_MODE='true';process.env.TABLE_DELETION_WORKER_ENABLED='false';process.env.VTT_INTERNAL_URL='http://127.0.0.1:1';process.env.VTT_BRIDGE_SECRET='';process.env.API_HOST='127.0.0.1';process.env.API_PORT='24198';require(path.resolve(process.argv[3]));")
     subprocess.run(['node',str(wrapper),restore_db,str(stage/'apps/api/dist/db/migrate-production.js')],cwd=stage,env=runtime_env,check=True,timeout=120)
     assert count_rows(restore_db)==restored_counts
-    assert pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations',restore_db)=='1793577600000'
+    assert pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations',restore_db)==target_migration
     assert pg('SELECT count(*) FROM (SELECT transaction_id FROM financial_ledger_postings GROUP BY transaction_id HAVING sum(amount_rial)<>0)x',restore_db)=='0'
     # Readiness only: no VTT worker, carrier, SMS or payment action is launched.
     with socket.socket() as probe:
@@ -112,6 +116,9 @@ try:
     get('http://127.0.0.1:24198/api/v1/marketplace/v21/seller/apply',401,b'{}',{'Content-Type':'application/json'})
     get('http://127.0.0.1:24198/api/v1/marketplace/v21/checkout/preview',503,b'{}',{'Content-Type':'application/json'})
     get('http://127.0.0.1:24198/api/v1/payments/webhooks/mock',404,b'{}',{'Content-Type':'application/json'})
+    for path in meta.get('disabledMutationProbes',[]):
+        assert path.startswith('/api/v1/marketplace/v21/admin/') and '..' not in path
+        get('http://127.0.0.1:24198'+path,503,b'{}',{'Content-Type':'application/json'})
     result={'restoreVerified':True,'restoreSeconds':round(time.monotonic()-restore_started,2),'restoredCounts':restored_counts,'stagingHealthVerified':True,'financialWritesDisabled':True}
     (snapshot/'marketplace-restore.json').write_text(json.dumps(result))
 finally:
@@ -128,7 +135,7 @@ rooms=json.loads(subprocess.check_output(['node',str(BASE/'staging/auth-room-pro
 assert rooms['activeHumanRooms']==0, 'Active human rooms; retry at a quiet moment'
 rollback=snapshot/'marketplace-rollback'; rollback.mkdir()
 previous=[]; created=[]
-paths=['apps/api/dist/'+name for name in meta['apiFiles']]+['apps/api/drizzle/0032_marketplace_v21.sql','apps/api/drizzle/meta/_journal.json']
+paths=['apps/api/dist/'+name for name in meta['apiFiles']]+migration_paths
 for name in paths:
     if (APP/name).exists(): copy_file(APP/name,rollback/name);previous.append(name)
     else: created.append(name)
@@ -136,10 +143,11 @@ old_next=snapshot/'marketplace-old-next';moved=False;migration_applied=False
 try:
     subprocess.run(['systemctl','stop','dndnerds'],check=True)
     before_counts=count_rows()
-    for name in ['apps/api/drizzle/0032_marketplace_v21.sql','apps/api/drizzle/meta/_journal.json']:copy_file(stage/name,APP/name)
+    for name in migration_paths:copy_file(stage/name,APP/name)
     subprocess.run(['runuser','-u','dndnerds','--','node',str(APP/'apps/api/dist/db/migrate-production.js')],cwd=APP,check=True,timeout=120)
-    migration_applied=pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')=='1793577600000'
-    assert migration_applied and count_rows()==before_counts
+    observed_migration=pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')
+    migration_applied=int(observed_migration)>int(baseline_migration)
+    assert observed_migration==target_migration and count_rows()==before_counts
     (APP/'apps/web/.next').rename(old_next);moved=True
     shutil.copytree(stage/'apps/web/.next',APP/'apps/web/.next')
     for source in (old_next/'static').rglob('*'):
@@ -158,6 +166,7 @@ try:
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',401,b'{}',{'Content-Type':'application/json','Origin':'https://dndnerds.ir'})
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',403,b'{}',{'Content-Type':'application/json','Origin':'https://untrusted.example'})
             gates=json.loads(get('http://127.0.0.1:4100/api/v1/marketplace/v21/readiness'));assert gates['livePayments'] is False and gates['livePayouts'] is False
+            for path in meta.get('disabledMutationProbes',[]):get('http://127.0.0.1:4100'+path,503,b'{}',{'Content-Type':'application/json'})
             break
         except Exception:
             if attempt==39:raise
@@ -170,7 +179,7 @@ except BaseException:
     subprocess.run(['systemctl','stop','dndnerds'])
     if moved:
         restore_web(old_next,APP/'apps/web/.next',snapshot/'marketplace-failed-next')
-    try:migration_applied=pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations')=='1793577600000'
+    try:migration_applied=int(pg('SELECT max(created_at) FROM drizzle.__drizzle_migrations'))>int(baseline_migration)
     except Exception:
         # Keep the additive journal when commit status cannot be determined;
         # reverting it could cause a duplicate migration on recovery.
