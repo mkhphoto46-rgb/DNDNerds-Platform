@@ -522,6 +522,7 @@ export async function registerSellerRoutes(
 
       const created =
         await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT set_config('dnd.marketplace_actor',${access.user.id},true),set_config('dnd.marketplace_reason','Initial seller product price',true)`);
           const [product] =
             await tx
               .insert(products)
@@ -684,13 +685,16 @@ export async function registerSellerRoutes(
       }
 
       if (body.data.priceRial !== undefined) {
-        await db
+        await db.transaction(async tx => {
+          await tx.execute(sql`SELECT set_config('dnd.marketplace_actor',${access.user.id},true),set_config('dnd.marketplace_reason','Legacy seller price edit',true)`);
+          await tx
           .update(productVariants)
           .set({
             priceRial: body.data.priceRial,
             updatedAt: new Date(),
           })
           .where(eq(productVariants.id, variant.id));
+        });
       }
 
       if (body.data.status !== undefined) {

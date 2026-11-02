@@ -12,6 +12,13 @@ const text=(max=500)=>z.string().trim().min(1).max(max);
 const price=z.number().int().min(1000).max(2_000_000_000);
 const slug=z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).min(3).max(100);
 function fail(statusCode:number,message:string):never{throw Object.assign(new Error(message),{statusCode});}
+async function variantWrite<T>(write:()=>Promise<T>):Promise<T>{
+  try{return await write();}catch(error){
+    const e=error as {code?:string;constraint_name?:string};
+    if(e.code==='23505'&&['marketplace_variant_combination_unique','marketplace_store_sku_unique'].includes(e.constraint_name??''))fail(409,'این ترکیب ویژگی‌ها یا SKU قبلاً ثبت شده است.');
+    throw error;
+  }
+}
 function parse<T>(schema:z.ZodType<T>,value:unknown):T{const p=schema.safeParse(value);if(!p.success)fail(400,'اطلاعات ارسالی معتبر نیست.');return p.data;}
 async function user(req:FastifyRequest){const u=await requireAuthUser(req);if(!u)fail(401,'ابتدا وارد حساب شوید.');return u;}
 async function member(req:FastifyRequest,storeId:string,roles=['OWNER','MANAGER','PRODUCT_EDITOR']){
@@ -28,7 +35,7 @@ const variantBody=z.object({sku:text(100),name:text(160),priceRial:price,stock:z
 async function validateOptions(category:string,value:Record<string,string>){
   const [d]=await q`select attributes from marketplace_category_definitions where slug=${category}`;
   if(!d)fail(400,'دسته‌بندی معتبر نیست.');
-  if(Object.keys(value).some(k=>!d?.attributes?.[k]))fail(400,'مشخصات با دسته‌بندی محصول سازگار نیست.');
+  if(!d.attributes||typeof d.attributes!=='object'||Array.isArray(d.attributes)||Object.keys(value).some(k=>!Object.hasOwn(d.attributes,k)))fail(400,'مشخصات با دسته‌بندی محصول سازگار نیست.');
 }
 export async function registerMarketplaceV21(app:FastifyInstance){
   await registerCheckoutV21(app);
@@ -93,7 +100,8 @@ export async function registerMarketplaceV21(app:FastifyInstance){
     const {storeId}=params(req);const {u}=await member(req,storeId);
     const b=parse(z.object({slug,name:text(220),description:text(1200),category:text(120),productType:z.enum(['READY_TO_SHIP','MADE_TO_ORDER','CUSTOM_DESIGN']),brand:z.string().max(120).default(''),productionDays:z.number().int().min(0).max(365).default(0),variant:variantBody}),req.body);
     await validateOptions(b.category,b.variant.options);if(b.productType==='MADE_TO_ORDER'&&b.productionDays<1)fail(400,'زمان ساخت لازم است.');
-    const p=await q.begin(async tx=>{
+    const p=await variantWrite(()=>q.begin(async tx=>{
+      await tx`select set_config('dnd.marketplace_actor',${u.id},true),set_config('dnd.marketplace_reason','Initial draft product price',true)`;
       const [p]=await tx`insert into products(store_id,slug,name,description,category,product_type,brand,production_days) values(${storeId},${b.slug},${b.name},${b.description},${b.category},${b.productType},${b.brand},${b.productionDays}) returning id`;
       if(!p)fail(500,'Product insert failed');
       const v=b.variant;
@@ -101,18 +109,19 @@ export async function registerMarketplaceV21(app:FastifyInstance){
       if(!row)fail(500,'Variant insert failed');
       await tx`insert into inventory(variant_id,quantity_on_hand) values(${row.id},${v.stock})`;
       await tx`insert into marketplace_audit(actor_id,action,entity_id) values(${u.id},'PRODUCT_DRAFT',${p.id})`;return p;
-    });return reply.code(201).send(p);
+    }));return reply.code(201).send(p);
   });
   app.post(`${base}/seller/stores/:storeId/products/:productId/variants`,async(req,reply)=>{
-    const {storeId,productId}=params(req);await member(req,storeId);const b=parse(variantBody,req.body);
+    const {storeId,productId}=params(req);const {u}=await member(req,storeId);const b=parse(variantBody,req.body);
     const [p]=await q`select category from products where id=${productId} and store_id=${storeId}`;if(!p)fail(404,'محصول یافت نشد.');await validateOptions(p.category,b.options);
-    const v=await q.begin(async tx=>{await tx`select id from products where id=${productId} and store_id=${storeId} for update`;const [count]=await tx`select count(*)::int as n from product_variants where product_id=${productId}`;if(Number(count?.n)>=100)fail(409,'سقف ۱۰۰ تنوع محصول تکمیل است.');const [v]=await tx`insert into product_variants(product_id,sku,name,price_rial,options,per_order_limit) values(${productId},${b.sku},${b.name},${b.priceRial},${JSON.stringify(b.options)}::jsonb,${b.perOrderLimit}) returning id`;if(!v)fail(500,'Variant insert failed');await tx`insert into inventory(variant_id,quantity_on_hand) values(${v.id},${b.stock})`;return v;});return reply.code(201).send(v);
+    const v=await variantWrite(()=>q.begin(async tx=>{await tx`select set_config('dnd.marketplace_actor',${u.id},true),set_config('dnd.marketplace_reason','Initial variant price',true)`;await tx`select id from products where id=${productId} and store_id=${storeId} for update`;const [count]=await tx`select count(*)::int as n from product_variants where product_id=${productId}`;if(Number(count?.n)>=100)fail(409,'سقف ۱۰۰ تنوع محصول تکمیل است.');const [v]=await tx`insert into product_variants(product_id,sku,name,price_rial,options,per_order_limit) values(${productId},${b.sku},${b.name},${b.priceRial},${JSON.stringify(b.options)}::jsonb,${b.perOrderLimit}) returning id`;if(!v)fail(500,'Variant insert failed');await tx`insert into inventory(variant_id,quantity_on_hand) values(${v.id},${b.stock})`;return v;}));return reply.code(201).send(v);
   });
   app.patch(`${base}/seller/stores/:storeId/variants/:variantId`,async req=>{
     const {storeId,variantId}=params(req);const {u}=await member(req,storeId);
     const b=parse(z.object({priceRial:price.optional(),stock:z.number().int().min(0).max(1_000_000).optional(),options:options.optional(),perOrderLimit:z.number().int().min(1).max(999).optional(),discountRial:price.nullable().optional(),discountStartsAt:z.iso.datetime().nullable().optional(),discountEndsAt:z.iso.datetime().nullable().optional(),reason:text(500).default('Seller inventory adjustment')}).refine(x=>Object.keys(x).length>1),req.body);
     if(b.options){const [p]=await q`select p.category from products p join product_variants v on v.product_id=p.id where v.id=${variantId} and p.store_id=${storeId}`;if(!p)fail(404,'تنوع یافت نشد.');await validateOptions(p.category,b.options);}
-    return q.begin(async tx=>{
+    return variantWrite(()=>q.begin(async tx=>{
+      await tx`select set_config('dnd.marketplace_actor',${u.id},true),set_config('dnd.marketplace_reason',${b.reason},true)`;
       const [v]=await tx`select v.*,p.category,i.quantity_on_hand,i.quantity_reserved from product_variants v join products p on p.id=v.product_id and p.store_id=${storeId} join inventory i on i.variant_id=v.id where v.id=${variantId} for update of v,i`;
       if(!v)fail(404,'تنوع یافت نشد.');
       if(b.stock!==undefined){if(b.stock<v.quantity_reserved)fail(409,'موجودی از رزروهای فعال کمتر است.');await tx`update inventory set quantity_on_hand=${b.stock},updated_at=now() where variant_id=${variantId}`;
@@ -123,7 +132,14 @@ export async function registerMarketplaceV21(app:FastifyInstance){
       if(discount!==null&&(!starts||!ends||new Date(ends)<=new Date(starts)||Number(discount)>=(b.priceRial??Number(v.price_rial))))fail(400,'بازه یا مبلغ تخفیف معتبر نیست.');
       await tx`update product_variants set price_rial=${b.priceRial??v.price_rial},options=${JSON.stringify(b.options??v.options)}::jsonb,per_order_limit=${b.perOrderLimit??v.per_order_limit},discount_rial=${discount},discount_starts_at=${starts},discount_ends_at=${ends},updated_at=now() where id=${variantId}`;
       await tx`insert into marketplace_audit(actor_id,action,entity_id) values(${u.id},'VARIANT_EDIT',${variantId})`;return {ok:true};
-    });
+    }));
+  });
+  app.get(`${base}/seller/stores/:storeId/variants/:variantId/price-history`,async req=>{
+    const {storeId,variantId}=params(req);await member(req,storeId);
+    const [v]=await q`select v.id from product_variants v join products p on p.id=v.product_id where v.id=${variantId} and p.store_id=${storeId}`;
+    if(!v)fail(404,'تنوع یافت نشد.');
+    return {data:await q`select h.id,h.old_price_rial as "oldPriceRial",h.new_price_rial as "newPriceRial",h.old_state as "oldState",h.new_state as "newState",h.effective_at as "effectiveAt",h.actor_id as "actorId",u.username as "actorName",h.reason
+      from marketplace_price_history h left join users u on u.id=h.actor_id where h.variant_id=${variantId} order by h.effective_at desc,h.id desc limit 100`};
   });
   app.put(`${base}/favorites/:productId`,async req=>{const u=await user(req);const {productId}=params(req);const [p]=await q`select p.id from products p join stores s on s.id=p.store_id where p.id=${productId} and p.status='PUBLISHED' and s.status='ACTIVE'`;if(!p)fail(404,'محصول یافت نشد.');await q`insert into marketplace_favorites(user_id,product_id) values(${u.id},${productId}) on conflict do nothing`;return {ok:true};});
   app.delete(`${base}/favorites/:productId`,async req=>{const u=await user(req);const {productId}=params(req);await q`delete from marketplace_favorites where user_id=${u.id} and product_id=${productId}`;return {ok:true};});

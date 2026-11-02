@@ -41,15 +41,29 @@ test('catalog is paginated and suspended stores disappear from list and direct U
 
 test('seller variant writes are tenant scoped, preserve reservations and record independent price history',async()=>{
   const path=`/api/v1/marketplace/v21/seller/stores/${storeId}/variants/${variantId}`;
-  const change={priceRial:120000,stock:2,options:{color:'آبی',faces:'20'},perOrderLimit:2};
+  const change={priceRial:120000,stock:2,options:{color:'آبی',faces:'20'},perOrderLimit:2,reason:'Synthetic supplier price revision'};
   assert.equal((await api.request({method:'PATCH',url:path,token:other.token,payload:change})).status,403);
   assert.equal((await api.request({method:'PATCH',url:path,token:owner.token,payload:change})).status,200);
   const detail=await api.request({method:'GET',url:`/api/v1/stores/${slug}/products/dice`});
   assert.equal(detail.body.variants[0].priceRial,120000); assert.equal(detail.body.variants[0].options.color,'آبی');
   assert.ok(detail.body.variants[0].priceEffectiveAt);
+  await sql(async q=>{const [h]=await q`select actor_id,reason from marketplace_price_history where variant_id=${variantId} order by effective_at desc limit 1`;assert.equal(h.actor_id,owner.userId);assert.equal(h.reason,change.reason);});
+  assert.equal((await api.request({method:'GET',url:path+'/price-history',token:other.token})).status,403);
+  const history=await api.request({method:'GET',url:path+'/price-history',token:owner.token});assert.equal(history.status,200);assert.equal(history.body.data[0].actorId,owner.userId);
   await sql(q=>q`update inventory set quantity_reserved=1 where variant_id=${variantId}`);
   assert.equal((await api.request({method:'PATCH',url:path,token:owner.token,payload:{stock:0}})).status,409);
   await sql(q=>q`update inventory set quantity_reserved=0 where variant_id=${variantId}`);
+});
+
+test('canonical combination uniqueness survives concurrent different-SKU creation and reordered keys',async()=>{
+  const path=`/api/v1/marketplace/v21/seller/stores/${storeId}/products/${productId}/variants`;
+  const results=await Promise.all([{faces:'12',color:'بنفش'},{color:'بنفش',faces:'12'}].map(options=>api.request({method:'POST',url:path,token:owner.token,
+    payload:{sku:randomUUID(),name:'ترکیب یکسان',priceRial:100000,stock:2,options}})));
+  assert.deepEqual(results.map(r=>r.status).sort(),[201,409]);
+  for(const key of ['constructor','toString']){
+    const bypass=await api.request({method:'POST',url:path,token:owner.token,payload:{sku:randomUUID(),name:'نباید ساخته شود',priceRial:100000,stock:1,options:{faces:'12',color:'بنفش',[key]:'unapproved'}}});
+    assert.equal(bypass.status,400,'inherited JavaScript keys are not category attributes');
+  }
 });
 
 test('favorites are persistent per account; review requires delivered purchase; article needs moderation',async()=>{
@@ -75,7 +89,7 @@ test('checkout uses selected variant, rejects repricing, and 100 concurrent requ
   assert.equal(added.status,201,JSON.stringify(added.body));
   const selected=added.body.id;
   const address={fullName:'Synthetic Buyer',phone:'09120000000',province:'Tehran',city:'Tehran',addressLine1:'Synthetic test street',postalCode:'1234567890'};
-  const order=(expectedPriceRial:number)=>({method:'POST' as const,url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId:selected,expectedPriceRial,quantity:1}]}});
+  const order=(expectedPriceRial:number)=>({remoteAddress:'10.41.0.1',method:'POST' as const,url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId:selected,expectedPriceRial,quantity:1}]}});
   assert.equal((await api.request(order(140000))).status,409,'a changed price requires new acceptance');
   const results=await Promise.all(Array.from({length:100},()=>api.request(order(150000))));
   assert.equal(results.filter(r=>r.status===201).length,1,JSON.stringify(results.map(r=>r.status)));
@@ -96,7 +110,7 @@ test('private references reject guessed keys and malicious media; financial jour
 test('50 concurrent checkouts cannot exceed seller exposure cap',async()=>{
  await sql(async q=>{const [r]=await q`select coalesce(sum(gross_rial),0)::int as exposure from marketplace_seller_orders where store_id=${storeId} and status not in ('CANCELLED','REFUNDED')`;await q`update stores set risk_cap_rial=${Number(r?.exposure)+240000} where id=${storeId}`;await q`update inventory set quantity_on_hand=50,quantity_reserved=0 where variant_id=${variantId}`;});
  const address={fullName:'Synthetic Buyer',phone:'09120000000',province:'Tehran',city:'Tehran',addressLine1:'Synthetic test street',postalCode:'1234567890'};
- const rs=await Promise.all(Array.from({length:50},()=>api.request({method:'POST',url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId,expectedPriceRial:120000,quantity:1}]}})));
+ const rs=await Promise.all(Array.from({length:50},()=>api.request({remoteAddress:'10.41.0.2',method:'POST',url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId,expectedPriceRial:120000,quantity:1}]}})));
  assert.equal(rs.filter(r=>r.status===201).length,2,JSON.stringify(rs.map(r=>r.status)));assert.ok(rs.every(r=>r.status===201||r.status===409));
 });
 
