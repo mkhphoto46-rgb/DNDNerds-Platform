@@ -25,3 +25,8 @@ test("B35: a 500 KB cover is accepted on a database built only from migrations",
   const created = await api.request({ method: "POST", url: "/api/v1/game-hub/tables", token: owner.token, payload: tableInput({ imageData: cover(500_000) }) });
   assert.equal(created.status, 201, JSON.stringify(created.body));
 });
+
+test("B1: the embedded PostgreSQL cluster is created in UTF8, not the Windows code page", async () => {
+  const rows = await api.query("select pg_encoding_to_char(encoding) as encoding from pg_database where datname = 'template1'") as { encoding: string }[];
+  assert.equal(rows[0]?.encoding, "UTF8");
+});
