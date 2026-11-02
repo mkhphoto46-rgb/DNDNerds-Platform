@@ -230,20 +230,21 @@ export default function SecurityPage() {
     <main className={styles.page}>
       <section className={styles.card}>
         <div className={styles.eyebrow}>
-          ACCOUNT SECURITY
+          امنیت حساب
         </div>
 
         <h1>
-          MFA / TOTP
+          ورود دومرحله‌ای
         </h1>
+        <p>با فعال‌سازی این گزینه، هنگام ورود علاوه بر رمز عبور، کد یک‌بارمصرف برنامهٔ Authenticator را وارد می‌کنی.</p>
 
         <p>
-          Status:
+          وضعیت:
           {" "}
           <strong>
             {status?.enabled
-              ? "ENABLED"
-              : "DISABLED"}
+              ? "فعال"
+              : "غیرفعال"}
           </strong>
         </p>
 
@@ -253,7 +254,7 @@ export default function SecurityPage() {
         >
           <label className={styles.field}>
             <span>
-              Current Password
+              رمز عبور فعلی
             </span>
 
             <input
@@ -274,7 +275,7 @@ export default function SecurityPage() {
               className={styles.button}
               type="submit"
             >
-              Start MFA Setup
+              راه‌اندازی ورود دومرحله‌ای
             </button>
           )}
         </form>
@@ -282,7 +283,7 @@ export default function SecurityPage() {
         {secret && (
           <>
             <p>
-              Authenticator Secret:
+              کلید برنامهٔ Authenticator:
             </p>
 
             <div className={styles.error}>
@@ -290,7 +291,7 @@ export default function SecurityPage() {
             </div>
 
             <p>
-              OTPAuth URI:
+              پیوند افزودن حساب به Authenticator:
             </p>
 
             <div
@@ -310,7 +311,7 @@ export default function SecurityPage() {
           <div className={styles.form}>
             <label className={styles.field}>
               <span>
-                Six-digit code
+                کد شش‌رقمی
               </span>
 
               <input
@@ -338,7 +339,7 @@ export default function SecurityPage() {
                     void confirm()
                 }
               >
-                Confirm MFA
+                تأیید و فعال‌سازی
               </button>
             )}
 
@@ -351,7 +352,7 @@ export default function SecurityPage() {
                     void disable()
                 }
               >
-                Disable MFA
+                غیرفعال کردن ورود دومرحله‌ای
               </button>
             )}
           </div>

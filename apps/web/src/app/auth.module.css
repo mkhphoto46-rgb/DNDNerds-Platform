@@ -1,24 +1,22 @@
 .page {
   min-height: 100vh;
   padding: 150px 24px 80px;
-  color: #faecc5;
-  background:
-    radial-gradient(circle at 25% 10%, rgba(116, 1, 4, 0.18), transparent 34%),
-    radial-gradient(circle at 80% 30%, rgba(197, 152, 87, 0.08), transparent 30%);
+  color:var(--site-text);
+  background:var(--site-panel);
 }
 
 .card {
   width: min(100%, 560px);
   margin: 0 auto;
   padding: 34px;
-  border: 1px solid rgba(197, 152, 87, 0.24);
+  border:1px solid rgba(75,181,203,0.24);
   border-radius: 22px;
-  background: rgba(10, 7, 7, 0.78);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.32);
+  background:rgba(4,24,39,0.78);
+  box-shadow:0 24px 80px rgba(0, 0, 0, 0.32);
 }
 
 .eyebrow {
-  color: #c59857;
+  color:rgba(175,194,208,1);
   font-family: Arial, sans-serif;
   font-size: 12px;
   font-weight: 700;
@@ -31,7 +29,7 @@
 }
 
 .card p {
-  color: rgba(250, 236, 197, 0.62);
+  color:var(--site-text);
   line-height: 1.8;
 }
 
@@ -47,7 +45,7 @@
 }
 
 .field span {
-  color: rgba(250, 236, 197, 0.7);
+  color:var(--site-text);
   font-size: 14px;
 }
 
@@ -55,26 +53,26 @@
   width: 100%;
   min-height: 48px;
   padding: 0 14px;
-  color: #faecc5;
-  border: 1px solid rgba(197, 152, 87, 0.22);
+  color:var(--site-text);
+  border:1px solid rgba(75,181,203,0.22);
   border-radius: 12px;
-  outline: none;
-  background: rgba(255, 255, 255, 0.035);
+  outline:none;
+  background:rgba(255, 255, 255, 0.035);
 }
 
 .field input:focus {
-  border-color: rgba(234, 199, 136, 0.62);
+  border-color:rgba(75,181,203,0.62);
 }
 
 .button {
   min-height: 50px;
   margin-top: 6px;
-  border: 1px solid rgba(234, 199, 136, 0.45);
+  border:1px solid rgba(75,181,203,0.45);
   border-radius: 12px;
-  color: #1a0e08;
+  color:#071b2b;
   font-weight: 800;
   cursor: pointer;
-  background: linear-gradient(135deg, #eac788, #c59857);
+  background:var(--site-gold);
 }
 
 .button:disabled {
@@ -92,11 +90,11 @@
 
 .switch {
   margin-top: 22px;
-  color: rgba(250, 236, 197, 0.56);
+  color:var(--site-text);
 }
 
 .switch a {
-  color: #eac788;
+  color:var(--site-gold);
 }
-.passwordToggle { justify-self: start; border: 1px solid rgba(197, 152, 87, 0.42); color: #eac788; border-radius: 9px; background: rgba(30, 17, 12, .85); cursor: pointer; padding: 7px 12px; font-size: 12px; }
-.passwordToggle:hover { background: rgba(90, 55, 28, .55); }
+.passwordToggle { justify-self: start; border:1px solid rgba(75,181,203,0.42); color:var(--site-gold); border-radius: 9px; background:rgba(4,24,39,0.85); cursor: pointer; padding: 7px 12px; font-size: 12px; }
+.passwordToggle:hover { background:rgba(7,44,63,0.55); }

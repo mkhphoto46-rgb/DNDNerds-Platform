@@ -1,17 +1,15 @@
 import type { Metadata } from "next";
 import "@fontsource-variable/vazirmatn/index.css";
 
-import "./globals.css";
-import "./scene-v2.css";
-import "./social-scene.css";
-import "./home-town.css";
-import "./game-navigation.css";
+import "./site-foundation.css";
+import "./site-theme.css";
 
-import { GlobalMagicParticles } from "@/components/global-magic-particles";
 import { SiteFooter } from "@/components/site-footer";
 import { SiteHeader } from "@/components/site-header";
 import { GlobalChatDock } from "@/components/global-chat-dock";
 import { XpExperience } from "@/components/xp-experience";
+import { SiteNavigation } from "@/components/site-navigation";
+import { SiteMotion } from "@/components/site-actions";
 
 export const metadata: Metadata = {
   title: {
@@ -35,16 +33,15 @@ export default function RootLayout({
     >
       <body>
 
-        <GlobalMagicParticles />
-
-        <XpExperience><div className="app-shell">
+        <div className="dnd-site-shell"><SiteMotion /><XpExperience><div className="app-shell">
           <SiteHeader />
 
           {children}
 
           <SiteFooter />
           <GlobalChatDock />
-        </div></XpExperience>
+          <SiteNavigation />
+        </div></XpExperience></div>
 
       </body>
     </html>

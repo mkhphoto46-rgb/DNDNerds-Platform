@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import "../coming-soon.css";
 
 export const dynamic = "force-dynamic";
 export const metadata: Metadata = { title: "آهنگری" };

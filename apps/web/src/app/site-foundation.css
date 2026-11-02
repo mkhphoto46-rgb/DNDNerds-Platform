@@ -1,0 +1,58 @@
+/* Website-only baseline. The VTT is a separate application. */
+html,body{margin:0;padding:0}
+.dnd-site-shell{--site-bg:#061427;--site-panel:rgba(5,30,51,.9);--site-cyan:#36c9da;--site-gold:#efc477;--site-text:#f7f5ef;--site-muted:#afc2d0;--black:var(--site-bg);--black-soft:#081c30;--surface:#0b263a;--surface-soft:#103349;--oxblood:#12384f;--blood:#167c92;--crimson:#36c9da;--bronze:#6eafbe;--gold:var(--site-gold);--light-gold:#ffe0a0;--parchment:var(--site-text);--white:var(--site-text);--text:var(--site-text);--text-soft:#afc2d0;--text-muted:#8da8ba;--line:rgba(126,201,218,.18);--line-gold:rgba(86,192,212,.3);--line-red:rgba(244,143,143,.4);--shell:1280px;--header-height:108px;--radius-sm:12px;--radius-md:18px;--radius-lg:24px;--radius-xl:32px;min-height:100svh;isolation:isolate;background:var(--site-bg);color:var(--site-text);font:400 16px/1.8 "Vazirmatn Variable",Tahoma,Arial,sans-serif;direction:rtl;overflow:clip}
+.dnd-site-shell *{box-sizing:border-box}
+:where(.dnd-site-shell) a{color:inherit;text-decoration:none}
+:where(.dnd-site-shell) :where(button,input,textarea,select){font:inherit;color:inherit}
+.dnd-site-shell button{cursor:pointer}
+.dnd-site-shell button:disabled{cursor:default;opacity:.5}
+.dnd-site-shell :is(a,button,input,textarea,select,summary):focus-visible{outline:2px solid var(--site-cyan);outline-offset:5px}
+.dnd-site-shell ::selection{background:var(--site-gold);color:#061427}
+.dnd-site-shell img{max-width:100%}
+.dnd-site-shell h1,.dnd-site-shell h2,.dnd-site-shell h3{line-height:1.5;letter-spacing:-.025em}
+.dnd-site-shell p{overflow-wrap:anywhere}
+.dnd-site-shell .shell{width:min(calc(100% - 48px),var(--shell));margin-inline:auto}
+.dnd-site-shell .app-shell{position:relative;min-height:100svh;padding-bottom:150px}
+.dnd-site-shell .site-environment{position:fixed;inset:0;z-index:-1;background:linear-gradient(0deg,rgba(3,16,29,.7),rgba(3,16,29,.12)),url('/site-ui/hall-desktop.png') center/cover no-repeat;pointer-events:none}
+.dnd-site-shell .site-environment.is-paused~.app-shell *{animation-play-state:paused!important}
+.dnd-site-shell .site-header{position:absolute;inset:0 0 auto;z-index:100;display:flex;justify-content:space-between;align-items:flex-start;padding:18px 32px;gap:20px;height:112px;pointer-events:none}
+.dnd-site-shell .site-header>*{pointer-events:auto}
+.dnd-site-shell .site-brand{width:150px;display:block}
+.dnd-site-shell .site-brand img{display:block;width:100%;height:auto}
+.dnd-site-shell .site-header-actions{display:flex;align-items:center;gap:14px;padding-top:14px}
+.dnd-site-shell .site-icon{width:28px;height:28px;object-fit:contain;flex-shrink:0}
+.dnd-site-shell .site-round-button{display:grid;place-items:center;width:52px;height:52px;padding:12px;border:1px solid #338aa1;border-radius:50%;background:#052436d9;box-shadow:inset 0 0 14px #2b8ba42a;list-style:none;transition:background .18s,transform .18s}
+.dnd-site-shell .site-round-button::-webkit-details-marker{display:none}
+.dnd-site-shell .site-round-button:hover{background:#0d4358;transform:translateY(-2px)}
+.dnd-site-shell .site-account{display:flex;gap:12px;align-items:center;min-height:52px;padding:0 16px;border:1px solid #59d1df;border-radius:30px;background:#042333e6}
+.dnd-site-shell .site-menu{position:relative}
+.dnd-site-shell .site-menu-panel{position:absolute;top:66px;left:0;width:min(300px,calc(100vw - 32px));padding:22px;display:grid;gap:4px;background:#071f32f7;border:1px solid var(--site-cyan);border-radius:20px;box-shadow:0 20px 50px #0008;max-height:calc(100dvh - 160px);overflow:auto}
+.dnd-site-shell .site-menu-panel strong{color:var(--site-gold);margin-bottom:8px}
+.dnd-site-shell .site-menu-panel a{padding:8px 12px;border-radius:8px}
+.dnd-site-shell .site-menu-panel a:hover{background:#164259}
+.dnd-site-shell .site-rail{position:fixed;z-index:90;inset:auto 4% 12px;max-width:1280px;margin-inline:auto;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));min-height:125px;padding:26px 6% 15px;background:url('/site-ui/navigation.png') center/100% 100% no-repeat;filter:drop-shadow(0 8px 18px #0009)}
+.dnd-site-shell .site-rail a{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:76px;color:#b7dcee;font-weight:650;font-size:17px;line-height:1.5;transition:color .18s,transform .18s}
+.dnd-site-shell .site-rail a+a{border-inline-start:1px solid #cfa45436}
+.dnd-site-shell .site-rail .site-icon{width:39px;height:42px}
+.dnd-site-shell .site-rail a:first-child .site-icon{height:50px;width:36px}
+.dnd-site-shell .site-rail a:hover{color:#fff;transform:translateY(-3px)}
+.dnd-site-shell .site-rail a[aria-current=page]{color:var(--site-gold)}
+.dnd-site-shell .site-rail a[aria-current=page]:after{content:"";position:absolute;bottom:-5px;left:25%;right:25%;height:4px;border-radius:8px;background:var(--site-gold);box-shadow:0 0 12px #efc477}
+.dnd-site-shell .site-rail small{font-size:10px;color:#a8bfd0}
+.dnd-site-shell .site-footer{padding:26px 24px;color:var(--site-muted);font-size:12px}
+.dnd-site-shell:has(.guild-home) .site-footer{display:none}
+.dnd-site-shell .footer-minimal{display:flex;justify-content:space-between;gap:20px}
+.dnd-site-shell .section-kicker{color:var(--site-gold);font-size:13px}
+.dnd-site-shell .button,.dnd-site-shell .site-primary,.dnd-site-shell .site-secondary{display:inline-flex;align-items:center;justify-content:center;gap:12px;min-height:48px;padding:10px 22px;font-weight:750;border-radius:16px;border:1px solid var(--site-cyan);transition:transform .18s,background .18s}
+.dnd-site-shell .button-primary,.dnd-site-shell .site-primary{background:#efc477 url('/site-ui/gold-button.png') center/100% 100%;color:#071b2b;border-color:#ffe0a0}
+.dnd-site-shell .site-secondary,.dnd-site-shell .button-ghost{background:#052536d9;color:var(--site-text)}
+.dnd-site-shell :is(.site-primary,.site-secondary,.button):hover{transform:translateY(-2px)}
+.dnd-site-shell .hero-actions{display:flex;gap:12px;flex-wrap:wrap}
+.dnd-site-shell .placeholder-page{min-height:75svh;padding:150px 24px 70px}
+.dnd-site-shell .placeholder-content{padding:40px;background:var(--site-panel);border:1px solid var(--line-gold);border-radius:24px}
+.dnd-site-shell .placeholder-status{margin:24px 0;color:var(--site-muted)}
+.dnd-site-shell .game-navigation{display:flex;gap:10px;flex-wrap:wrap;margin:16px 0}
+.dnd-site-shell .game-navigation a{padding:8px 16px;border:1px solid var(--line-gold);border-radius:12px;background:#09293b}
+@media(max-width:900px){.dnd-site-shell{--header-height:100px}.dnd-site-shell .site-header{padding:14px 20px}.dnd-site-shell .site-brand{width:115px}.dnd-site-shell .site-header-actions{gap:9px;padding-top:10px}.dnd-site-shell .site-account{padding:0 12px;gap:7px}.dnd-site-shell .site-round-button{width:44px;height:44px;padding:11px}.dnd-site-shell .site-account{min-height:44px}.dnd-site-shell .site-rail{inset:auto 0 0;min-height:96px;padding:20px 4% calc(10px + env(safe-area-inset-bottom));background-size:100% 100%}.dnd-site-shell .site-rail a{font-size:13px;min-height:60px;gap:3px}.dnd-site-shell .site-rail .site-icon{width:28px;height:30px}.dnd-site-shell .site-rail a:first-child .site-icon{width:25px;height:35px}.dnd-site-shell .site-rail small{display:none}.dnd-site-shell .app-shell{padding-bottom:calc(116px + env(safe-area-inset-bottom))}.dnd-site-shell .site-environment{background-image:linear-gradient(0deg,#03101dbb,#03101d22),url('/site-ui/hall-mobile.png')}}
+@media(max-width:540px){.dnd-site-shell .site-header{padding:10px 12px;gap:8px;height:86px}.dnd-site-shell .site-brand{width:88px}.dnd-site-shell .site-header-actions{gap:7px;padding-top:8px}.dnd-site-shell .site-round-button{width:38px;height:38px;padding:9px}.dnd-site-shell .site-account{min-height:38px;padding:0 10px}.dnd-site-shell .site-account>.site-icon{display:none}.dnd-site-shell .site-rail a{font-size:11px}.dnd-site-shell .shell{width:calc(100% - 28px)}}
+@media(prefers-reduced-motion:reduce){.dnd-site-shell *,.dnd-site-shell *:before,.dnd-site-shell *:after{animation:none!important;transition:none!important;scroll-behavior:auto!important}}

@@ -15,9 +15,9 @@
 .quantityValue {
   min-width: 44px;
   height: 42px;
-  border: 1px solid rgba(197, 152, 87, 0.28);
-  background: rgba(8, 6, 7, 0.72);
-  color: #faecc5;
+  border:1px solid rgba(75,181,203,0.28);
+  background:rgba(4,24,39,0.72);
+  color:var(--site-text);
   display: grid;
   place-items: center;
   border-radius: 10px;
@@ -30,8 +30,8 @@
 }
 
 .quantityButton:hover:not(:disabled) {
-  border-color: rgba(234, 199, 136, 0.68);
-  background: rgba(63, 12, 8, 0.58);
+  border-color:rgba(75,181,203,0.68);
+  background:rgba(4,24,39,0.58);
 }
 
 .quantityButton:disabled {
@@ -57,21 +57,15 @@
 }
 
 .addButton {
-  border: 1px solid rgba(197, 152, 87, 0.48);
-  background:
-    linear-gradient(
-      135deg,
-      rgba(116, 1, 4, 0.92),
-      rgba(63, 12, 8, 0.96)
-    );
-  color: #faecc5;
+  border:1px solid rgba(75,181,203,0.48);
+  background:var(--site-gold);
+  color:var(--site-text);
   cursor: pointer;
-  box-shadow:
-    0 18px 50px rgba(0, 0, 0, 0.24);
+  box-shadow:0 18px 50px rgba(0, 0, 0, 0.24);
 }
 
 .addButton:hover:not(:disabled) {
-  border-color: rgba(234, 199, 136, 0.78);
+  border-color:rgba(75,181,203,0.7);
 }
 
 .addButton:disabled {
@@ -80,11 +74,11 @@
 }
 
 .cartLink {
-  border: 1px solid rgba(197, 152, 87, 0.22);
-  color: #eac788;
-  background: rgba(12, 9, 10, 0.65);
+  border:1px solid rgba(75,181,203,0.22);
+  color:var(--site-gold);
+  background:rgba(4,24,39,0.65);
 }
 
 .cartLink:hover {
-  border-color: rgba(234, 199, 136, 0.58);
+  border-color:rgba(75,181,203,0.58);
 }
