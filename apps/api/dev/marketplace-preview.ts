@@ -11,6 +11,12 @@ async function main(){
  await q`insert into products(store_id,slug,name,description,category,status) select ${store!.id},'dice-'||n,'تاس ماجراجو '||n,'توضیح آزمایشی محصول برای بررسی راست‌به‌چپ و اندازهٔ کارت‌ها','dice','PUBLISHED' from generate_series(1,12)n`;
  await q`insert into product_variants(product_id,sku,name,price_rial,is_default,options) select id,'qa-'||id,'آبی',250000,true,'{"color":"آبی","faces":"20"}'::jsonb from products`;
  await q`insert into inventory(variant_id,quantity_on_hand) select id,5 from product_variants`;
+ await q`update products set product_type='MADE_TO_ORDER',production_days=2 where slug='dice-1'`;
+ await q`insert into marketplace_capacity_windows(variant_id,starts_at,ends_at,order_cutoff_at,capacity_total,created_by)
+  select v.id,now()+interval '1 day',now()+interval '4 days',now()+interval '23 hours',3,${maker.userId} from product_variants v join products p on p.id=v.product_id where p.slug='dice-1'`;
+ await q`insert into marketplace_shipping_profiles(store_id,method,fee_rial,dispatch_days) values(${store!.id},'ارسال آزمایشی',30000,3)`;
+ await q`update users set email_verified=true where id=${maker.userId}`;
+ await q`insert into marketplace_buyer_verifications(user_id,mobile_verified_at,evidence_ref) values(${maker.userId},now(),'synthetic-preview-only')`;
  await q.end();const origin=await api.app.listen({host:'127.0.0.1',port:24197});
  const file=path.resolve(__dirname,'../../../.deploy/marketplace/preview-private.json');fs.mkdirSync(path.dirname(file),{recursive:true});fs.writeFileSync(file,JSON.stringify({origin,email:maker.email,password:maker.password}),{mode:0o600});
  console.log('Disposable marketplace API fixture ready on loopback port 24197.');

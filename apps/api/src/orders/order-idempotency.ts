@@ -18,6 +18,8 @@ export type OrderHashInput = {
     Array<{
       productId: string;
       quoteId?: string;
+      capacityWindowId?: string;
+      expectedCapacityVersion?: number;
       variantId?: string;
       expectedPriceRial?: number;
       quantity: number;
@@ -78,6 +80,7 @@ export function hashOrderRequest(
 
             ...(item.variantId ? { variantId:item.variantId, expectedPriceRial:item.expectedPriceRial } : {}),
             ...(item.quoteId ? {quoteId:item.quoteId}:{}),
+            ...(item.capacityWindowId ? {capacityWindowId:item.capacityWindowId,expectedCapacityVersion:item.expectedCapacityVersion}:{}),
             quantity:
               item.quantity,
           }),

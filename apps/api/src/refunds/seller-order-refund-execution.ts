@@ -277,6 +277,8 @@ export async function finalizeSellerOrderRefund(refundId: string) {
         await tx.update(inventory).set({
           quantityOnHand: sql`${inventory.quantityOnHand} + ${selected}`, updatedAt: now,
         }).where(eq(inventory.variantId, line.variantId));
+        await tx.execute(sql`UPDATE marketplace_capacity_bookings SET released_quantity=released_quantity+${selected}
+          WHERE order_item_id=${line.id} AND started_at IS NULL`);
       }
     }
     const priorAmounts = await tx.select({ amount: marketplaceRefundCases.refundAmountRial }).from(marketplaceRefundCases)

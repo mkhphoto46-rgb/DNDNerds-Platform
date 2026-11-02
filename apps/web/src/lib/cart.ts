@@ -7,6 +7,11 @@ export const CART_CHANGED_EVENT =
 export type CartItem = {
   productId: string;
   variantId?: string;
+  quoteId?: string;
+  capacityWindowId?: string;
+  expectedCapacityVersion?: number;
+  productionStartsAt?: string;
+  productionEndsAt?: string;
   storeSlug: string;
   productSlug: string;
   productName: string;
@@ -138,6 +143,10 @@ export function addCartItem(
   let next:
     CartItem[];
 
+  if(existing&&existing.capacityWindowId!==incoming.capacityWindowId){
+    throw new Error('این تنوع با بازهٔ دیگری در سبد است؛ ابتدا آن را از سبد حذف کنید.');
+  }
+
   if (existing) {
     next =
       current.map(
@@ -150,6 +159,10 @@ export function addCartItem(
 
           return {
             ...item,
+            quoteId:incoming.quoteId,
+            expectedCapacityVersion:incoming.expectedCapacityVersion,
+            productionStartsAt:incoming.productionStartsAt,
+            productionEndsAt:incoming.productionEndsAt,
 
             inventory:
               incoming.inventory,

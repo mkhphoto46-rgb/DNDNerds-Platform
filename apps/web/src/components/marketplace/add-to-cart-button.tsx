@@ -14,6 +14,10 @@ import styles from "./add-to-cart-button.module.css";
 type Props = {
   productId: string;
   variantId?: string;
+  capacityWindowId?: string;
+  expectedCapacityVersion?: number;
+  productionStartsAt?: string;
+  productionEndsAt?: string;
   productSlug: string;
   productName: string;
   storeSlug: string;
@@ -25,6 +29,7 @@ type Props = {
 export function AddToCartButton({
   productId,
   variantId,
+  capacityWindowId,expectedCapacityVersion,productionStartsAt,productionEndsAt,
   productSlug,
   productName,
   storeSlug,
@@ -46,15 +51,17 @@ export function AddToCartButton({
 
   const outOfStock =
     inventory <= 0;
+  const [error,setError]=useState('');
 
   function add() {
     if (outOfStock) {
       return;
     }
 
-    addCartItem({
+    try{addCartItem({
       productId,
   variantId,
+      capacityWindowId,expectedCapacityVersion,productionStartsAt,productionEndsAt,
       productSlug,
       productName,
       storeSlug,
@@ -62,13 +69,14 @@ export function AddToCartButton({
       unitPriceToman,
       inventory,
       quantity,
-    });
+    });setError('');}catch(e){setError(e instanceof Error?e.message:'افزودن انجام نشد.');return;}
 
     setAdded(true);
   }
 
   return (
     <div className={styles.wrap}>
+      {error&&<p role="alert">{error}</p>}
 
       <div className={styles.quantityRow}>
 

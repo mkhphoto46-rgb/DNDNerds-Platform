@@ -58,6 +58,8 @@ type CreatedState = {
   paymentMessage:
     string | null;
 };
+type CheckoutReview={id:string;expiresAt:string;customerTotalToman:number;sellerOrders:{storeId:string;storeName:string;shippingMethod:string;shippingFeeToman:number;dispatchDays:number;
+ items:{productId:string;variantId:string;productName:string;variantName:string;quantity:number;lineTotalToman:number;capacityWindowSnapshot?:{startsAt:string;endsAt:string}}[]}[]};
 
 function formatToman(
   value: number,
@@ -73,6 +75,8 @@ function formatToman(
 export default function CheckoutPage() {
   const [items, setItems] =
     useState<CartItem[]>([]);
+  const [review,setReview]=useState<CheckoutReview|null>(null),[reviewLoading,setReviewLoading]=useState(false),[acceptedReview,setAcceptedReview]=useState(false);
+  const [orderKey]=useState(()=>`web-${crypto.randomUUID()}`);
 
   const [
     checkingAuth,
@@ -160,6 +164,14 @@ export default function CheckoutPage() {
         ),
       [items],
     );
+
+  async function refreshReview(){
+    setReviewLoading(true);setReview(null);setAcceptedReview(false);setError(null);
+    try{const response=await fetch('/api/marketplace/v21/checkout/preview',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({items:items.map(i=>({productId:i.productId,variantId:i.variantId,quoteId:i.quoteId,capacityWindowId:i.capacityWindowId,expectedCapacityVersion:i.expectedCapacityVersion,quantity:i.quantity}))})});
+      const data=await response.json();if(!response.ok)throw new Error(data.error?.message??'پیش‌فاکتور دریافت نشد.');setReview(data);
+    }catch(e){setError(e instanceof Error?e.message:'پیش‌فاکتور دریافت نشد.');}finally{setReviewLoading(false);}
+  }
+  useEffect(()=>{if(authenticated&&items.length)void refreshReview();},[authenticated,items]);
 
   function update(
     key:
@@ -275,7 +287,7 @@ export default function CheckoutPage() {
 
     if (
       !authenticated ||
-      items.length === 0
+      items.length === 0 || !review || !acceptedReview
     ) {
       return;
     }
@@ -286,7 +298,7 @@ export default function CheckoutPage() {
     try {
       const response =
         await fetch(
-          "/api/marketplace/orders",
+          "/api/marketplace/v21/orders",
           {
             method:
               "POST",
@@ -299,23 +311,12 @@ export default function CheckoutPage() {
             body:
               JSON.stringify({
                 idempotencyKey:
-                  `web-${crypto.randomUUID()}`,
+                  orderKey,
+                snapshotId:review.id,
 
                 address:
                   form,
 
-                items:
-                  items.map(
-                    item => ({
-                      productId:
-                        item.productId,
-                      variantId:item.variantId,
-                      expectedPriceRial:Math.round(item.unitPriceToman*10),
-
-                      quantity:
-                        item.quantity,
-                    }),
-                  ),
               }),
           },
         );
@@ -626,7 +627,7 @@ export default function CheckoutPage() {
                 item => (
                   <div
                     className={styles.line}
-                    key={item.productId}
+                    key={`${item.productId}:${item.variantId??'default'}`}
                   >
                     <span>
                       {item.productName}
@@ -651,15 +652,19 @@ export default function CheckoutPage() {
 
                 <strong>
                   {formatToman(
-                    localTotal,
+                    review?.customerTotalToman??localTotal,
                   )}
                 </strong>
               </div>
 
+              {review&&review.sellerOrders.map(s=><section key={s.storeId}><h3>{s.storeName}</h3><p>ارسال: {s.shippingMethod} · {formatToman(s.shippingFeeToman)} · زمان اعلامی فروشگاه: {s.dispatchDays} روز</p>
+                {s.items.map(i=><p key={i.variantId}>{i.productName} · {i.variantName} × {i.quantity} · {formatToman(i.lineTotalToman)}{i.capacityWindowSnapshot&&<> · ساخت از {new Date(i.capacityWindowSnapshot.startsAt).toLocaleDateString('fa-IR')} تا {new Date(i.capacityWindowSnapshot.endsAt).toLocaleDateString('fa-IR')}</>}</p>)}</section>)}
+              <button type="button" disabled={reviewLoading||loading} onClick={()=>void refreshReview()}>{reviewLoading?'در حال دریافت پیش‌فاکتور…':'بازخوانی مبلغ و شرایط سفارش'}</button>
+              {review&&<label><input type="checkbox" required checked={acceptedReview} onChange={e=>setAcceptedReview(e.target.checked)}/>کالاها، بازهٔ ساخت، هزینهٔ ارسال و جمع نهایی را بررسی و تأیید کردم.</label>}
               <button
                 className={styles.button}
                 type="submit"
-                disabled={loading}
+                disabled={loading||reviewLoading||!review||!acceptedReview}
               >
                 {loading
                   ? "در حال ثبت و آماده‌سازی پرداخت..."

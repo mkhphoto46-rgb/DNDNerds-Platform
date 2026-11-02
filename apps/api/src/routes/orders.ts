@@ -109,6 +109,8 @@ const createOrderSchema =
               .uuid(),
 
           quoteId: z.string().uuid().optional(),
+          capacityWindowId: z.string().uuid().optional(),
+          expectedCapacityVersion: z.number().int().min(1).optional(),
           variantId: z.string().uuid().optional(),
           expectedPriceRial: z.number().int().min(1000).max(2_000_000_000).optional(),
           quantity:
@@ -307,6 +309,9 @@ async function loadOrderResponse(
         ),
       );
 
+  const capacityRows=await db.execute(sql`SELECT cb.order_item_id,cb.window_snapshot FROM marketplace_capacity_bookings cb JOIN marketplace_order_items oi ON oi.id=cb.order_item_id WHERE oi.order_id=${order.id}`);
+  const capacityByItem=new Map(capacityRows.map(r=>[String(r.order_item_id),r.window_snapshot]));
+
   const [
     address,
   ] =
@@ -459,6 +464,8 @@ async function loadOrderResponse(
                   variantId:
                     item.variantId,
 
+                  capacityWindowSnapshot: capacityByItem.get(item.id)??null,
+
                   productName:
                     item.productNameSnapshot,
 
@@ -558,6 +565,7 @@ type PreparedLine = {
   lineTotalRial: number;
   commissionRial: number;
   sellerNetRial: number;
+  capacityWindowId?: string;
 };
 
 export async function registerOrderRoutes(
@@ -831,6 +839,7 @@ export async function registerOrderRoutes(
                     isDefault: productVariants.isDefault,
                     perOrderLimit: sql<number>`${productVariants}.per_order_limit`.mapWith(Number),
                     productType: sql<string>`${products}.product_type`,
+                    productionDays: sql<number>`${products}.production_days`.mapWith(Number),
 
                     quantityOnHand:
                       inventory.quantityOnHand,
@@ -973,7 +982,7 @@ export async function registerOrderRoutes(
                 const snapshot=snap[0];
                 if(!snapshot||snapshot.order_id||new Date(String(snapshot.expires_at))<=new Date())throw new CheckoutConflict(409,"SNAPSHOT_EXPIRED","Review checkout again.");
                 const accepted=snapshot.items as typeof items;
-                if(accepted.length!==items.length||accepted.some(a=>!items.some(b=>a.productId===b.productId&&a.variantId===b.variantId&&a.quantity===b.quantity&&a.expectedPriceRial===b.expectedPriceRial&&a.quoteId===b.quoteId)))throw new CheckoutConflict(409,"SNAPSHOT_MISMATCH","Accepted checkout items changed.");
+                if(accepted.length!==items.length||accepted.some(a=>!items.some(b=>a.productId===b.productId&&a.variantId===b.variantId&&a.quantity===b.quantity&&a.expectedPriceRial===b.expectedPriceRial&&a.quoteId===b.quoteId&&a.capacityWindowId===b.capacityWindowId&&a.expectedCapacityVersion===b.expectedCapacityVersion)))throw new CheckoutConflict(409,"SNAPSHOT_MISMATCH","Accepted checkout items changed.");
                 for(const shipping of snapshot.shipping as Array<{storeId:string;feeRial:number;version:number;method:string;dispatchDays:number}>){
                   const current=await tx.execute(sql`SELECT * FROM marketplace_shipping_profiles WHERE store_id=${shipping.storeId} FOR UPDATE`);
                   if(!current[0]||Number(current[0].version)!==shipping.version||Number(current[0].fee_rial)!==shipping.feeRial)throw new CheckoutConflict(409,"SHIPPING_CHANGED","Shipping changed; review and accept again.");
@@ -981,6 +990,12 @@ export async function registerOrderRoutes(
                 }
               }
 
+              const windowIds=[...new Set(items.flatMap(i=>i.capacityWindowId?[i.capacityWindowId]:[]))].sort();
+              const capacityWindows=new Map<string,Record<string,unknown>>();
+              if(windowIds.length){
+                const windows=await tx.execute(sql`SELECT * FROM marketplace_capacity_windows WHERE id IN (${sql.join(windowIds.map(id=>sql`${id}`),sql`,`)}) ORDER BY id FOR UPDATE`);
+                for(const w of windows)capacityWindows.set(String(w.id),w);
+              }
               const prepared:
                 PreparedLine[] =
                 items.map(
@@ -1006,6 +1021,16 @@ export async function registerOrderRoutes(
                       if(!quote||quote.store_id!==row.storeId)throw new CheckoutConflict(409,"QUOTE_REQUIRED","Custom products require an accepted quote for this store.");
                       row.priceRial=Number(quote.price_rial);
                     } else if(requested.quoteId)throw new CheckoutConflict(409,"QUOTE_TYPE_MISMATCH","Only custom products can use a quote.");
+                    if(row.productType==='READY_TO_SHIP'){
+                      if(requested.capacityWindowId)throw new CheckoutConflict(400,'CAPACITY_WINDOW_NOT_APPLICABLE','Ready-to-ship products do not book production capacity.');
+                    }else{
+                      const w=requested.capacityWindowId?capacityWindows.get(requested.capacityWindowId):undefined;
+                      const days=row.productType==='CUSTOM_DESIGN'?Number(quoteRows.get(requested.quoteId!)?.production_days):row.productionDays;
+                      if(!w||w.variant_id!==row.variantId||w.status!=='OPEN'||new Date(String(w.order_cutoff_at))<=new Date()||
+                        Number(w.version)!==requested.expectedCapacityVersion||Number(w.capacity_total)-Number(w.reserved)-Number(w.committed)<requested.quantity||
+                        new Date(String(w.ends_at)).getTime()-new Date(String(w.starts_at)).getTime()<days*86400000)
+                        throw new CheckoutConflict(409,'CAPACITY_WINDOW_CHANGED','Select and accept an available production window and its current version.');
+                    }
                     if (requested.quantity > row.perOrderLimit) throw new CheckoutConflict(409,"QUANTITY_LIMIT","Variant purchase limit exceeded.");
                     if (requested.variantId && requested.expectedPriceRial === undefined) throw new CheckoutConflict(409,"PRICE_ACCEPTANCE_REQUIRED","Accept the current variant price.");
                     if (requested.expectedPriceRial !== undefined && requested.expectedPriceRial !== row.priceRial) throw new CheckoutConflict(409,"PRICE_CHANGED","Price changed; review and accept the current price.");
@@ -1028,6 +1053,7 @@ export async function registerOrderRoutes(
 
                     return {
                       ...row,
+                      capacityWindowId:requested.capacityWindowId,
 
                       quantity:
                         requested.quantity,
@@ -1402,7 +1428,7 @@ export async function registerOrderRoutes(
                     );
                   }
 
-                  await tx
+                  const [reservation]=await tx
                     .insert(
                       inventoryReservations,
                     )
@@ -1423,7 +1449,12 @@ export async function registerOrderRoutes(
                         "ACTIVE",
 
                       expiresAt,
-                    });
+                    }).returning({id:inventoryReservations.id});
+                  if(item.capacityWindowId){
+                    if(!reservation)throw new Error('CAPACITY_RESERVATION_INSERT_FAILED');
+                    try{await tx.execute(sql`INSERT INTO marketplace_capacity_bookings(reservation_id,window_id) VALUES(${reservation.id},${item.capacityWindowId})`);}
+                    catch(error){const cause=(error as {cause?:{message?:string};message?:string});if((cause.cause?.message??cause.message??'').includes('CAPACITY_'))throw new CheckoutConflict(409,'CAPACITY_WINDOW_CHANGED','Production capacity changed; review again.');throw error;}
+                  }
                 }
               }
 

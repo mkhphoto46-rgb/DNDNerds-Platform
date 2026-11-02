@@ -2,6 +2,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { sqlClient as q } from '../db/client.js';
 
+const availableQuantity=q`greatest(0,least(i.quantity_on_hand-i.quantity_reserved,
+  case when p.product_type='READY_TO_SHIP' then i.quantity_on_hand-i.quantity_reserved else
+    coalesce((select max(c.capacity_total-c.reserved-c.committed) from marketplace_capacity_windows c
+      where c.variant_id=v.id and c.status='OPEN' and c.order_cutoff_at>now()),0) end))`;
+
 export const catalogQuery = z.object({
   q:z.string().trim().max(100).default(''), category:z.string().max(120).default(''),
   store:z.string().max(120).default(''), minPrice:z.coerce.number().int().min(0).max(2_000_000_000).default(0),
@@ -16,7 +21,7 @@ export async function listProducts(input: unknown):Promise<{data:ReturnType<type
   const options=Object.fromEntries(['color','size','scale','material'].filter(k=>f[k as 'color']).map(k=>[k,f[k as 'color']]));
   // Filter all attributes, price and availability on the SAME variant.
   const variantFilter=q`v.effective_price between ${f.minPrice} and ${f.maxPrice} and v.options @> ${JSON.stringify(options)}::jsonb
-    and (${f.available!=='true'} or i.quantity_on_hand>i.quantity_reserved) and (${f.discount!=='true'} or v.effective_price<v.price_rial)`;
+    and (${f.available!=='true'} or ${availableQuantity}>0) and (${f.discount!=='true'} or v.effective_price<v.price_rial)`;
   const rows=await q`
     with active_variants as not materialized (select *,case when discount_rial is not null and now()>=discount_starts_at and now()<discount_ends_at then discount_rial else price_rial end effective_price from product_variants where status='ACTIVE'),
     matched as (select p.id,p.name from products p join stores s on s.id=p.store_id and s.status='ACTIVE'
@@ -27,7 +32,7 @@ export async function listProducts(input: unknown):Promise<{data:ReturnType<type
     select p.id,p.slug,p.name,p.description,p.category,p.product_type as "productType",p.brand,p.image_url as "imageUrl",p.production_days as "productionDays",
       s.id as "storeId",s.slug as "storeSlug",s.name as "storeName",(s.verified and s.identity_evidence_ref is not null) as verified,
       jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'options',v.options,'priceRial',v.effective_price,'basePriceRial',v.price_rial,
-      'priceToman',v.effective_price/10.0,'inventory',greatest(0,i.quantity_on_hand-i.quantity_reserved),'perOrderLimit',v.per_order_limit,
+      'priceToman',v.effective_price/10.0,'inventory',${availableQuantity},'perOrderLimit',v.per_order_limit,
       'priceEffectiveAt',v.price_effective_at,'discountEndsAt',case when v.effective_price<v.price_rial then v.discount_ends_at end)
       order by v.effective_price,v.id) as variants,max(page.total) as total
     from page join products p on p.id=page.id join stores s on s.id=p.store_id and s.status='ACTIVE'
@@ -73,7 +78,7 @@ export async function registerCatalog(app:FastifyInstance){
     if(!p)return reply.code(404).send({error:{code:'PRODUCT_NOT_FOUND'}});
     // Direct details use the same visibility and pricing rules, without a catalog-page scan.
     const rows=await q`select p.id,p.slug,p.name,p.description,p.category,p.product_type as "productType",p.brand,p.image_url as "imageUrl",p.production_days as "productionDays",s.id as "storeId",s.slug as "storeSlug",s.name as "storeName",(s.verified and s.identity_evidence_ref is not null) as verified,
-      jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'options',v.options,'priceRial',case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end,'basePriceRial',v.price_rial,'priceToman',(case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end)/10.0,'inventory',greatest(0,i.quantity_on_hand-i.quantity_reserved),'perOrderLimit',v.per_order_limit,'priceEffectiveAt',v.price_effective_at) order by v.is_default desc,v.id) variants
+      jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'options',v.options,'priceRial',case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end,'basePriceRial',v.price_rial,'priceToman',(case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end)/10.0,'inventory',${availableQuantity},'perOrderLimit',v.per_order_limit,'priceEffectiveAt',v.price_effective_at) order by v.is_default desc,v.id) variants
       from products p join stores s on s.id=p.store_id join product_variants v on v.product_id=p.id and v.status='ACTIVE' join inventory i on i.variant_id=v.id
       where p.id=${p.id} and s.status='ACTIVE' and p.status='PUBLISHED' group by p.id,s.id`;
     if(!rows[0])return reply.code(404).send({error:{code:'PRODUCT_NOT_FOUND'}});

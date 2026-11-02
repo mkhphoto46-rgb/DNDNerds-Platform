@@ -21,6 +21,7 @@ import {
 import styles from "./cart.module.css";
 
 type PreviewLine = {
+  capacityWindowSnapshot?:{startsAt:string;endsAt:string};
   variantId?: string;
   productId: string;
   productName: string;
@@ -30,6 +31,9 @@ type PreviewLine = {
 };
 
 type PreviewSellerOrder = {
+  shippingFeeToman:number;
+  shippingMethod:string;
+  dispatchDays:number;
   storeId: string;
   storeName: string;
   storeSlug: string;
@@ -149,7 +153,7 @@ export default function CartPage() {
         try {
           const response =
             await fetch(
-              "/api/marketplace/checkout/preview",
+              "/api/marketplace/v21/checkout/preview",
               {
                 method: "POST",
 
@@ -165,7 +169,7 @@ export default function CartPage() {
                         (item) => ({
                           productId:
                             item.productId,
-                          variantId:item.variantId,
+                          variantId:item.variantId,quoteId:item.quoteId,capacityWindowId:item.capacityWindowId,expectedCapacityVersion:item.expectedCapacityVersion,
 
                           quantity:
                             item.quantity,
@@ -575,6 +579,7 @@ export default function CartPage() {
 
                             </div>
 
+                            <p>ارسال: {order.shippingMethod} · {formatToman(order.shippingFeeToman)} · زمان اعلامی فروشگاه: {order.dispatchDays} روز</p>
                             {order.items.map(
                               (line) => (
                                 <div
@@ -585,6 +590,7 @@ export default function CartPage() {
                                     {line.productName}
                                     {" × "}
                                     {line.quantity}
+                                    {line.capacityWindowSnapshot&&<small> · ساخت از {new Date(line.capacityWindowSnapshot.startsAt).toLocaleDateString('fa-IR')} تا {new Date(line.capacityWindowSnapshot.endsAt).toLocaleDateString('fa-IR')}</small>}
                                   </span>
 
                                   <span>
