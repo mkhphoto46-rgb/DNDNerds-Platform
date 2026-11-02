@@ -4141,6 +4141,7 @@ export const gameTables = pgTable("game_tables", {
   check("game_tables_capacity_range", sql`${t.capacity} BETWEEN 2 AND 8`),
   check("game_tables_status_valid", sql`${t.status} IN ('DRAFT','PUBLISHED','CLOSED','HIDDEN')`),
   check("game_tables_visibility_valid", sql`${t.visibility} IN ('PUBLIC','PRIVATE')`),
+  check("game_tables_image_data_check", sql`${t.imageData} IS NULL OR octet_length(${t.imageData}) <= 700000`),
 ]);
 
 export const gameApplications = pgTable("game_applications", {
