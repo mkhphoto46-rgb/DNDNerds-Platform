@@ -1,0 +1,56 @@
+{
+  "commit": "d72e074",
+  "started": "2026-11-03T14:16:04.197Z",
+  "cases": [
+    {
+      "id": "AUDIT-CANCEL-01",
+      "statuses": [
+        200,
+        200
+      ],
+      "actual": 0,
+      "expected": 1,
+      "pass": false
+    },
+    {
+      "id": "AUDIT-EXPIRE-01",
+      "actual": 0,
+      "expected": 1,
+      "pass": false
+    },
+    {
+      "id": "AUDIT-CAPTURE-01",
+      "statuses": [
+        200,
+        200
+      ],
+      "order": {
+        "status": "CANCELLED",
+        "successful_payments": 1
+      },
+      "actual": 0,
+      "expected": 1,
+      "pass": false
+    },
+    {
+      "id": "AUDIT-INTENT-01",
+      "statuses": [
+        200,
+        201
+      ],
+      "intent_status": "REQUIRES_PAYMENT",
+      "order_status": "PAID",
+      "pass": false
+    },
+    {
+      "id": "AUDIT-LIMIT-01",
+      "description": "190 requests from shared SSR source, default max180/min",
+      "statuses": {
+        "200": 180,
+        "429": 10
+      },
+      "pass": false
+    }
+  ],
+  "finished": "2026-11-03T14:16:11.356Z"
+}
