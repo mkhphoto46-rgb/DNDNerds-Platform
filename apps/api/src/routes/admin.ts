@@ -1,3 +1,4 @@
+import {registerSellerAccess} from '../marketplace/seller-access.js';
 import type {
   FastifyInstance,
   FastifyRequest,
@@ -184,6 +185,7 @@ const storeCommissionBody =
 export async function registerAdminRoutes(
   app: FastifyInstance,
 ) {
+  await registerSellerAccess(app);
   app.get("/api/v1/admin/system/health", async (request, reply) => {
     const admin = await getAdmin(request);
     if (!admin || admin.role !== "SUPER_ADMIN") return reply.code(403).send({ error: { code: "ADMIN_FORBIDDEN", message: "Owner access required." } });
