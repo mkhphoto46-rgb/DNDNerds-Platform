@@ -22,6 +22,7 @@ export type MarketplaceStore = {
 };
 
 export type StoreProduct = {
+  imageUrl?: string | null;
   id: string;
   slug: string;
   name: string;
@@ -237,3 +238,6 @@ export function marketplaceTone(
     "crimson"
   );
 }
+
+export type ProductPresentation={store:{id:string;slug:string;name:string;description:string;category:string;verified:boolean;productCount:number;rating:number;reviewCount:number};shipping:{method:string;feeRial:number;dispatchDays:number}|null;related:MarketplaceProduct[]};
+export async function getProductPresentation(productId:string){return requestJson<ProductPresentation>(`/api/v1/marketplace/v21/products/${encodeURIComponent(productId)}/presentation`);}

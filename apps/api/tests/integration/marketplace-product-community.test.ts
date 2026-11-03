@@ -1,0 +1,45 @@
+import assert from 'node:assert/strict';
+import {test} from 'node:test';
+import postgres from 'postgres';
+import {startApi} from '../support/api.js';
+test('product community separates comments from verified product reviews and moderates edits',async()=>{
+ const api=await startApi();api.app.log.level='silent';const q=postgres(process.env.DATABASE_URL!,{max:1});
+ try{
+  const owner=await api.register('community-owner'),buyer=await api.register('community-buyer'),admin=await api.register('community-admin');
+  const [sp]=await q`insert into seller_profiles(user_id,display_name,status) values(${owner.userId},'Synthetic owner','ACTIVE') returning id`;
+  const [s]=await q`insert into stores(seller_profile_id,slug,name,description,category,status) values(${sp!.id},'community-test','Synthetic store','Synthetic fixture','dice','ACTIVE') returning id`;
+  await q`insert into store_members(store_id,user_id,role) values(${s!.id},${owner.userId},'OWNER')`;
+  const [p]=await q`insert into products(store_id,slug,name,description,category,status) values(${s!.id},'community-product','Synthetic dice','Synthetic fixture','dice','PUBLISHED') returning id`;
+  await q`insert into marketplace_admins(user_id,role,active) values(${admin.userId},'MARKETPLACE_ADMIN',true)`;
+  const url=`/api/v1/marketplace/v21/products/${p!.id}/community`;
+  const initial=await api.request({method:'GET',url});assert.equal(initial.status,200);assert.equal(initial.body.viewer.canComment,false);assert.equal(initial.body.rating.count,0);
+  assert.equal((await api.request({method:'POST',url,payload:{kind:'COMMENT',body:'Synthetic comment'}})).status,401);
+  assert.equal((await api.request({method:'POST',url,token:buyer.token,payload:{kind:'REVIEW',body:'No delivery evidence',rating:5}})).status,403);
+  assert.equal((await api.request({method:'POST',url,token:buyer.token,payload:{kind:'COMMENT',body:'No stars on comments',rating:5}})).status,400);
+  const made=await api.request({method:'POST',url,token:buyer.token,payload:{kind:'COMMENT',body:'<script>plain text only</script>'}});assert.equal(made.status,201);assert.equal(made.body.status,'PENDING');
+  assert.equal((await api.request({method:'GET',url})).body.data.length,0);
+  const moderation=`/api/v1/admin/marketplace/product-community/${made.body.id}/moderate`;
+  assert.equal((await api.request({method:'POST',url:moderation,token:owner.token,payload:{status:'PUBLISHED',password:owner.password,reason:'Synthetic approval'}})).status,403);
+  assert.equal((await api.request({method:'POST',url:moderation,token:admin.token,payload:{status:'PUBLISHED',password:admin.password,reason:'Synthetic approval'}})).status,200);
+  const published=await api.request({method:'GET',url});assert.equal(published.body.data[0].body,'<script>plain text only</script>');assert.equal(published.body.rating.count,0);
+  assert.equal((await api.request({method:'POST',url,token:buyer.token,payload:{kind:'COMMENT',body:'Edited comment'}})).status,201);
+  assert.equal((await api.request({method:'GET',url})).body.data.length,0);
+  const attempts=await Promise.all(Array.from({length:20},(_,i)=>api.request({method:'POST',url,token:buyer.token,payload:{kind:'COMMENT',body:'Concurrent edit '+i}})));
+  assert.equal(attempts.filter(r=>r.status===201).length,18);assert.equal(attempts.filter(r=>r.status===429).length,2);
+  const verified=await api.register('community-delivered');
+  const [v]=await q`insert into product_variants(product_id,sku,name,price_rial,is_default) values(${p!.id},'community-sku','Default',100000,true) returning id`;
+  const [o]=await q`insert into marketplace_orders(user_id,idempotency_key,status,customer_total_rial,platform_commission_rial,seller_net_rial,expires_at) values(${verified.userId},'community-purchase','PAID',100000,5000,95000,now()) returning id`;
+  const [so]=await q`insert into marketplace_seller_orders(order_id,store_id,status,gross_rial,commission_bps_snapshot,platform_commission_rial,seller_net_rial) values(${o!.id},${s!.id},'DELIVERED',100000,500,5000,95000) returning id`;
+  await q`insert into marketplace_order_items(order_id,seller_order_id,store_id,product_id,variant_id,product_name_snapshot,product_slug_snapshot,variant_name_snapshot,sku_snapshot,quantity,unit_price_rial,line_total_rial,commission_bps_snapshot,commission_rial,seller_net_rial) values(${o!.id},${so!.id},${s!.id},${p!.id},${v!.id},'Synthetic dice','community-product','Default','community-sku',1,100000,100000,500,5000,95000)`;
+  await q`insert into marketplace_delivery_evidence(seller_order_id,reviewer_id,evidence_ref,reason,policy_version,delivered_at) values(${so!.id},${admin.userId},'synthetic-only','Independent synthetic evidence','synthetic',now())`;
+  assert.equal((await api.request({method:'GET',url,token:verified.token})).body.viewer.canReview,true);
+  const review=await api.request({method:'POST',url,token:verified.token,payload:{kind:'REVIEW',body:'Verified synthetic purchase',rating:4}});assert.equal(review.status,201,JSON.stringify(review.body));
+  assert.equal((await api.request({method:'POST',url:`/api/v1/admin/marketplace/product-community/${review.body.id}/moderate`,token:admin.token,payload:{status:'PUBLISHED',password:admin.password,reason:'Synthetic verified approval'}})).status,200);
+  const rated=await api.request({method:'GET',url});assert.equal(rated.body.rating.count,1);assert.equal(rated.body.rating.average,4);assert.equal(rated.body.rating.histogram['4'],1);assert.equal(rated.body.data[0].verifiedPurchase,true);
+  const first=await api.request({method:'GET',url:url+'?limit=1'});assert.equal(first.body.data.length,1);
+  assert.equal(first.body.nextCursor,null);
+  await q`insert into store_members(store_id,user_id,role) values(${s!.id},${verified.userId},'MANAGER')`;
+  assert.equal((await api.request({method:'POST',url,token:verified.token,payload:{kind:'REVIEW',body:'Store member cannot review',rating:5}})).status,403);
+  await q`update products set status='DRAFT' where id=${p!.id}`;assert.equal((await api.request({method:'GET',url})).status,404);
+ }finally{await q.end();await api.stop();}
+});

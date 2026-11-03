@@ -267,6 +267,13 @@
       "when": 1793664000004,
       "tag": "0037_production_capacity_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1793664000005,
+      "tag": "0038_product_community",
+      "breakpoints": true
     }
   ]
 }

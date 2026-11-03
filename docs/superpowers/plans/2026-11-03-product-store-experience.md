@@ -1,0 +1,7 @@
+# Product and store experience — 2026-11-03
+
+Owner explicitly requested removing the brand-authenticity disclaimer and adapting the useful product/store organization from rastiva.com, retaining the existing DND Nerds blue/gold design. Screenshots and live public reference inspected: https://ellieslucky.rastiva.com/product/stainless-steel . No reference assets, brand text, trust claims or private implementation are copied.
+
+Implement a readable product heading, breadcrumb/category in Persian, actual image with zoom, concise summary/specifications, purchase/options card, store identity/description and real shipping profile, introduction/specification/community/related section navigation. Add genuine product-scoped moderated comments/questions for authenticated users; ratings remain limited to independently delivered purchases. Published-only, active-store visibility, no fake scores/reviews/products. Similar products prefer the same shop/category and exclude the viewed/hidden product. Store page shows actual images, count, Persian labels and filtered catalog pagination.
+
+Use the existing Next server/client split, Fastify, PostgreSQL and authentication. Migration0038 adds product community while preserving the0035 applied prefix and appending the already pending0036/0037 when released. Production purchases/payouts remain off. Deploy only after targeted new backend tests, API/Web build, current-live hash check, verified backup/restore and public browser checks. Keep current supplier data and blue UI.
