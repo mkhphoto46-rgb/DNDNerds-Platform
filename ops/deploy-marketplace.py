@@ -113,6 +113,9 @@ try:
     assert f'pid={process.pid},' in subprocess.check_output(['ss','-ltnp','sport = :24198'],text=True)
     assert json.loads(get('http://127.0.0.1:24198/api/v1/products'))['source']=='postgresql'
     assert len(json.loads(get('http://127.0.0.1:24198/api/v1/marketplace/v21/categories'))['data'])==5
+    for path in meta.get('publicProductProbes',[]):
+        assert re.fullmatch(r'/api/v1/marketplace/v21/products/[0-9a-f-]{36}/(presentation|community)',path)
+        get('http://127.0.0.1:24198'+path)
     get('http://127.0.0.1:24198/api/v1/marketplace/v21/seller/apply',401,b'{}',{'Content-Type':'application/json'})
     get('http://127.0.0.1:24198/api/v1/marketplace/v21/checkout/preview',503,b'{}',{'Content-Type':'application/json'})
     get('http://127.0.0.1:24198/api/v1/payments/webhooks/mock',404,b'{}',{'Content-Type':'application/json'})
@@ -166,6 +169,7 @@ try:
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',401,b'{}',{'Content-Type':'application/json','Origin':'https://dndnerds.ir'})
             get('https://dndnerds.ir/api/marketplace/v21/seller/apply',403,b'{}',{'Content-Type':'application/json','Origin':'https://untrusted.example'})
             gates=json.loads(get('http://127.0.0.1:4100/api/v1/marketplace/v21/readiness'));assert gates['livePayments'] is False and gates['livePayouts'] is False
+            for path in meta.get('publicProductProbes',[]):get('http://127.0.0.1:4100'+path)
             for path in meta.get('disabledMutationProbes',[]):get('http://127.0.0.1:4100'+path,503,b'{}',{'Content-Type':'application/json'})
             break
         except Exception:
