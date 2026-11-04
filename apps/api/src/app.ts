@@ -2,6 +2,7 @@ import { registerMarketplaceV21 } from "./routes/marketplace-v21.js";
 import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
 import { safeErrorSerializer } from "./log-serializers.js";
+import { vttConfigWarnings } from "./integrations/vtt-origin.js";
 import { assertProductionReady } from "./config/production-guards.js";
 import { registerPayoutProviderRoutes } from "./routes/payout-provider.js";
 import { registerSessionManagementRoutes } from "./routes/session-management.js";
@@ -40,6 +41,7 @@ import Fastify from "fastify";
 
 import {
   config,
+  parseTrustProxy,
 } from "./config";
 
 import {
@@ -129,6 +131,12 @@ export async function buildApp() {
       genReqId:
         () =>
           randomUUID(),
+
+      // C3: rate limits and session records need the visitor's address, not the proxy's.
+      trustProxy:
+        parseTrustProxy(
+          config.API_TRUST_PROXY,
+        ),
 
       bodyLimit:
         1024 * 1024,
@@ -339,6 +347,9 @@ export async function buildApp() {
 
 
   registerObservability(app);
+
+  // B72: name the missing bridge variable at startup instead of failing quietly later.
+  for (const warning of vttConfigWarnings()) app.log.warn(warning);
 
 
   await app.register(registerAuthRoutes);

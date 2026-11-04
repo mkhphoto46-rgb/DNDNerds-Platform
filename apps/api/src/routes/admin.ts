@@ -27,6 +27,7 @@ import {
   requireAuthUser,
 } from "../auth/session.js";
 import { publicAccountId } from "../auth/public-identity.js";
+import { notifyMembershipRevoked } from "../integrations/vtt-membership-revoked.js";
 
 import {
   db,
@@ -342,6 +343,7 @@ export async function registerAdminRoutes(
       await tx.update(users).set({ status: body.data.status, updatedAt: new Date() }).where(eq(users.id, target.id));
       if (body.data.status !== "ACTIVE") await tx.update(userSessions).set({ revokedAt: new Date() }).where(and(eq(userSessions.userId, target.id), sql`${userSessions.revokedAt} is null`));
     });
+    if (body.data.status !== "ACTIVE" && target.status !== body.data.status) notifyMembershipRevoked({ platformTableId: null, platformUserId: target.id, reason: body.data.status === "BANNED" ? "account-banned" : "account-suspended" }, request.log);
     await audit(admin.userId, "CHANGE_ACCOUNT_STATUS", "USER", target.id, { email: target.email, before: target.status, after: body.data.status, reason: body.data.reason });
     return { data: { id: target.id, status: body.data.status } };
   });
