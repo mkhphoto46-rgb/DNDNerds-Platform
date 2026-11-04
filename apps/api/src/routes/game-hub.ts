@@ -10,6 +10,7 @@ import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
 import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
 import { requestNativeVttInvite } from "../integrations/native-vtt-invite.js";
+import { notifyMembershipRevoked } from "../integrations/vtt-membership-revoked.js";
 
 import { publicAccountId } from "../auth/public-identity.js";
 import { validProfileImage } from "./profile-image.js";
@@ -67,6 +68,12 @@ async function reservePlayerSeat(tableId: string, userId: string, visibility: "P
     else await tx.insert(gameApplications).values({ tableId, userId, status: "ACCEPTED" });
     return "accepted";
   });
+}
+
+// RC7: tell the table app that every accepted player of this table lost their seat.
+async function revokeSeats(tableId: string, reason: "table-closed" | "table-hidden", log: FastifyRequest["log"]) {
+  const seated = await db.select({ userId: gameApplications.userId }).from(gameApplications).where(and(eq(gameApplications.tableId, tableId), eq(gameApplications.status, "ACCEPTED")));
+  notifyMembershipRevoked(seated.map(seat => ({ platformTableId: tableId, platformUserId: seat.userId, reason })), log);
 }
 
 export async function registerGameHubRoutes(app: FastifyInstance) {
@@ -173,6 +180,7 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     const inviteCode = visibility === "PRIVATE" && !existing.inviteCodeHash ? newInviteCode() : null;
     const [row] = await db.update(gameTables).set({ ...parsed.data, visibility, ...(inviteCode ? { inviteCodeHash: inviteHash(inviteCode) } : {}), updatedAt: new Date() }).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id), ne(gameTables.status, "HIDDEN"))).returning();
     if (!row) return reply.code(404).send({ error: { message: "میز پیدا نشد یا دسترسی ندارید." } });
+    if (existing.status === "PUBLISHED" && (row.status === "CLOSED" || row.status === "DRAFT")) await revokeSeats(row.id, "table-closed", request.log);
     return { data: { ...publicTable(row), inviteCode } };
   });
   app.post<{ Params: { tableId: string } }>(`${base}/tables/:tableId/invite/rotate`, async (request, reply) => {
@@ -256,8 +264,10 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
   app.post<{ Params: { applicationId: string } }>(`${base}/applications/:applicationId/withdraw`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
     const key = id.safeParse(request.params.applicationId); if (!key.success) return invalid(reply);
+    const [before] = await db.select({ status: gameApplications.status }).from(gameApplications).where(and(eq(gameApplications.id, key.data), eq(gameApplications.userId, user.id))).limit(1);
     const [row] = await db.update(gameApplications).set({ status: "WITHDRAWN", updatedAt: new Date() }).where(and(eq(gameApplications.id, key.data), eq(gameApplications.userId, user.id), ne(gameApplications.status, "WITHDRAWN"))).returning();
     if (!row) return reply.code(404).send({ error: { message: "درخواست پیدا نشد." } });
+    if (before?.status === "ACCEPTED") notifyMembershipRevoked({ platformTableId: row.tableId, platformUserId: user.id, reason: "seat-withdrawn" }, request.log);
     return { data: row };
   });
   app.get<{ Params: { tableId: string } }>(`${base}/tables/:tableId/applications`, async (request, reply) => {
@@ -358,6 +368,7 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
       if ("pending" in result) return reply.code(409).send({ error: { message: "حذف میز در حال انجام است." } });
       const row = result.row;
       if (!row) return reply.code(404).send({ error: { message: "میز پیدا نشد." } });
+      if (parsed.data.action === "HIDE") await revokeSeats(row.id, "table-hidden", request.log);
       await db.insert(marketplaceAdminAuditLogs).values({ adminUserId: admin.userId, action: parsed.data.action, entityType: "game_table", entityId: key.data, details: JSON.stringify({ reason: parsed.data.reason }) });
       return { data: row };
     }
