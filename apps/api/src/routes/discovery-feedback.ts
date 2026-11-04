@@ -2,6 +2,8 @@ import type { FastifyInstance } from 'fastify';
 import { and, desc, eq, sql } from 'drizzle-orm';
 import { z } from 'zod';
 import { requireAuthUser } from '../auth/session.js';
+import { publicAccountId } from '../auth/public-identity.js';
+import { resolveUserRef } from '../auth/public-user-ref.js';
 import { db } from '../db/client.js';
 import { dmProfiles, dmReactions, dmReviews, gameTableReactions, gameTableReviews, gameTables, users } from '../db/schema.js';
 export type FeedbackKind = 'table' | 'dm';
@@ -16,7 +18,12 @@ export async function discoveryFeedback(kind: FeedbackKind, targetId: string, ow
  viewerId ? db.select({value:votes.value}).from(votes).where(and(eq(voteKey,targetId),eq(votes.reviewerUserId,viewerId))).limit(1) : Promise.resolve([]),
  db.select({id:reviews.id,comment:reviews.comment,authorId:reviews.reviewerUserId,author:users.username,createdAt:reviews.createdAt,updatedAt:reviews.updatedAt}).from(reviews).innerJoin(users,eq(reviews.reviewerUserId,users.id)).where(eq(reviewKey,targetId)).orderBy(...(viewerId ? [desc(sql`${reviews.reviewerUserId} = ${viewerId}::uuid`)] : []), desc(reviews.updatedAt)).limit(100)
  ]);
- return { likes: counts[0]?.likes ?? 0, dislikes: counts[0]?.dislikes ?? 0, myVote: (mine[0]?.value ?? null) as 1|-1|null, canReact: Boolean(viewerId && viewerId!==ownerId), reviewCount:total[0]?.count ?? 0, reviews:comments.map(row=>({...row,author:row.author ?? `بازیکن ${row.authorId.slice(0,6)}`,mine:row.authorId===viewerId})) };
+ return { likes: counts[0]?.likes ?? 0, dislikes: counts[0]?.dislikes ?? 0, myVote: (mine[0]?.value ?? null) as 1|-1|null, canReact: Boolean(viewerId && viewerId!==ownerId), reviewCount:total[0]?.count ?? 0, reviews:comments.map(row=>publicReview(row,viewerId)) };
+}
+// B40: reviews name their author by username or public ID, never the account UUID.
+function publicReview<T extends {authorId:string;author:string|null}>({authorId,...row}:T,viewerId?:string){
+ const authorPublicId=publicAccountId(authorId);
+ return {...row,authorPublicId,author:row.author ?? `بازیکن ${authorPublicId.slice(0,6)}`,mine:authorId===viewerId};
 }
 // List pages fetch every target in four bounded queries; only the latest three
 // comments per target leave PostgreSQL.
@@ -37,14 +44,15 @@ export async function discoveryFeedbackList(kind: FeedbackKind, targets: {id:str
  for(const row of counts)Object.assign(result.get(row.targetId)!,{likes:row.likes,dislikes:row.dislikes});
  for(const row of totals)result.get(row.targetId)!.reviewCount=row.count;
  for(const row of mine)result.get(row.targetId)!.myVote=row.value;
- for(const {targetId,...row} of comments)result.get(targetId)!.recentReviews.push({...row,author:row.author??`بازیکن ${row.authorId.slice(0,6)}`,mine:row.authorId===viewerId});
+ for(const {targetId,...row} of comments)result.get(targetId)!.recentReviews.push(publicReview(row,viewerId));
  return result;
 }
 export async function registerDiscoveryFeedbackRoutes(app: FastifyInstance) {
  for (const kind of ['table','dm'] as const) for(const action of ['reaction','review'] as const) {
  app.put<{Params:{targetId:string}}>(`/api/v1/game-hub/${kind==='table'?'tables':'dms'}/:targetId/${action}`,async(request,reply)=>{
  const user=await requireAuthUser(request); if(!user)return reply.code(401).send({error:{message:'برای ادامه وارد حساب خود شوید.'}});
- const key=z.string().uuid().safeParse(request.params.targetId);
+ const ref=kind==='dm' ? await resolveUserRef(request.params.targetId) : request.params.targetId;
+ const key=z.string().uuid().safeParse(ref);
  const input=action==='reaction' ? z.object({value:z.union([z.literal(1),z.literal(-1),z.null()])}).strict().safeParse(request.body) : z.object({comment:z.string().trim().min(3).max(1200)}).strict().safeParse(request.body);
  if(!key.success||!input.success)return reply.code(400).send({error:{message:'اطلاعات واردشده معتبر نیست.'}});
  const owner=await db.transaction(async tx=>{

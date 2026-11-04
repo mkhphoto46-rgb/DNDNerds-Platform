@@ -1,6 +1,7 @@
 import { registerMarketplaceV21 } from "./routes/marketplace-v21.js";
 import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
+import { safeErrorSerializer } from "./log-serializers.js";
 import { vttConfigWarnings } from "./integrations/vtt-origin.js";
 import { assertProductionReady } from "./config/production-guards.js";
 import { registerPayoutProviderRoutes } from "./routes/payout-provider.js";
@@ -114,6 +115,12 @@ export async function buildApp() {
             ? "info"
             : "debug",
 
+        // B34: database errors are logged without SQL parameters or row values.
+        serializers: {
+          err:
+            (error: unknown) =>
+              safeErrorSerializer(error) as { type: string; message: string; stack: string; [key: string]: unknown },
+        },
         redact: [
           "req.headers.authorization",
           "req.headers.cookie",

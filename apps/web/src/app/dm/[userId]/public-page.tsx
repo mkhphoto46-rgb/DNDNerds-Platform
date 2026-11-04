@@ -8,8 +8,8 @@ import hub from "@/components/game-hub.module.css";
 import { CoverImage, Reactions, Reviews, type FeedbackSummary, type FeedbackReview } from "@/components/discovery";
 import { useVisibleRefresh } from "@/lib/use-visible-refresh";
 
-type DmPage = FeedbackSummary & { canReview: boolean; campaignReviews?: (FeedbackReview & { tableTitle?: string; reviewerName?: string; reviewerUserId?: string })[];
-  profile: { userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData: string | null; bannerData: string | null };
+type DmPage = FeedbackSummary & { canReview: boolean; campaignReviews?: (FeedbackReview & { tableTitle?: string; reviewerName?: string; reviewerPublicId?: string })[];
+  profile: { publicId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData: string | null; bannerData: string | null };
   reviews: FeedbackReview[];
   tables: { id: string; title: string; status: string; system: string; levelRange: string; description: string; genres: string[]; imageData: string | null }[];
 };
