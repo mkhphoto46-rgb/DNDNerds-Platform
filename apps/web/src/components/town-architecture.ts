@@ -1,6 +1,7 @@
 import * as THREE from "three";
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
-type Kind = "cottage" | "tavern" | "guild" | "shop" | "cartography";
+type Kind = "cottage" | "tavern" | "guild" | "shop" | "cartography" | "blacksmith";
 
 const material = (color: number, roughness = 1) => new THREE.MeshStandardMaterial({ color, roughness });
 const wood = material(0x684b3b);
@@ -11,6 +12,25 @@ const brass = new THREE.MeshStandardMaterial({ color: 0xe9be72, metalness: .55, 
 const windowGlow = new THREE.MeshStandardMaterial({ color: 0xe6bd85, emissive: 0xe49b51, emissiveIntensity: 1.8, roughness: .42 });
 const wallColors = [0xdacbb2, 0xd6c7b1, 0xd5bea5, 0xcbd0c1, 0xdac9b7, 0xd0c9b8];
 const roofColors = ["#805447", "#445967", "#9a604a", "#50646a", "#70535a", "#776653"];
+
+const surfaceCache = new Map<string, { diffuse: THREE.Texture; normal: THREE.Texture; rough: THREE.Texture }>();
+export function makeTownSurface(id: "medieval_red_brick" | "castle_brick_01" | "clay_roof_tiles" | "old_sandstone_02" | "oak_wood_planks", tint = 0xffffff) {
+  let maps = surfaceCache.get(id);
+  if (!maps) {
+    const loader = new THREE.TextureLoader();
+    const load = (suffix: string) => {
+      const map = loader.load(`/town-textures/${id}/${id}_${suffix}_1k.jpg`);
+      map.wrapS = map.wrapT = THREE.RepeatWrapping;
+      map.repeat.set(1, 1);
+      map.anisotropy = 8;
+      return map;
+    };
+    maps = { diffuse: load("diff"), normal: load("nor_gl"), rough: load("rough") };
+    maps.diffuse.colorSpace = THREE.SRGBColorSpace;
+    surfaceCache.set(id, maps);
+  }
+  return new THREE.MeshStandardMaterial({ map: maps.diffuse, normalMap: maps.normal, normalScale: new THREE.Vector2(.42,.42), roughnessMap: maps.rough, color: tint, roughness: 1 });
+}
 
 export function createBrickTexture(base = 0x8f6751) {
   const canvas = document.createElement("canvas"); canvas.width = canvas.height = 1024;
@@ -36,11 +56,59 @@ export function createBrickTexture(base = 0x8f6751) {
 
 let wallMaterials: THREE.MeshStandardMaterial[] | null = null;
 function getWallMaterials() {
-  wallMaterials ??= wallColors.map(color => {
-    const map = createBrickTexture([0x986c52,0x8d6855,0xa47759,0x89705e,0x99765e,0x8e6c59][wallColors.indexOf(color)]);
-    return new THREE.MeshStandardMaterial({ map, bumpMap: map, bumpScale: .065, roughness: 1 });
-  });
+  wallMaterials ??= wallColors.map((_, index) => makeTownSurface(index % 3 === 1 ? "castle_brick_01" : "medieval_red_brick", [0xffffff,0xded8ca,0xe9dbc8,0xdbdbd2,0xf1e4d8,0xd6d0c6][index]));
   return wallMaterials;
+}
+
+const facadeTextures = new Map<string, THREE.Texture>();
+let sideTexture: THREE.Texture | null = null;
+let towerTexture: THREE.Texture | null = null;
+const towerLoader = new GLTFLoader();
+function getFacadeMaterial(index: number, kind: Kind) {
+  const variant = kind === "cottage" ? (index % 3 === 0 ? "townhouse" : index % 3 === 1 ? "tavern" : "cartography") : kind;
+  let facadeTexture = facadeTextures.get(variant);
+  if (!facadeTexture) {
+    facadeTexture = new THREE.TextureLoader().load(`/town-images/${variant}-facade.png`);
+    facadeTexture.colorSpace = THREE.SRGBColorSpace;
+    facadeTexture.anisotropy = 8;
+    facadeTextures.set(variant, facadeTexture);
+  }
+  const tint = [0xffffff, 0xf1e8df, 0xe9e6df, 0xf4eee6][index % 4];
+  return new THREE.MeshStandardMaterial({
+    map: facadeTexture,
+    color: tint,
+    roughness: .95,
+    emissive: 0x8b5f35,
+    emissiveMap: facadeTexture,
+    emissiveIntensity: .32,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+  });
+}
+
+function getSideMaterial(index: number) {
+  if (!sideTexture) {
+    sideTexture = new THREE.TextureLoader().load("/town-images/townhouse-side.png");
+    sideTexture.colorSpace = THREE.SRGBColorSpace;
+    sideTexture.anisotropy = 8;
+  }
+  return new THREE.MeshStandardMaterial({
+    map: sideTexture,
+    color: [0xffffff, 0xf1e8df, 0xe9e6df, 0xf4eee6][index % 4],
+    roughness: .95,
+    emissive: 0x795633,
+    emissiveMap: sideTexture,
+    emissiveIntensity: .19,
+  });
+}
+
+function getTowerStoneMaterial() {
+  if (!towerTexture) {
+    towerTexture = new THREE.TextureLoader().load("/town-images/cartography-tower-stone.png");
+    towerTexture.colorSpace = THREE.SRGBColorSpace;
+    towerTexture.anisotropy = 8;
+  }
+  return new THREE.MeshStandardMaterial({ map: towerTexture, roughness: .95, side: THREE.DoubleSide });
 }
 
 function block(group: THREE.Group, w: number, h: number, d: number, mat: THREE.Material, x: number, y: number, z: number, shadows = true) {
@@ -96,41 +164,45 @@ function roofTexture(base: string) {
 }
 
 let roofMaterials: THREE.MeshStandardMaterial[] | null = null;
+let roofUnderside: THREE.MeshStandardMaterial | null = null;
+function getRoofUnderside() {
+  roofUnderside ??= makeTownSurface("oak_wood_planks", 0x9a785b);
+  return roofUnderside;
+}
 function getRoofMaterials() {
-  roofMaterials ??= roofColors.map(color => new THREE.MeshStandardMaterial({ map: roofTexture(color), color: 0xffffff, side: THREE.DoubleSide, roughness: .9 }));
+  roofMaterials ??= roofColors.map(color => { const roof=makeTownSurface("clay_roof_tiles", new THREE.Color(color).lerp(new THREE.Color(0xffffff), .66).getHex()); roof.side=THREE.DoubleSide; roof.emissive = new THREE.Color(0x594035); roof.emissiveMap = roof.map; roof.emissiveIntensity = .13; return roof; });
   return roofMaterials;
 }
 
 function slopedRoof(group: THREE.Group, width: number, depth: number, eave: number, rise: number, mat: THREE.Material, tileColor: string) {
   const w = width / 2, d = depth / 2;
-  // Closed underside overlaps the wall top and seals the roof overhang.
-  block(group, width, .14, depth, darkWood, 0, eave - .06, 0);
+  // Two thick pitched roof solids close over a gabled 3D body.
+  const underside = getRoofUnderside();
+  block(group, width, .18, depth, underside, 0, eave - .08, 0);
+  const slopeLength = Math.hypot(w, rise);
+  const angle = Math.atan2(rise, w);
   for (const side of [-1, 1]) {
-    const outerX = side * w;
-    const vertices = new Float32Array([
-      outerX, eave, d, 0, eave + rise, d, outerX, eave, -d,
-      0, eave + rise, d, 0, eave + rise, -d, outerX, eave, -d,
-    ]);
-    const geo = new THREE.BufferGeometry();
-    geo.setAttribute("position", new THREE.BufferAttribute(vertices, 3));
-    geo.setAttribute("uv", new THREE.Float32BufferAttribute([0, 1, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0], 2));
-    geo.computeVertexNormals();
-    const mesh = new THREE.Mesh(geo, mat);
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(slopeLength + .15, .18, depth + .13), [underside, underside, mat, underside, underside, underside]);
+    mesh.position.set(side * w / 2, eave + rise / 2, 0);
+    mesh.rotation.z = -side * angle;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
     group.add(mesh);
-    beam(group, new THREE.Vector3(outerX, eave, d + .05), new THREE.Vector3(0, eave + rise, d + .05), .13, paleWood);
-    block(group, .17, .18, depth + .18, paleWood, outerX, eave - .04, 0);
+    block(group, .14, .14, depth + .19, wood, side * w, eave - .07, 0);
   }
-  block(group, .2, .17, depth + .16, paleWood, 0, eave + rise, 0);
+  block(group, .16, .2, depth + .19, wood, 0, eave + rise + .02, 0);
   for (const z of [-d, d]) {
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute([-w, eave, z, w, eave, z, 0, eave + rise, z], 3));
     geo.computeVertexNormals();
-    const gable = new THREE.Mesh(geo, material(0xf0d9b8));
-    gable.material.side = THREE.DoubleSide;
+    geo.setAttribute("uv", new THREE.Float32BufferAttribute([.02, .56, .34, .56, .18, .97], 2));
+    const gableMaterial = getSideMaterial(0).clone();
+    gableMaterial.side = THREE.DoubleSide;
+    const gable = new THREE.Mesh(geo, gableMaterial);
+    gable.position.z += Math.sign(z) * .005;
+    gable.castShadow = true;
+    gable.receiveShadow = true;
     group.add(gable);
-    beam(group, new THREE.Vector3(-w * .55, eave + rise * .45, z + Math.sign(z) * .025), new THREE.Vector3(w * .55, eave + rise * .45, z + Math.sign(z) * .025), .09, wood);
   }
 }
 
@@ -147,42 +219,23 @@ function windowOnStreet(group: THREE.Group, x: number, y: number, z: number, fac
   }
   block(group, .38, .12, w + .52, stone, x + facing * .12, y - h / 2 - .1, z);
   block(group, .28, .17, w + .38, wood, x + facing * .15, y - h / 2 - .25, z);
-  for (let i = 0; i < 4; i++) {
-    const flower = new THREE.Mesh(new THREE.IcosahedronGeometry(.085, 1), material([0x89935b, 0x788752, 0x989472, 0x657952][i]));
-    flower.position.set(x + facing * .22, y - h / 2 - .13, z + (i - 1.5) * .22);
-    group.add(flower);
-  }
 }
 
 function doorOnStreet(group: THREE.Group, x: number, facing: number, accent: THREE.Material, grand = false) {
   const height = grand ? 2.5 : 2.15;
   block(group, .23, height + .2, 1.25, stone, x, height / 2 + .32, 0);
   block(group, .26, height, 1.02, darkWood, x + facing * .06, height / 2 + .3, 0);
-  block(group, .28, height - .12, .86, accent, x + facing * .08, height / 2 + .3, 0);
-  for (const z of [-.34, .34]) block(group, .3, height - .24, .05, paleWood, x + facing * .11, height / 2 + .3, z, false);
-  for (const y of [.85, 1.5]) block(group, .3, .055, .8, paleWood, x + facing * .12, y, 0, false);
+  const hinge = new THREE.Group();
+  hinge.position.set(x + facing * .08, height / 2 + .3, -.43);
+  group.add(hinge);
+  const leaf = block(hinge, .28, height - .12, .86, accent, 0, 0, .43);
+  for (const z of [.09, .77]) block(hinge, .3, height - .24, .05, paleWood, facing * .03, 0, z, false);
+  for (const y of [-height * .22, height * .08]) block(hinge, .3, .055, .8, paleWood, facing * .04, y, .43, false);
   const handle = new THREE.Mesh(new THREE.SphereGeometry(.07, 8, 6), brass);
-  handle.position.set(x + facing * .28, 1.22, .22);
-  group.add(handle);
+  handle.position.set(facing * .2, -.12, .66);
+  hinge.add(handle);
   for (let i = 0; i < 3; i++) block(group, .7 + i * .22, .11, 1.4 + i * .16, stone, x + facing * (i * .22 + .33), .055 + i * .1, 0);
-}
-
-function hangingSign(group: THREE.Group, x: number, facing: number, y: number, kind: Kind) {
-  block(group, .1, .11, 1.65, darkWood, x + facing * .26, y + .63, .9);
-  for (const z of [.45, 1.36]) block(group, .07, .42, .07, brass, x + facing * .26, y + .36, z, false);
-  const plaque = block(group, .15, .95, 1.26, wood, x + facing * .28, y - .15, .9);
-  plaque.rotation.x = -.03;
-  block(group, .17, .76, 1.07, kind === "cartography" ? brass : material(0xdfbd80), x + facing * .29, y - .15, .9, false);
-  const symbol = kind === "tavern" ? "✦" : kind === "cartography" ? "✧" : kind === "guild" ? "✺" : "◆";
-  const canvas = document.createElement("canvas");
-  canvas.width = 128; canvas.height = 128;
-  const ctx = canvas.getContext("2d")!;
-  ctx.clearRect(0, 0, 128, 128);
-  ctx.fillStyle = "#4c392d"; ctx.font = "82px Georgia"; ctx.textAlign = "center"; ctx.textBaseline = "middle"; ctx.fillText(symbol, 64, 64);
-  const icon = new THREE.Mesh(new THREE.PlaneGeometry(.68, .68), new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas), transparent: true, side: THREE.DoubleSide }));
-  icon.rotation.y = Math.PI / 2;
-  icon.position.set(x + facing * .39, y - .15, .9);
-  group.add(icon);
+  return {leaf, hinge};
 }
 
 function lanternOnStreet(group: THREE.Group, x: number, y: number, z: number, facing: number) {
@@ -198,62 +251,31 @@ function lanternOnStreet(group: THREE.Group, x: number, y: number, z: number, fa
   block(group, .36, .08, .36, darkWood, x + facing * .52, y - .36, z);
 }
 
-function streetDressing(group: THREE.Group, x: number, depth: number, facing: number, index: number) {
-  const barrelWood = material(0x99633d);
-  const hoops = material(0x544b43);
-  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(.35, .33, .8, 12), barrelWood);
-  barrel.position.set(x + facing * .47, .4, depth * .38);
-  barrel.castShadow = true; barrel.receiveShadow = true; group.add(barrel);
-  for (const y of [.16, .64]) {
-    const hoop = new THREE.Mesh(new THREE.TorusGeometry(.35, .035, 5, 16), hoops);
-    hoop.rotation.x = Math.PI / 2;
-    hoop.position.set(barrel.position.x, y, barrel.position.z);
-    group.add(hoop);
-  }
-  const crateX = x + facing * .54;
-  const crateZ = -depth * .38;
-  block(group, .7, .58, .72, material(0xae7546), crateX, .29, crateZ);
-  for (const side of [-1, 1]) {
-    block(group, .09, .63, .78, wood, crateX + side * .32, .32, crateZ);
-    block(group, .77, .63, .09, wood, crateX, .32, crateZ + side * .33);
-  }
-  if (index % 2 === 0) {
-    const planter = block(group, .7, .32, .55, material(0x955a36), crateX, .73, crateZ);
-    planter.castShadow = true;
-    for (let i = 0; i < 5; i++) {
-      const leaf = new THREE.Mesh(new THREE.SphereGeometry(.16, 7, 6), material(i % 2 ? 0x568451 : 0x739554));
-      leaf.position.set(crateX + (i % 3 - 1) * .2, .96 + (i % 2) * .08, crateZ + (i > 2 ? .13 : -.12));
-      group.add(leaf);
-    }
-  }
-}
-
 function cartographyTower(group: THREE.Group, width: number, depth: number, facing: number, accent: THREE.Material) {
-  const tower = new THREE.Group();
-  tower.position.set(facing * (width * .38), 0, depth * .28);
-  const body = new THREE.Mesh(new THREE.CylinderGeometry(1.17, 1.35, 6.5, 10), stone);
-  body.position.y = 3.25; body.castShadow = true; body.receiveShadow = true; tower.add(body);
-  const upper = new THREE.Mesh(new THREE.CylinderGeometry(1.33, 1.31, 1.45, 10), material(0xd8cdb2));
-  upper.position.y = 6.6; upper.castShadow = true; tower.add(upper);
-  const roof = new THREE.Mesh(new THREE.ConeGeometry(1.8, 2.6, 10), accent);
-  roof.position.y = 8.55; roof.castShadow = true; tower.add(roof);
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(.18, 10, 8), brass);
-  tip.position.y = 10.01; tower.add(tip);
-  const ring = new THREE.Mesh(new THREE.TorusGeometry(.55, .08, 7, 28), brass);
-  ring.rotation.y = Math.PI / 2; ring.position.set(facing * 1.35, 6.55, .1); tower.add(ring);
-  for (const dir of [-1, 1]) {
-    const arrow = new THREE.Mesh(new THREE.ConeGeometry(.16, .38, 4), brass);
-    arrow.rotation.z = dir * Math.PI / 2;
-    arrow.position.set(facing * 1.42, 6.55 + dir * .42, .1);
-    tower.add(arrow);
-  }
-  group.add(tower);
+  const mount = new THREE.Group();
+  mount.position.set(facing * (width * .3), 0, depth * .32);
+  group.add(mount);
+  towerLoader.load("/town-models/cartography-tower.glb", ({ scene }) => {
+    const towerStone = getTowerStoneMaterial();
+    const trimStone = makeTownSurface("old_sandstone_02", 0xc6b9a5);
+    scene.traverse(object => {
+      if (!(object instanceof THREE.Mesh)) return;
+      const name = (object.material as THREE.Material).name;
+      if (name === "tower_stone") object.material = towerStone;
+      else if (name === "tower_roof") object.material = accent;
+      else if (name === "tower_trim") object.material = trimStone;
+      else if (name === "tower_metal") object.material = brass;
+      object.castShadow = true;
+      object.receiveShadow = true;
+    });
+    mount.add(scene);
+  });
 }
 
 export function makeVillageBuilding(side: -1 | 1, z: number, index: number, kind: Kind = "cottage") {
   const group = new THREE.Group();
   const facing = -side;
-  const grand = kind === "tavern" || kind === "guild" || kind === "cartography";
+  const grand = kind === "tavern" || kind === "guild" || kind === "cartography" || kind === "blacksmith";
   const width = (grand ? 5.6 : 4.5) + (index % 3) * .26;
   const depth = (grand ? 5.8 : 5.1) + (index % 2) * .27;
   const lower = 2.55 + (index % 2) * .12;
@@ -261,114 +283,52 @@ export function makeVillageBuilding(side: -1 | 1, z: number, index: number, kind
   const height = lower + upper;
   const variant = kind === "cartography" ? 1 : kind === "guild" ? 3 : index % roofColors.length;
   const wall = getWallMaterials()[index % wallColors.length];
-  const accent = material([0x8d5748, 0x56847a, 0x866553, 0x6c7f70, 0x73596c, 0x9a714b][variant]);
   group.position.set(side * (width / 2 + 5.15 + (index % 2) * .18), 0, z);
 
-  block(group, width + .3, .66, depth + .3, stone, 0, .33, 0);
-  block(group, width, lower - .48, depth, wall, 0, lower / 2 + .24, 0);
-  block(group, width + .62, upper, depth + .45, wall, 0, lower + upper / 2, 0);
-  block(group, width + .82, .21, depth + .65, wood, 0, lower - .03, 0);
-  block(group, width + .84, .18, depth + .67, paleWood, 0, height - .07, 0);
+  // UV materials are applied directly to the six faces of the closed 3D body.
+  // This keeps the front, rear and side elevations connected at every corner.
+  const foundation = makeTownSurface("old_sandstone_02", 0xb5a898);
+  block(group, width + .12, .22, depth + .12, foundation, 0, .11, 0);
+  const sideWall = getSideMaterial(index);
+  const facadeWall = getFacadeMaterial(index, kind);
+  const elevations: THREE.Material[] = facing === 1
+    ? [facadeWall, sideWall, wall, foundation, sideWall, sideWall]
+    : [sideWall, facadeWall, wall, foundation, sideWall, sideWall];
+  const body = new THREE.Mesh(new THREE.BoxGeometry(width, height - .22, depth), elevations);
+  body.position.y = .22 + (height - .22) / 2;
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+  const streetFaceX = facing * (width / 2 + .012);
 
-  const streetX = facing * (width / 2 + .35);
-  const lowerX = facing * (width / 2 + .015);
-  for (const x of [-width / 2 - .36, width / 2 + .36]) {
-    for (const zz of [-depth / 2 - .2, depth / 2 + .2]) block(group, .17, upper, .17, wood, x, lower + upper / 2, zz);
-  }
-  for (const zz of [-depth * .33, depth * .33]) {
-    block(group, .16, upper, .15, wood, streetX + facing * .035, lower + upper / 2, zz);
-    beam(group, new THREE.Vector3(streetX + facing * .06, lower + .12, zz), new THREE.Vector3(streetX + facing * .06, lower + upper * .72, zz + .58), .11, paleWood);
-  }
-  for (const zz of [-depth * .48, depth * .48]) {
-    block(group, .13, lower - .42, .14, wood, lowerX + facing * .08, lower / 2 + .22, zz);
-    lanternOnStreet(group, streetX + facing * .02, lower + .08, zz, facing);
-  }
-  for (const zz of [-depth * .23, depth * .23]) {
-    beam(group, new THREE.Vector3(streetX + facing * .07, lower + .14, zz - .65), new THREE.Vector3(streetX + facing * .07, height - .2, zz + .65), .11, wood);
-    beam(group, new THREE.Vector3(streetX + facing * .09, lower + .14, zz + .65), new THREE.Vector3(streetX + facing * .09, height - .2, zz - .65), .09, paleWood);
-  }
-  for (const zz of [-depth * .42, 0, depth * .42]) {
-    beam(group, new THREE.Vector3(lowerX, lower - .72, zz), new THREE.Vector3(streetX + facing * .16, lower + .02, zz), .13, wood);
-  }
-  for (const x of [-width * .25, width * .25]) {
-    for (const zz of [-depth / 2 - .245, depth / 2 + .245]) {
-      block(group, .14, upper, .13, wood, x, lower + upper / 2, zz);
-      beam(group, new THREE.Vector3(x - .55, lower + .13, zz), new THREE.Vector3(x + .2, lower + upper * .8, zz), .09, paleWood);
-    }
-  }
-  for (const zz of [-depth * .34, depth * .34]) block(group, .16, lower - .4, .17, wood, lowerX, lower / 2 + .2, zz);
-
-  doorOnStreet(group, lowerX + facing * .08, facing, accent, grand);
-  for (const zz of [-depth * .33, depth * .33]) {
-    windowOnStreet(group, lowerX + facing * .09, 1.56, zz, facing, accent, true);
-    windowOnStreet(group, streetX + facing * .08, lower + upper * .51, zz, facing, accent, !grand);
-  }
-  block(group, .22, .26, depth + .36, stone, lowerX + facing * .03, .58, 0);
-  for (const zz of [-depth / 2 - .25, depth / 2 + .25]) {
-    for (const x of [-width * .27, width * .27]) {
-      block(group, .83, .96, .15, darkWood, x, lower + upper * .5, zz);
-      block(group, .65, .78, .17, windowGlow, x, lower + upper * .5, zz + Math.sign(zz) * .025, false);
-      block(group, .09, .94, .2, paleWood, x, lower + upper * .5, zz + Math.sign(zz) * .08, false);
-      block(group, .9, .12, .35, stone, x, lower + upper * .5 - .55, zz + Math.sign(zz) * .1);
-    }
-  }
-  for (const zz of [-depth * .24, depth * .24]) {
-    block(group, .14, .11, depth * .21, paleWood, streetX + facing * .09, lower + .07, zz);
-    block(group, .16, .11, depth * .21, paleWood, streetX + facing * .09, height - .18, zz);
+  const portalKey = kind === "shop" ? "market" : kind === "tavern" ? "tavern" : kind === "guild" ? "guild" : kind === "cartography" ? "cartography" : kind === "blacksmith" ? "blacksmith" : null;
+  if (portalKey) {
+    const portal = new THREE.Mesh(new THREE.PlaneGeometry(depth * .31, 2.18), new THREE.MeshBasicMaterial({ colorWrite: false, depthWrite: false, side: THREE.DoubleSide }));
+    portal.position.set(streetFaceX + facing * .027, 1.65, 0);
+    portal.rotation.y = facing * Math.PI / 2;
+    portal.userData.portalKey = portalKey;
+    portal.userData.portalFacing = facing;
+    group.add(portal);
   }
 
-  const rise = grand ? 2.55 : 2.2;
-  slopedRoof(group, width + 1.43, depth + 1.25, height - .035, rise, getRoofMaterials()[variant], roofColors[variant]);
-  if (kind !== "cartography" && index % 3 !== 0) {
-    const dormer = new THREE.Group();
-    dormer.position.set(facing * (width * .31), height + rise * .39, -depth * .18);
-    block(dormer, .88, 1.13, 1.1, wall, 0, .25, 0);
-    const windowX = facing * .49;
-    block(dormer, .1, .69, .59, darkWood, windowX, .3, 0);
-    block(dormer, .13, .53, .45, windowGlow, windowX + facing * .02, .3, 0, false);
-    block(dormer, .15, .59, .07, paleWood, windowX + facing * .09, .3, 0, false);
-    slopedRoof(dormer, 1.35, 1.45, .81, .76, getRoofMaterials()[variant], roofColors[variant]);
-    group.add(dormer);
-  }
-  const chimneyX = -facing * width * .24;
-  const chimney = block(group, .78, 2.1, .85, stone, chimneyX, height + 1.1, -depth * .23);
-  chimney.rotation.z = .035;
-  block(group, 1.03, .18, 1.1, stone, chimneyX, height + 2.2, -depth * .23);
-  block(group, .55, .04, .6, darkWood, chimneyX, height + 2.31, -depth * .23, false);
+  const rise = grand ? 2.4 : 2.12;
+  slopedRoof(group, width + 1.25, depth + 1.02, height - .02, rise, getRoofMaterials()[variant], roofColors[variant]);
+  const chimneyX = -facing * width * .23;
+  block(group, .7, 1.45, .7, stone, chimneyX, height + rise * .55, -depth * .22);
+  block(group, .88, .14, .88, stone, chimneyX, height + rise * .55 + .77, -depth * .22);
 
+  if (kind === "blacksmith") {
+    const forgeGlow = new THREE.PointLight(0xff6827, 8, 6, 2);
+    forgeGlow.position.set(streetFaceX + facing * .38, 1.42, depth * .29);
+    group.add(forgeGlow);
+    const forgeChimney = block(group, .85, 2.1, .87, makeTownSurface("castle_brick_01", 0x71615b), facing * width * .27, height + rise * .63, depth * .23);
+    forgeChimney.castShadow = true;
+    block(group, 1.05, .17, 1.05, darkWood, facing * width * .27, height + rise * .63 + 1.1, depth * .23);
+  }
 
-  if (kind === "tavern") {
-    block(group, .95, .12, depth + .3, darkWood, streetX + facing * .8, lower + .08, 0);
-    for (const zz of [-depth * .38, depth * .38]) block(group, .12, .87, .12, paleWood, streetX + facing * .85, lower + .51, zz);
-    block(group, .14, .11, depth + .3, paleWood, streetX + facing * .85, lower + 1, 0);
-    for (const zz of [-1, 1]) {
-      const lantern = new THREE.Mesh(new THREE.SphereGeometry(.14, 8, 6), windowGlow);
-      lantern.position.set(streetX + facing * .78, lower + .83, zz);
-      group.add(lantern);
-    }
-  }
-  if (kind === "shop") {
-    const awning = block(group, 1.25, .1, 2.5, accent, streetX + facing * .75, 2.35, 0);
-    awning.rotation.z = facing * .13;
-    block(group, 1.45, .16, 2.65, paleWood, streetX + facing * .75, 2.39, 0);
-  }
-  if (kind === "guild") {
-    for (const zz of [-depth * .46, depth * .46]) {
-      const banner = block(group, .13, 1.6, .62, accent, streetX + facing * .2, lower + .83, zz, false);
-      banner.rotation.x = zz > 0 ? -.08 : .08;
-      block(group, .16, .09, .8, brass, streetX + facing * .24, lower + 1.62, zz, false);
-    }
-  }
-  if (kind === "cartography") {
-    cartographyTower(group, width, depth, facing, accent);
-    const compass = new THREE.Mesh(new THREE.TorusGeometry(.46, .055, 6, 32), brass);
-    compass.rotation.y = Math.PI / 2;
-    compass.position.set(streetX + facing * .2, lower + 1.2, 0);
-    group.add(compass);
-  }
-  const windowLight = new THREE.PointLight(0xffb565, 10, 8, 2);
-  windowLight.position.set(streetX + facing * .65, 2.9, .4);
+  if (kind === "cartography") cartographyTower(group, width, depth, facing, getRoofMaterials()[variant]);
+  const windowLight = new THREE.PointLight(0xffb565, 7, 7, 2);
+  windowLight.position.set(streetFaceX + facing * .85, 2.65, .3);
   group.add(windowLight);
-  streetDressing(group, streetX, depth, facing, index);
   return group;
 }

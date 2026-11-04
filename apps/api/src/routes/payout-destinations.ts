@@ -71,7 +71,7 @@ const destinationBody =
 
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
   });
 
@@ -91,7 +91,7 @@ const reviewBody =
 
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
   });
 

@@ -38,7 +38,7 @@ const passwordBody =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
   });
 
@@ -55,7 +55,7 @@ const disableBody =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     code:

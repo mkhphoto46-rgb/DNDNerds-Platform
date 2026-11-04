@@ -138,15 +138,134 @@
     {
       "idx": 19,
       "version": "7",
-      "when": 1792749056197,
-      "tag": "0019_marketplace_global_config",
+      "when": 1792504479501,
+      "tag": "0019_fantastic_mulholland_black",
       "breakpoints": true
     },
     {
       "idx": 20,
       "version": "7",
-      "when": 1792757035175,
-      "tag": "0020_game_tables",
+      "when": 1792504837545,
+      "tag": "0020_petite_thunderbolt",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1792519244238,
+      "tag": "0021_massive_calypso",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1792579892045,
+      "tag": "0022_spooky_adam_warlock",
+      "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1792669846996,
+      "tag": "0023_blue_metal_master",
+      "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1792671000000,
+      "tag": "0024_xp_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1792757400000,
+      "tag": "0025_account_usernames",
+      "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1792780200000,
+      "tag": "0026_xp_fractional_seconds",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1793059200000,
+      "tag": "0027_game_subscription_manual",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793145600000,
+      "tag": "0028_profile_pages",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793232000000,
+      "tag": "0029_player_campaign_metadata",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1793318400000,
+      "tag": "0030_support_feedback_profile_limits",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1793491200000,
+      "tag": "0031_discovery_feedback",
+      "breakpoints": true
+    },
+    {
+      "idx": 32,
+      "version": "7",
+      "when": 1793577600000,
+      "tag": "0032_marketplace_v21",
+      "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1793664000000,
+      "tag": "0033_item_refund_allocations",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1793664000001,
+      "tag": "0034_delivery_payout_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1793664000002,
+      "tag": "0035_variant_identity_price_audit",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793664000003,
+      "tag": "0036_campaign_cover_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793664000004,
+      "tag": "0037_arena_participants",
       "breakpoints": true
     }
   ]

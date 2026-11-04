@@ -8,10 +8,10 @@ type Stop = "street" | "square" | "inn";
 
 const stops: Record<Stop, { title: string; caption: string; image: string; alt: string; sound: string }> = {
   street: {
-    title: "کوچهٔ ماجراجویان",
-    caption: "میخانه سمت چپ؛ میدان روبه‌رو.",
+    title: "کوچه ماجراجویان",
+    caption: "Tavern سمت چپ؛ میدان روبه‌رو.",
     image: "/brand/hero/town-street.png",
-    alt: "نمای رهگذر از کوچه‌ای روشن با خانه‌های چوبی در دو طرف، میخانه و میدان شهر",
+    alt: "نمای رهگذر از کوچه‌ای روشن با خانه‌های چوبی در دو طرف، Tavern و میدان شهر",
     sound: "/audio/village-market.ogg",
   },
   square: {
@@ -22,10 +22,10 @@ const stops: Record<Stop, { title: string; caption: string; image: string; alt: 
     sound: "/audio/village-market.ogg",
   },
   inn: {
-    title: "میخانهٔ خوش‌آمد",
+    title: "Tavern خوش‌آمدگویی",
     caption: "بنشین و سر صحبت را باز کن.",
     image: "/brand/hero/town-inn.png",
-    alt: "داخل میخانه‌ای گرم و دوستانه با مهمان‌ها و صاحب میخانه",
+    alt: "فضای گرم و دوستانه Tavern با مهمان‌ها و میزبان",
     sound: "/audio/inn-crowd.ogg",
   },
 };
@@ -79,12 +79,12 @@ export function SocialScene() {
         <div className="social-walk-plaque" aria-live="polite"><span>اکنون در</span><strong>{current.title}</strong></div>
 
         {stop === "street" && <>
-          <button type="button" className="social-sign social-sign-street-inn" onClick={() => setStop("inn")}><span>✦</span> میخانه <small>وارد شو</small></button>
-          <button type="button" className="social-sign social-sign-street-square" onClick={() => setStop("square")}><span>✦</span> میدان شهر <small>ادامهٔ راه</small></button>
+          <button type="button" className="social-sign social-sign-street-inn" onClick={() => setStop("inn")}><span>✦</span> Tavern <small>وارد شو</small></button>
+          <button type="button" className="social-sign social-sign-street-square" onClick={() => setStop("square")}><span>✦</span> میدان شهر <small>ادامه مسیر</small></button>
         </>}
         {stop === "square" && <>
           <button type="button" className="social-sign social-sign-square-friends" onClick={openSocialDock}><span>✦</span> تالار همراهان <small>دوستان و گفتگو</small></button>
-          <button type="button" className="social-sign social-sign-square-inn" onClick={() => setStop("inn")}><span>✦</span> میخانه <small>سری بزن</small></button>
+          <button type="button" className="social-sign social-sign-square-inn" onClick={() => setStop("inn")}><span>✦</span> Tavern <small>سری بزن</small></button>
           <button type="button" className="social-sign social-sign-square-back" onClick={() => setStop("street")}>← بازگشت به کوچه</button>
         </>}
         {stop === "inn" && <>

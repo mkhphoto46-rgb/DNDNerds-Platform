@@ -13,6 +13,7 @@ import styles from "./add-to-cart-button.module.css";
 
 type Props = {
   productId: string;
+  variantId?: string;
   productSlug: string;
   productName: string;
   storeSlug: string;
@@ -23,6 +24,7 @@ type Props = {
 
 export function AddToCartButton({
   productId,
+  variantId,
   productSlug,
   productName,
   storeSlug,
@@ -52,6 +54,7 @@ export function AddToCartButton({
 
     addCartItem({
       productId,
+  variantId,
       productSlug,
       productName,
       storeSlug,

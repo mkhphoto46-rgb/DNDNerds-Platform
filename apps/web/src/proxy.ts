@@ -64,6 +64,11 @@ export function proxy(
   request:
     NextRequest,
 ) {
+  const sellerPreparation=/^\/seller\/marketplace\/?$/.test(request.nextUrl.pathname);
+  if (process.env.FREE_LAUNCH_MODE === "true" && !sellerPreparation &&
+    /^\/(cart|checkout|orders|seller)(\/|$)/.test(request.nextUrl.pathname)) {
+    return securityHeaders(NextResponse.redirect(new URL("/store", request.url)));
+  }
   const method =
     request.method
       .toUpperCase();

@@ -2433,6 +2433,14 @@
   mix-blend-mode: screen;
 }
 
+body:has(.town-experience) .global-magic-particles-canvas {
+  opacity: .44;
+  filter: blur(2.4px);
+  transform: scale(1.025);
+  -webkit-mask-image: radial-gradient(ellipse 51% 48% at 50% 50%, transparent 0%, transparent 64%, #000 100%);
+  mask-image: radial-gradient(ellipse 51% 48% at 50% 50%, transparent 0%, transparent 64%, #000 100%);
+}
+
 /*
  * Header and interactive scene controls stay visually above
  * the particle field.

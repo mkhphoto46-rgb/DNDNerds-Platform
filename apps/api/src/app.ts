@@ -1,12 +1,16 @@
+import { registerMarketplaceV21 } from "./routes/marketplace-v21.js";
+import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
+import { vttConfigWarnings } from "./integrations/vtt-origin.js";
 import { assertProductionReady } from "./config/production-guards.js";
 import { registerPayoutProviderRoutes } from "./routes/payout-provider.js";
 import { registerSessionManagementRoutes } from "./routes/session-management.js";
 import { registerAccountRoutes } from "./routes/account.js";
 import { registerSocialRoutes } from "./routes/social.js";
 import { registerSocialGroupRoutes } from "./routes/social-groups.js";
-import { registerGameTableRoutes } from "./routes/game-tables.js";
-import { registerTableLaunchRoutes } from "./routes/table-launch.js";
+import { registerGameHubRoutes } from "./routes/game-hub.js";
+import { registerProfilePagesRoutes } from "./routes/profile-pages.js";
+import { registerXpRoutes } from "./routes/xp.js";
 import { registerPayoutDestinationRoutes } from "./routes/payout-destinations.js";
 import { registerRefundCaseRoutes } from "./routes/refund-cases.js";
 import { registerPayoutRoutes } from "./routes/payouts.js";
@@ -36,6 +40,7 @@ import Fastify from "fastify";
 
 import {
   config,
+  parseTrustProxy,
 } from "./config";
 
 import {
@@ -73,6 +78,21 @@ function getErrorStatusCode(
   );
 }
 
+// A route may attach a stable, upper-case code (e.g. SLUG_TAKEN) for the website to map to Persian text.
+function getErrorApiCode(
+  error:
+    unknown,
+): string | undefined {
+  const value =
+    typeof error === "object" && error !== null
+      ? (error as { apiCode?: unknown }).apiCode
+      : undefined;
+
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)
+    ? value
+    : undefined;
+}
+
 function getErrorMessage(
   error:
     unknown,
@@ -105,6 +125,12 @@ export async function buildApp() {
         () =>
           randomUUID(),
 
+      // C3: rate limits and session records need the visitor's address, not the proxy's.
+      trustProxy:
+        parseTrustProxy(
+          config.API_TRUST_PROXY,
+        ),
+
       bodyLimit:
         1024 * 1024,
     });
@@ -132,7 +158,7 @@ export async function buildApp() {
     rateLimit,
     {
       max:
-        180,
+        config.API_RATE_LIMIT_MAX,
 
       timeWindow:
         "1 minute",
@@ -279,7 +305,7 @@ export async function buildApp() {
             code:
               statusCode === 500
                 ? "INTERNAL_ERROR"
-                : "REQUEST_ERROR",
+                : getErrorApiCode(error) ?? "REQUEST_ERROR",
 
             message:
               statusCode === 500
@@ -315,6 +341,9 @@ export async function buildApp() {
 
   registerObservability(app);
 
+  // B72: name the missing bridge variable at startup instead of failing quietly later.
+  for (const warning of vttConfigWarnings()) app.log.warn(warning);
+
 
   await app.register(registerAuthRoutes);
 
@@ -326,48 +355,30 @@ export async function buildApp() {
   await app.register(registerAccountRoutes);
   await app.register(registerSocialRoutes);
   await app.register(registerSocialGroupRoutes);
-  await app.register(registerGameTableRoutes);
-  await app.register(registerTableLaunchRoutes);
+  await app.register(registerGameHubRoutes);
+  await app.register(registerTableDeletionRoutes);
+  await app.register(registerProfilePagesRoutes);
+  await app.register(registerXpRoutes);
 
 
 
   await app.register(registerSessionManagementRoutes);
 
 
-  await app.register(registerOrderRoutes);
-
-
-
-  await app.register(registerPaymentRoutes);
-
-
-
-
-  await app.register(registerSellerRoutes);
-  await app.register(registerSellerNotificationRoutes);
-  await app.register(registerSellerNotificationConnectionRoutes);
-
-
-
-
   await app.register(registerAdminRoutes);
+  await app.register(registerMarketplaceV21);
 
-
-
-
-
-  await app.register(registerRefundCaseRoutes);
-
-  await app.register(registerPayoutDestinationRoutes);
-
-  await app.register(registerPayoutRoutes);
-
-
-
-
-
-
-  await app.register(registerPayoutProviderRoutes);
+  if (process.env.FREE_LAUNCH_MODE !== "true" && config.NODE_ENV !== "production") {
+    await app.register(registerOrderRoutes);
+    await app.register(registerPaymentRoutes);
+    await app.register(registerSellerRoutes);
+    await app.register(registerSellerNotificationRoutes);
+    await app.register(registerSellerNotificationConnectionRoutes);
+    await app.register(registerRefundCaseRoutes);
+    await app.register(registerPayoutDestinationRoutes);
+    await app.register(registerPayoutRoutes);
+    await app.register(registerPayoutProviderRoutes);
+  }
 
 
   return app;

@@ -78,7 +78,7 @@ const reviewBody =
 
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     reason:
@@ -92,7 +92,7 @@ const paidBody =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     payoutReference:

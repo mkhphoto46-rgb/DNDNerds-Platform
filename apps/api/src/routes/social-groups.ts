@@ -5,11 +5,11 @@ import { requireAuthUser } from "../auth/session.js";
 import { messagePage } from "./social-message-page.js";
 import { db } from "../db/client.js";
 import { socialBlocks, socialFriendships, socialGroups, socialGroupInvites,
-  socialGroupMembers, socialGroupMessages, socialProfiles } from "../db/schema.js";
+  socialGroupMembers, socialGroupMessages, socialProfiles, users } from "../db/schema.js";
 
 const uuid = z.string().uuid();
 const groupName = z.object({ title: z.string().trim().min(2).max(80) });
-const inviteBody = z.object({ friendCode: z.string().trim().toUpperCase().regex(/^DND-[A-F0-9]{24}$/) });
+const inviteBody = z.object({ friendCode: z.string().trim().min(3).max(32) });
 const textBody = z.object({ body: z.string().trim().min(1).max(2000) });
 const badChars = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
 const maxGroupMembers = 20;
@@ -84,8 +84,10 @@ export async function registerSocialGroupRoutes(app: FastifyInstance) {
     if (!(await owner(id,user.id))) return fail(reply,403,"NOT_OWNER","Group owner only.");
     const parsed=inviteBody.safeParse(request.body);
     if (!parsed.success) return fail(reply,400,"INVALID_CODE","Invalid Friend ID.");
-    const [target]=await db.select({userId:socialProfiles.userId}).from(socialProfiles)
-      .where(eq(socialProfiles.friendCode,parsed.data.friendCode)).limit(1);
+    const input=parsed.data.friendCode;
+    const [target]=/^DND-[A-F0-9]{24}$/i.test(input)
+      ? await db.select({userId:socialProfiles.userId}).from(socialProfiles).where(eq(socialProfiles.friendCode,input.toUpperCase())).limit(1)
+      : await db.select({userId:users.id}).from(users).where(sql`lower(${users.username}) = ${input.toLowerCase()}`).limit(1);
     if (!target || target.userId===user.id) return fail(reply,400,"INVALID_TARGET","Invalid friend.");
     if (!(await friends(user.id,target.userId)) || await blocked(user.id,target.userId))
       return fail(reply,403,"NOT_FRIENDS","Only accepted, unblocked friends can be invited.");
@@ -156,9 +158,9 @@ export async function registerSocialGroupRoutes(app: FastifyInstance) {
     const id=request.params.groupId;
     if(!uuid.safeParse(id).success)return fail(reply,400,"INVALID_ID","Invalid group ID.");
     if(!(await member(id,user.id)))return fail(reply,403,"NOT_MEMBER","Group membership required.");
-    const rows=await db.select({userId:socialGroupMembers.userId,friendCode:socialProfiles.friendCode,
+    const rows=await db.select({userId:socialGroupMembers.userId,friendCode:users.username,
       joinedAt:socialGroupMembers.joinedAt}).from(socialGroupMembers)
-      .leftJoin(socialProfiles,eq(socialGroupMembers.userId,socialProfiles.userId))
+      .leftJoin(users,eq(socialGroupMembers.userId,users.id))
       .where(eq(socialGroupMembers.groupId,id)).limit(maxGroupMembers);
     return {data:rows};
   });
@@ -176,8 +178,8 @@ export async function registerSocialGroupRoutes(app: FastifyInstance) {
       if(!c)return fail(reply,400,"BAD_CURSOR","Unknown message cursor.");cursor=c;
     }
     const rows=await db.select({id:socialGroupMessages.id,body:socialGroupMessages.body,
-      senderUserId:socialGroupMessages.senderUserId,createdAt:socialGroupMessages.createdAt})
-      .from(socialGroupMessages).where(and(eq(socialGroupMessages.groupId,id),cursor?
+      senderUserId:socialGroupMessages.senderUserId,senderUsername:users.username,createdAt:socialGroupMessages.createdAt})
+      .from(socialGroupMessages).innerJoin(users,eq(socialGroupMessages.senderUserId,users.id)).where(and(eq(socialGroupMessages.groupId,id),cursor?
         or(lt(socialGroupMessages.createdAt,cursor.createdAt),and(eq(socialGroupMessages.createdAt,cursor.createdAt),lt(socialGroupMessages.id,cursor.id))):undefined))
       .orderBy(desc(socialGroupMessages.createdAt),desc(socialGroupMessages.id)).limit(50);
     return messagePage(rows);

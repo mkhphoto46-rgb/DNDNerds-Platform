@@ -1,3 +1,5 @@
+import { forwardedForHeaders } from "./bff-api";
+
 export type MarketplaceTone =
   | "crimson"
   | "gold"
@@ -5,6 +7,8 @@ export type MarketplaceTone =
   | "wine";
 
 export type MarketplaceStore = {
+  featured?: boolean;
+  addressVerified?: boolean;
   id: string;
   slug: string;
   name: string;
@@ -47,6 +51,11 @@ export type MarketplaceStoreDetail = {
 };
 
 export type MarketplaceProduct = {
+  imageUrl?: string | null;
+  productType: "READY_TO_SHIP" | "MADE_TO_ORDER" | "CUSTOM_DESIGN";
+  brand: string;
+  productionDays: number;
+  variants: MarketplaceVariant[];
   id: string;
   storeId: string;
   slug: string;
@@ -68,6 +77,12 @@ export type MarketplaceProductDetail =
   MarketplaceProduct & {
     source: "postgresql";
   };
+
+export type MarketplaceVariant = {id:string;sku:string;name:string;options:Record<string,string>;priceRial:number;basePriceRial:number;priceToman:number;inventory:number;perOrderLimit:number;priceEffectiveAt:string|null;discountEndsAt?:string};
+export type MarketplaceCatalog = {data:MarketplaceProduct[];pagination:{page:number;limit:number;returned:number;total:number}};
+export async function getMarketplaceCatalog(filters:Record<string,string>={}) {return requestJson<MarketplaceCatalog>(`/api/v1/products?${new URLSearchParams(filters)}`);}
+export async function getMarketplaceCategories(){return requestJson<{data:{slug:string;label:string;attributes:Record<string,string>}[]}>("/api/v1/marketplace/v21/categories");}
+export async function getStoreContent(storeId:string){return requestJson<{articles:{id:string;title:string;body:string}[];reviews:{id:string;rating:number;body:string}[]}>(`/api/v1/marketplace/v21/stores/${encodeURIComponent(storeId)}/content`);}
 
 type StoresResponse = {
   data: MarketplaceStore[];
@@ -94,8 +109,10 @@ async function requestJson<T>(
       `${API_BASE_URL}${path}`,
       {
         cache: "no-store",
+        signal: AbortSignal.timeout(8000),
         headers: {
           Accept: "application/json",
+          ...(await forwardedForHeaders()),
         },
       },
     );
@@ -119,8 +136,10 @@ async function requestNullable<T>(
       `${API_BASE_URL}${path}`,
       {
         cache: "no-store",
+        signal: AbortSignal.timeout(8000),
         headers: {
           Accept: "application/json",
+          ...(await forwardedForHeaders()),
         },
       },
     );

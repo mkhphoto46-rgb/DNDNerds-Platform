@@ -1,10 +1,14 @@
 "use client";
 
+import { fetchSession } from "@/lib/session-client";
+
 import Link from "next/link";
+import { safeAuthDestination } from "@/lib/auth-destination";
 
 import {
   FormEvent,
   useState,
+  useEffect,
 } from "react";
 
 import {
@@ -12,10 +16,14 @@ import {
 } from "next/navigation";
 
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function LoginPage() {
   const router =
     useRouter();
+
+  const [authNext, setAuthNext] = useState("/");
+  useEffect(() => { setAuthNext(safeAuthDestination(new URLSearchParams(window.location.search).get("next"))); }, []);
 
   const [showPassword, setShowPassword] = useState(false);
 
@@ -113,14 +121,13 @@ export default function LoginPage() {
         }
 
         throw new Error(
-          data?.error?.message ??
-          "ورود انجام نشد",
+          apiErrorMessage(data, "ورود انجام نشد"),
         );
       }
 
       // Confirm that the browser retained the HttpOnly session cookie.
       // This checks authentication without exposing or logging credentials.
-      const sessionCheck = await fetch("/api/auth/me", { cache: "no-store" });
+      const sessionCheck = await fetchSession({ fresh: true });
       if (!sessionCheck.ok) {
         throw new Error(
           "ورود تأیید شد، اما نشست در مرورگر ذخیره یا ارسال نشد. از localhost:3100 استفاده کن و تنظیمات Cookie را بررسی کن.",
@@ -128,8 +135,7 @@ export default function LoginPage() {
       }
 
       const requested = new URLSearchParams(window.location.search).get("next");
-      const destination = requested === "/seller/dashboard" || requested === "/seller/payouts"
-        ? requested : "/";
+      const destination = safeAuthDestination(requested);
       window.dispatchEvent(new Event("dnd-auth-change"));
       if (typeof BroadcastChannel !== "undefined") {
         const channel = new BroadcastChannel("dnd-nerds-auth-state");
@@ -192,7 +198,7 @@ export default function LoginPage() {
               id="login-password"
               type={showPassword ? "text" : "password"}
               autoComplete="current-password"
-              minLength={12}
+              minLength={8}
               value={password}
               onChange={
                 (event) =>
@@ -252,10 +258,12 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className={styles.switch}><Link href="/forgot-password">رمز عبورت را فراموش کرده‌ای؟</Link></div>
+
         <div className={styles.switch}>
           حساب نداری؟
           {" "}
-          <Link href="/register">
+          <Link href={`/register?next=${encodeURIComponent(authNext)}`}>
             ساخت حساب
           </Link>
         </div>

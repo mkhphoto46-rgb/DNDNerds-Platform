@@ -1,0 +1,15 @@
+'use client';
+import Link from 'next/link';
+import {DeliveryOperations} from '@/components/marketplace/DeliveryOperations';
+import {useEffect,useState} from 'react';
+import styles from '@/app/store/marketplace.module.css';
+import { apiErrorMessage } from "@/lib/api-error";
+type Item={id:string;name?:string;title?:string;body?:string;rating?:number;storeName?:string;identityEvidence?:boolean};
+type Queue={products:Item[];articles:Item[];reviews:Item[]};
+export default function MarketplaceModeration(){
+ const [queue,setQueue]=useState<Queue|null>(null),[message,setMessage]=useState(''),[password,setPassword]=useState(''),[reason,setReason]=useState(''),[busy,setBusy]=useState(false);
+ async function load(){const r=await fetch('/api/marketplace/v21/admin/queue');if(!r.ok)throw new Error('ورود مدیر بازارچه لازم است.');setQueue(await r.json());}
+ useEffect(()=>{load().catch(e=>setMessage(e.message));},[]);
+ async function moderate(kind:string,id:string,status:string){setBusy(true);try{const r=await fetch('/api/marketplace/v21/admin/moderate',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({kind,id,status,password,reason})});const b=await r.json();if(!r.ok)throw new Error(apiErrorMessage(b,'عملیات انجام نشد.'));setMessage('تصمیم همراه دلیل ثبت شد.');setPassword('');await load();}catch(e){setMessage(e instanceof Error?e.message:'خطا');}finally{setBusy(false);}}
+ return <main className={styles.page} dir="rtl"><div className={styles.shell}><Link href="/admin">← مدیریت</Link><h1>بررسی بازارچه</h1><p>انتشار کالا به احراز مستند هویت فروشگاه نیاز دارد. متن مقاله و نظر به صورت متن ساده نمایش داده می‌شود.</p><div className={styles.marketFilters}><label>رمز مدیر<input type="password" autoComplete="current-password" value={password} onChange={e=>setPassword(e.target.value)}/></label><label>دلیل تصمیم<input maxLength={500} value={reason} onChange={e=>setReason(e.target.value)}/></label></div><p role="status">{message}</p>{queue&&(['products','articles','reviews'] as const).map((key,i)=><section className={styles.section} key={key}><h2>{['محصولات پیش‌نویس','مقاله‌ها','نظرهای خرید'][i]}</h2>{queue[key].map(item=><article className={styles.variantPanel} key={item.id}><h3>{item.name??item.title??`${item.rating} ستاره`}</h3>{item.storeName&&<p>{item.storeName} · {item.identityEvidence?'مدرک هویت ثبت‌شده':'فاقد مدرک هویت'}</p>}<p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{item.body}</p><div className={styles.variantActions}><button disabled={busy||!password||reason.length<3||(key==='products'&&!item.identityEvidence)} onClick={()=>void moderate(['product','article','review'][i]!,item.id,'PUBLISHED')}>انتشار</button><button disabled={busy||!password||reason.length<3} onClick={()=>void moderate(['product','article','review'][i]!,item.id,'REJECTED')}>رد / بازگرداندن</button></div></article>)}</section>)}<DeliveryOperations/></div></main>;
+}

@@ -1940,3 +1940,20 @@
       330px;
   }
 }
+.marketIntro {display:flex;justify-content:space-between;align-items:center;gap:24px;margin-bottom:40px}
+.marketIntro h1 {font-size:clamp(30px,5vw,54px);margin:12px 0}
+.marketIntro p {max-width:760px;line-height:1.9}
+.categoryBoxes {display:flex;flex-wrap:wrap;gap:12px}
+.categoryBoxes a {padding:18px 22px;min-height:48px;border:1px solid #a87f4555;border-radius:16px;background:#211b1dcc;color:#faecc5;text-decoration:none}
+.categoryBoxes a[aria-current="page"] {border-color:#edbf72;background:#604323}
+.marketFilters {display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:14px;padding:22px;border:1px solid #a87f4555;border-radius:18px;background:#16151de8}
+.marketFilters label {display:flex;flex-direction:column;gap:8px;min-width:0;font-size:13px}
+.marketFilters input,.marketFilters select {min-width:0;width:100%;box-sizing:border-box;padding:12px;border:1px solid #856b4a;border-radius:8px;background:#100e15;color:#faecc5;font:inherit}
+.marketFilters .checkLabel {flex-direction:row;align-items:center}
+.checkLabel input {width:18px;height:18px}
+.marketPagination {display:flex;justify-content:center;gap:22px;margin:30px 0}
+.emptyMarket {padding:40px 20px;border:1px dashed #a87f4588;border-radius:16px;line-height:2}
+.variantPanel {display:grid;gap:16px;padding:20px;border:1px solid #a87f4588;border-radius:16px}
+.variantPanel select,.variantPanel input,.variantPanel textarea {width:100%;min-height:44px;background:#17121b;color:#faecc5;border:1px solid #a87f4588;border-radius:8px;padding:10px;box-sizing:border-box;font:inherit}
+.variantActions {display:flex;gap:12px;flex-wrap:wrap}
+@media(max-width:640px){.marketIntro{display:block}.marketIntro a{margin-top:18px}.marketFilters{grid-template-columns:1fr 1fr;padding:14px}.categoryBoxes a{padding:14px}.variantPanel{padding:14px}}

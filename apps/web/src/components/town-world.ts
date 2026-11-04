@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
-import { makeVillageBuilding, createBrickTexture } from "./town-architecture";
+import { makeVillageBuilding, makeTownSurface } from "./town-architecture";
+import { addTownProps } from "./town-props";
 
 export const TOWN_STOPS = [
   { x: 0, z: 29, lookX: 0, lookZ: 13 },
@@ -21,6 +22,33 @@ function box(width: number, height: number, depth: number, material: THREE.Mater
   mesh.castShadow = true;
   mesh.receiveShadow = true;
   return mesh;
+}
+
+function addDoubleGate(group: THREE.Group, width: number, height: number, z: number) {
+  const oak = makeTownSurface("oak_wood_planks", 0xe1bd94);
+  const iron = new THREE.MeshStandardMaterial({ color: 0x292b2a, metalness: .68, roughness: .54 });
+  const seam = mat(0x271c19);
+  const leafWidth = width / 2 - .04;
+  for (const side of [-1, 1]) {
+    const x = side * (leafWidth / 2 + .02);
+    group.add(box(leafWidth, height, .28, oak, x, height / 2, z));
+    for (let i = 1; i < 6; i++) group.add(box(.016, height - .14, .02, seam, x - leafWidth / 2 + i * leafWidth / 6, height / 2, z + .16));
+    for (const y of [.76, height * .56, height - .52]) {
+      group.add(box(leafWidth - .08, .13, .055, iron, x, y, z + .19));
+      group.add(box(leafWidth - .08, .13, .055, iron, x, y, z - .19));
+      for (let i = 0; i < 5; i++) {
+        const studX = x - leafWidth * .39 + i * leafWidth * .195;
+        const stud = new THREE.Mesh(new THREE.SphereGeometry(.038, 8, 6), iron);
+        stud.position.set(studX, y, z + .23); group.add(stud);
+      }
+    }
+    const brace = box(.14, Math.hypot(leafWidth - .3, height - 1.25), .07, iron, x, height * .5, z + .215);
+    brace.rotation.z = side * .55;
+    group.add(brace);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(.16, .034, 8, 20), iron);
+    ring.position.set(side * .36, height * .47, z + .23); group.add(ring);
+  }
+  group.add(box(.16, height + .18, .4, iron, 0, height / 2, z + .05));
 }
 
 function cobbleTexture() {
@@ -123,70 +151,6 @@ function bird() {
   return group;
 }
 
-function villageTree(x: number, z: number, size: number, seed: number) {
-  const tree = new THREE.Group();
-  tree.position.set(x, 0, z);
-  const bark = mat(0x625643);
-  const leaves = [mat(0x4e6450), mat(0x5b7156), mat(0x687959), mat(0x576952)];
-  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(.16, .32, size * .58, 9), bark);
-  trunk.position.y = size * .29; trunk.castShadow = true; tree.add(trunk);
-  for (let i = 0; i < 8; i++) {
-    const angle = i * 2.399 + seed;
-    const reach = size * (.2 + i % 3 * .035);
-    const branch = new THREE.Mesh(new THREE.CylinderGeometry(.035, .1, reach * 1.4, 7), bark);
-    branch.position.set(Math.cos(angle) * reach * .43, size * (.43 + i % 3 * .09), Math.sin(angle) * reach * .43);
-    branch.rotation.z = Math.cos(angle) * .65;
-    branch.rotation.x = -Math.sin(angle) * .65;
-    branch.castShadow = true; tree.add(branch);
-    const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(size * (.2 + i % 3 * .025), 2), leaves[(i + seed) % leaves.length]);
-    canopy.position.set(Math.cos(angle) * reach, size * (.62 + i % 3 * .12), Math.sin(angle) * reach);
-    canopy.scale.set(1.2, .8 + i % 2 * .12, .98);
-    canopy.castShadow = true; canopy.receiveShadow = true; tree.add(canopy);
-  }
-  const crown = new THREE.Mesh(new THREE.IcosahedronGeometry(size * .24, 2), leaves[seed % leaves.length]);
-  crown.position.y = size * .91; crown.castShadow = true; tree.add(crown);
-  return tree;
-}
-
-function person(color: number, x: number, z: number) {
-  const group = new THREE.Group(); group.position.set(x, 0, z);
-  const cloth = mat(color), trousers = mat(0x49443e), leather = mat(0x49382c);
-  const skin = mat(0xb99276), hair = mat(0x48382d);
-  const add = (geometry: THREE.BufferGeometry, material: THREE.Material, px: number, py: number, pz: number) => {
-    const mesh = new THREE.Mesh(geometry, material); mesh.position.set(px, py, pz);
-    mesh.castShadow = true; mesh.receiveShadow = true; group.add(mesh); return mesh;
-  };
-  const torso = add(new THREE.CapsuleGeometry(.22, .34, 5, 12), cloth, 0, 1.15, 0);
-  torso.scale.set(1, 1, .65);
-  add(new THREE.CylinderGeometry(.21, .29, .46, 14), cloth, 0, .84, 0);
-  add(new THREE.CylinderGeometry(.215, .22, .055, 14), leather, 0, 1.01, 0);
-  add(new THREE.CylinderGeometry(.065, .075, .14, 10), skin, 0, 1.49, 0);
-  const head = add(new THREE.SphereGeometry(.155, 16, 12), skin, 0, 1.66, 0);
-  head.scale.set(.91, 1.19, .96);
-  add(new THREE.SphereGeometry(.165, 14, 10, 0, Math.PI * 2, 0, Math.PI * .55), hair, 0, 1.71, .01);
-  add(new THREE.SphereGeometry(.039, 8, 6), skin, 0, 1.65, -.145).scale.set(.7, 1.3, 1);
-  for (const side of [-1, 1]) add(new THREE.SphereGeometry(.036, 8, 6), skin, side * .143, 1.66, 0);
-  const legs: THREE.Group[] = [], arms: THREE.Group[] = [];
-  for (const side of [-1, 1]) {
-    const leg = new THREE.Group(); leg.position.set(side * .115, .83, 0);
-    const trouser = new THREE.Mesh(new THREE.CapsuleGeometry(.086, .52, 4, 10), trousers);
-    trouser.position.y = -.31; trouser.castShadow = true; leg.add(trouser);
-    const boot = new THREE.Mesh(new THREE.BoxGeometry(.16, .15, .28), leather);
-    boot.position.set(0, -.73, -.035); boot.castShadow = true; leg.add(boot);
-    group.add(leg); legs.push(leg);
-    const arm = new THREE.Group(); arm.position.set(side * .245, 1.36, 0);
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(.073, .38, 4, 10), cloth);
-    sleeve.position.set(side * .025, -.22, 0); sleeve.castShadow = true; arm.add(sleeve);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(.068, 10, 8), skin);
-    hand.scale.set(.7, 1.2, .75); hand.position.set(side * .025, -.49, 0); hand.castShadow = true; arm.add(hand);
-    group.add(arm); arms.push(arm);
-  }
-  add(new THREE.BoxGeometry(.3, .38, .15), leather, 0, 1.15, .18);
-  for (const side of [-1, 1]) add(new THREE.BoxGeometry(.035, .44, .04), leather, side * .14, 1.21, -.155);
-  group.userData.origin = { x, z }; group.userData.legs = legs; group.userData.arms = arms;
-  return group;
-}
-
 function tenSidedGeometry() {
   const points: number[] = [];
   for (let i = 0; i < 5; i++) {
@@ -236,7 +200,7 @@ function torchFlame(seed: number) {
   return group;
 }
 
-export async function createTownWorld(host: HTMLElement, markers: Record<string, HTMLButtonElement | null> = {}, onWalkStage?: (stage: number) => void) {
+export async function createTownWorld(host: HTMLElement, markers: Record<string, HTMLButtonElement | null> = {}, onWalkStage?: (stage: number) => void, onEnter?: (key: string) => void, onTransitionStart?: (key: string) => void) {
   await document.fonts.ready;
   const scene = new THREE.Scene();
   const skyCanvas = document.createElement("canvas");
@@ -273,7 +237,7 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
   scene.add(skyFill);
   const cloudMap = cloudTexture();
   const cloudClusters: THREE.Group[] = [];
-  for (const [x, y, z, size] of [[-24, 19, -37, 1.1], [18, 19, -40, 1.25], [-7, 24, -74, 1.45], [31, 23, -70, 1.2], [-35, 25, -78, 1.3]]) {
+  for (const [x, y, z, size] of [[-24, 19, -37, 1.1], [18, 19, -40, 1.25], [-7, 24, -74, 1.45], [31, 23, -70, 1.2], [-35, 25, -78, 1.3], [-35, 22, 26, 1.4], [22, 20, 33, 1.15], [3, 25, 57, 1.5], [-48, 20, 1, 1.3], [47, 23, -12, 1.2]]) {
     const cluster = new THREE.Group();
     cluster.position.set(x, y, z);
     for (let i = 0; i < 5; i++) {
@@ -285,10 +249,12 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     scene.add(cluster);
     cloudClusters.push(cluster);
   }
-  const birds = [0, 1, 2, 3].map(i => {
+  const birds = [0, 1, 2, 3, 4, 5, 6, 7].map(i => {
     const flyer = bird();
-    flyer.position.set(-19 - i * 10, 18 + i * 1.6, -29 - i * 7);
-    flyer.scale.setScalar(.7 + i * .1);
+    const altitude = 12.2 + (i % 4) * 1.15 + Math.floor(i / 4) * .55;
+    flyer.position.set(-30 + (i % 4) * 9 - Math.floor(i / 4) * 12, altitude, 14 - (i * 11) % 58);
+    flyer.scale.setScalar(.66 + (i % 3) * .13);
+    flyer.userData.baseAltitude = altitude;
     scene.add(flyer);
     return flyer;
   });
@@ -302,7 +268,12 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     scene.add(light.target);
     scene.add(light);
   }
-  const grass = new THREE.Mesh(new THREE.PlaneGeometry(190, 190), mat(0x4b5547));
+  const groundMap = new THREE.TextureLoader().load("/town-images/town-ground.png");
+  groundMap.colorSpace = THREE.SRGBColorSpace;
+  groundMap.wrapS = groundMap.wrapT = THREE.RepeatWrapping;
+  groundMap.repeat.set(14, 14);
+  groundMap.anisotropy = 8;
+  const grass = new THREE.Mesh(new THREE.PlaneGeometry(190, 190), new THREE.MeshStandardMaterial({ map: groundMap, roughness: 1, emissiveMap: groundMap, emissive: 0x70655a, emissiveIntensity: .22 }));
   grass.rotation.x = -Math.PI / 2;
   grass.receiveShadow = true;
   scene.add(grass);
@@ -313,31 +284,67 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     const curb = box(.4, .15, 112, mat(0xa8a18f), side * 4.43, .06, -12);
     scene.add(curb);
     [23, 13, 3, -9, -21, -33].forEach((z, i) => {
-      const kind = side === -1 && i === 1 ? "tavern" : side === 1 && i === 3 ? "guild" : side === 1 && i === 4 ? "cartography" : side === -1 && i === 4 ? "shop" : "cottage";
+      const kind = side === -1 && i === 1 ? "tavern" : side === -1 && i === 2 ? "blacksmith" : side === 1 && i === 3 ? "guild" : side === 1 && i === 4 ? "cartography" : side === -1 && i === 4 ? "shop" : "cottage";
       scene.add(makeVillageBuilding(side, z, i + (side === 1 ? 2 : 0), kind));
     });
   }
-  const leafColors = [0x57744d,0x647e57,0x789165,0x667b50,0x4d6950];
-  for (const side of [-1,1] as const) {
-    for (const [i,z] of [27,17,7,-3,-13,-23,-33].entries()) {
-      const planter = box(.62,.45,1.5,mat(0x9a653e),side*5.3,.23,z);
-      scene.add(planter);
-      for (let j=0;j<6;j++) {
-        const bloom = new THREE.Mesh(new THREE.IcosahedronGeometry(.17,1),mat(leafColors[(i+j)%leafColors.length]));
-        bloom.position.set(side*5.3 + (j%2-.5)*.35,.56 + (j%3)*.1,z+(j-2.5)*.22);
-        bloom.scale.set(1, .62, 1.3);
-        scene.add(bloom);
-      }
+  const propFootprints = addTownProps(scene);
+  // Reserve ground space before asynchronous models load so the result does not
+  // depend on which asset reaches the browser first.
+  const occupied = [
+    ...propFootprints,
+    ...[[-5.55, -1.8], [-6.35, -3.65], [-5.45, -5.3]].map(([x, z]) => ({ x, z, radius: .58 })),
+    ...[[-9.2, 18.15], [7.8, -27.35], [8.7, -39.15]].map(([x, z]) => ({ x, z, radius: 1.08 })),
+  ];
+  const reserveGround = (x: number, z: number, radius: number) => {
+    if (occupied.some(item => Math.hypot(x - item.x, z - item.z) < radius + item.radius + .16)) return false;
+    occupied.push({ x, z, radius });
+    return true;
+  };
+  // The original untextured 11 m disc extended under the houses as a pale slab.
+  // The lane already has stone paving, so only a small paved fountain apron is needed.
+  const square = new THREE.Mesh(new THREE.CircleGeometry(3.15, 64), new THREE.MeshStandardMaterial({ map: cobbleTexture(), roughness: 1 }));
+  square.rotation.x = -Math.PI / 2; square.position.set(-.8, .029, -4.5); square.receiveShadow = true; scene.add(square);
+  const fountain = new THREE.Group(); fountain.position.set(-.8, 0, -4.5); scene.add(fountain);
+  const fountainLight = new THREE.PointLight(0xffd5a0, 8, 7, 2);
+  fountainLight.position.set(2.5, 3.2, 1.8);
+  fountain.add(fountainLight);
+  const fountainStone = makeTownSurface("old_sandstone_02", 0xd7cfbd);
+  fountainStone.emissive.setHex(0x564435);
+  fountainStone.emissiveIntensity = .48;
+  fountainStone.side = THREE.DoubleSide;
+  const basinProfile = [[0,.17],[2.02,.17],[2.02,.57],[2.16,.67],[2.23,.69],[2.25,.63],[2.15,.5],[2.15,.14],[2.48,.14],[2.48,.62],[2.43,.74],[2.28,.78],[2.09,.74],[2.02,.64]];
+  const basin = new THREE.Mesh(new THREE.LatheGeometry(basinProfile.map(([r,y]) => new THREE.Vector2(r,y)), 64), fountainStone);
+  basin.castShadow = true; basin.receiveShadow = true; fountain.add(basin);
+  const waterMaterial = new THREE.ShaderMaterial({
+    uniforms: { time: { value: 0 } }, side: THREE.DoubleSide,
+    vertexShader: `uniform float time; varying vec2 vUv; varying vec3 vWorld; void main(){vUv=uv;vec3 p=position;float r=length(p.xy);p.z+=.007*sin(r*24.-time*2.1)+.005*sin(length(p.xy-vec2(.47,.23))*31.-time*2.8);vec4 world=modelMatrix*vec4(p,1.);vWorld=world.xyz;gl_Position=projectionMatrix*viewMatrix*world;}`,
+    fragmentShader: `uniform float time; varying vec2 vUv; varying vec3 vWorld; void main(){vec2 p=vUv-.5;float r=length(p);if(r>.5)discard;float ring=sin(r*50.-time*3.2)*.5+sin(length(p-vec2(.19,-.11))*68.-time*4.1)*.22;float shimmer=sin(p.x*47.+sin(p.y*31.+time*1.7))*sin(p.y*43.-time*1.3)*.025;vec3 n=normalize(cross(dFdx(vWorld),dFdy(vWorld)));vec3 viewDir=normalize(cameraPosition-vWorld);float fresnel=pow(1.-abs(dot(n,viewDir)),2.);vec3 deep=vec3(.07,.14,.15);vec3 sky=vec3(.21,.29,.31);vec3 c=mix(deep,sky,clamp(.4+fresnel*.55+ring*.035+shimmer,0.,1.));gl_FragColor=vec4(c,1.);}`,
+  });
+  const water = new THREE.Mesh(new THREE.RingGeometry(0, 2.08, 96, 24), waterMaterial);
+  water.rotation.x = -Math.PI / 2; water.position.y = .745; fountain.add(water);
+  const pedestal = new THREE.Mesh(new THREE.LatheGeometry([[0,.18],[.51,.18],[.54,.3],[.39,.42],[.25,1.42],[.4,1.48],[.48,1.6],[.41,1.7],[.26,1.74],[0,1.74]].map(([r,y]) => new THREE.Vector2(r,y)), 48), fountainStone);
+  pedestal.castShadow = true; fountain.add(pedestal);
+  const crown = new THREE.Mesh(new THREE.LatheGeometry([[0,1.67],[.39,1.67],[.5,1.76],[.44,1.84],[.28,1.89],[0,1.89]].map(([r,y]) => new THREE.Vector2(r,y)), 48), fountainStone);
+  fountain.add(crown);
+  const streamMaterial = new THREE.MeshPhysicalMaterial({ color: 0xa8c4bf, transparent: true, opacity: .48, roughness: .12, metalness: .08, depthWrite: false });
+  const dropletMaterial = new THREE.MeshPhysicalMaterial({ color: 0x95b7b5, transparent: true, opacity: .48, roughness: .08, depthWrite: false });
+  const droplets: { mesh: THREE.Mesh; curve: THREE.CatmullRomCurve3; offset: number }[] = [];
+  const splashRings: { mesh: THREE.Mesh; phase: number }[] = [];
+  for (let i = 0; i < 5; i++) {
+    const angle = i * 2.39996;
+    const landing = 1.48 + (i % 3) * .13;
+    const points = Array.from({length: 20}, (_, j) => { const t=j/19; const radius=.28+t*(landing-.28); return new THREE.Vector3(Math.cos(angle)*radius, 1.65+.15*Math.sin(t*Math.PI)-.9*t*t, Math.sin(angle)*radius); });
+    const curve = new THREE.CatmullRomCurve3(points);
+    fountain.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 48, .008+(i%2)*.002, 5, false), streamMaterial));
+    for (let j=0;j<5;j++) {
+      const mesh = new THREE.Mesh(new THREE.SphereGeometry(.018+(j%3)*.004, 6, 5), dropletMaterial);
+      fountain.add(mesh); droplets.push({mesh, curve, offset:(j/5+i*.09)%1});
     }
+    const ring = new THREE.Mesh(new THREE.RingGeometry(.07,.095,24), new THREE.MeshBasicMaterial({color:0xb5d3cb,transparent:true,opacity:.23,depthWrite:false,side:THREE.DoubleSide}));
+    ring.rotation.x=-Math.PI/2; ring.position.set(Math.cos(angle)*landing,.753,Math.sin(angle)*landing);
+    fountain.add(ring); splashRings.push({mesh:ring,phase:i*.27});
   }
-  const square = new THREE.Mesh(new THREE.CircleGeometry(11, 48), mat(0xc5b49a));
-  square.rotation.x = -Math.PI / 2; square.position.set(0, .015, -3); square.receiveShadow = true; scene.add(square);
-  const fountainBase = new THREE.Mesh(new THREE.CylinderGeometry(2.4, 2.6, .55, 24), mat(0xc8c6ae));
-  fountainBase.position.set(-.8, .38, -4.5); fountainBase.castShadow = true; scene.add(fountainBase);
-  const water = new THREE.Mesh(new THREE.CylinderGeometry(2.04, 2.04, .06, 24), new THREE.MeshStandardMaterial({ color: 0x73b7bd, metalness: .18, roughness: .2 }));
-  water.position.set(-.8, .69, -4.5); scene.add(water);
-  const fountainTop = new THREE.Mesh(new THREE.CylinderGeometry(.43, .7, 1.7, 12), mat(0xdfd7be));
-  fountainTop.position.set(-.8, 1.52, -4.5); scene.add(fountainTop);
   const arena = new THREE.Group(); arena.position.set(0, 0, -43);
   const fenceWood = mat(0x68432f);
   const railWood = mat(0x936343);
@@ -373,15 +380,17 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     scene.add(hill);
   }
   const castle = new THREE.Group(); castle.position.set(0, 0, -62);
-  const brickMap = createBrickTexture(0x88654f);
-  brickMap.repeat.set(2, 3);
-  const masonry = new THREE.MeshStandardMaterial({ map: brickMap, bumpMap: brickMap, bumpScale: .085, roughness: .98 });
+  const masonry = makeTownSurface("castle_brick_01", 0xc8c9c6);
   const castleStone = mat(0xbeb7a0);
-  castle.add(box(10, 8.2, 4, masonry, 0, 4.1, 0));
+  // The inner keep has a walkable gateway rather than a painted-on door.
+  castle.add(box(10, 3.8, 4, masonry, 0, 6.3, 0));
+  for (const x of [-4.15, 4.15]) castle.add(box(1.7, 4.4, 4, masonry, x, 2.2, 0));
   castle.add(box(13, 7.3, 3.6, masonry, -13.8, 3.65, -.25));
   castle.add(box(13, 7.3, 3.6, masonry, 13.8, 3.65, -.25));
-  castle.add(box(3.2, 4.4, .2, mat(0x483d36), 0, 2.2, 2.13));
-  castle.add(box(2.7, 3.7, .26, mat(0x916445), 0, 1.85, 2.28));
+  addDoubleGate(castle, 6.2, 4.1, 2.16);
+  const gateLight = new THREE.PointLight(0xffce8c, 22, 15, 2);
+  gateLight.position.set(0, 5.6, 7.4);
+  castle.add(gateLight);
   for (const x of [-6.4, 6.4]) {
     const tower = new THREE.Mesh(new THREE.CylinderGeometry(1.85, 2.05, 12.5, 12), masonry);
     tower.position.set(x, 6.25, 0); tower.castShadow = true; castle.add(tower);
@@ -439,22 +448,54 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
       for (const slitZ of [-.8, .8]) curtain.add(box(.1, 1.35, .15, mat(0x49413c), side * 17.11, 8.2, z + slitZ));
     }
   }
-  for (const side of [-1, 1]) curtain.add(box(11.1, 9.4, 2.2, masonry, side * 14.1, 4.7, 44));
+  for (const side of [-1, 1]) {
+    curtain.add(box(2.15, 9.4, 8, masonry, side*19.5, 4.7, -57));
+    curtain.add(box(11.1, 9.4, 2.2, masonry, side * 14.1, 4.7, 44));
+    curtain.add(box(5.8, 9.4, 2.2, masonry, side * 5.75, 4.7, 44));
+  }
+  curtain.add(box(5.7, 5, 2.3, masonry, 0, 6.9, 44));
+  for (const x of [-3.35,3.35]) curtain.add(box(1, 4.5, 2.3, masonry, x, 2.25, 44));
+  addDoubleGate(curtain, 5.55, 4.15, 45.3);
   scene.add(curtain);
+  // The painted gate occupies only the central bay of the 3D curtain wall.
+  // Its masonry wings, coping and merlons meet the same height as the side walls.
+  const gateAtlas = new THREE.TextureLoader().load("/town-images/castle-gate.png");
+  gateAtlas.colorSpace = THREE.SRGBColorSpace;
+  gateAtlas.anisotropy = 8;
+  gateAtlas.wrapS = gateAtlas.wrapT = THREE.ClampToEdgeWrapping;
+  gateAtlas.repeat.set(.42, .84);
+  gateAtlas.offset.set(.29, 0);
+  const gateFace = new THREE.MeshStandardMaterial({ map: gateAtlas, roughness: .96, emissive: 0x5d482e, emissiveMap: gateAtlas, emissiveIntensity: .19 });
+  const gateWidth = 11.8;
+  for (const [z, streetFace] of [[-59.82, 4], [42.78, 5]]) {
+    const gateBay = new THREE.Mesh(new THREE.BoxGeometry(gateWidth, 9.4, .42), [masonry, masonry, masonry, masonry, masonry, masonry]);
+    (gateBay.material as THREE.Material[])[streetFace] = gateFace;
+    gateBay.position.set(0, 4.7, z);
+    gateBay.castShadow = false;
+    gateBay.receiveShadow = true;
+    scene.add(gateBay);
+    for (const side of [-1, 1]) scene.add(box(13.9, 9.4, .46, masonry, side * 12.85, 4.7, z));
+    scene.add(box(39.6, .34, .76, coping, 0, 9.55, z));
+    for (let x = -19.3; x <= 19.3; x += 2.1) {
+      if (Math.abs(x) < gateWidth / 2 - .3) continue;
+      scene.add(box(.95, .74, .7, masonry, x, 10.08, z));
+    }
+  }
   const signTargets: THREE.Mesh[] = [];
   const signLocations = [
-    { key: "tavern", label: "میخانه", x: -3.95, z: 13, side: -1 },
-    { key: "guild", label: "تالار همراهان", x: 3.95, z: -9, side: 1 },
-    { key: "cartography", label: "نقشه‌سازی", x: 3.95, z: -21, side: 1 },
-    { key: "market", label: "بازارچه", x: -3.95, z: -21, side: -1 },
-    { key: "arena", label: "میدان نبرد", x: 3.95, z: -33, side: 1 },
+    { key: "tavern", label: "Tavern", x: -2.85, z: 13, side: -1 },
+    { key: "blacksmith", label: "آهنگری", x: -2.85, z: 3, side: -1 },
+    { key: "guild", label: "دوستان و گفتگو", x: 2.85, z: -9, side: 1 },
+    { key: "cartography", label: "نقشه‌خانه", x: 2.85, z: -21, side: 1 },
+    { key: "market", label: "بازارچه", x: -2.85, z: -21, side: -1 },
+    { key: "arena", label: "میدان نبرد", x: 2.85, z: -33, side: 1 },
   ];
   const iron = new THREE.MeshStandardMaterial({ color: 0x322b23, metalness: .75, roughness: .55 });
   for (const sign of signLocations) {
-    const frame = new THREE.Group(); frame.position.set(sign.x, 4.25, sign.z);
-    // Bracket reaches into the facade; two chains carry a solid wooden board.
-    frame.add(box(1.7, .10, .12, iron, sign.side * .43, .92, 0));
-    frame.add(box(.10, .8, .18, iron, sign.side * 1.23, .59, 0));
+    const frame = new THREE.Group(); frame.position.set(sign.x, 3.85, sign.z);
+    // The board hangs clear of the facade; one long iron arm reaches the wall.
+    frame.add(box(2.48, .09, .11, iron, sign.side * 1.12, .92, 0));
+    frame.add(box(.09, .46, .13, iron, sign.side * 2.3, .68, 0));
     for (const x of [-.58, .58]) {
       for (let i = 0; i < 5; i++) {
         const link = new THREE.Mesh(new THREE.TorusGeometry(.045, .012, 5, 10), iron);
@@ -462,7 +503,7 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
         frame.add(link);
       }
     }
-    frame.add(box(1.9, .95, .16, mat(0x513523), 0, 0, 0));
+    frame.add(box(2.45, 1.22, .16, mat(0x513523), 0, 0, 0));
     const canvas = document.createElement("canvas"); canvas.width = 1024; canvas.height = 512;
     const ctx = canvas.getContext("2d")!;
     const grain = ctx.createLinearGradient(0,0,0,512);
@@ -475,36 +516,116 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     ctx.strokeStyle="#b99258"; ctx.lineWidth=9; ctx.strokeRect(20,20,984,472);
     ctx.lineWidth=2; ctx.strokeRect(35,35,954,442);
     ctx.fillStyle="#e9c88d"; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.direction="rtl";
-    ctx.font='bold 132px "B Nazanin Local", Tahoma, sans-serif';
+    ctx.font='bold 185px "B Nazanin Local", Tahoma, sans-serif';
     ctx.shadowColor="#000"; ctx.shadowBlur=8; ctx.fillText(sign.label,512,265,910);
     for (const x of [55,969]) for (const y of [55,457]) { ctx.beginPath(); ctx.arc(x,y,7,0,Math.PI*2); ctx.fill(); }
     const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy=8;
     const faceMaterial = new THREE.MeshStandardMaterial({map:texture, roughness:.9, emissive:0xe0b377, emissiveMap:texture, emissiveIntensity:.32});
     for (const facing of [-1,1]) {
-      const face = new THREE.Mesh(new THREE.PlaneGeometry(1.86,.91),faceMaterial);
+      const face = new THREE.Mesh(new THREE.PlaneGeometry(2.4,1.17),faceMaterial);
       face.position.z=facing*.086; face.rotation.y=facing<0?Math.PI:0;
-      face.userData.landmark=sign.key; frame.add(face); signTargets.push(face);
+      face.userData.landmark=sign.key; signTargets.push(face);
+      frame.add(face);
     }
     scene.add(frame);
   }
-  const people = [[-3,16,0x56695e],[3,11,0x8b6756],[-2,2,0x64758b],[2,-6,0x948061],[-3,-14,0x706879],[3,-23,0x727f68]].map(([x,z,color]) => person(color,x,z));
-  people.forEach(p => scene.add(p));
-  [[-12,31,6,1],[12,26,6.5,2],[-12,5,6.2,3],[12,-5,6.8,4],[-12,-24,6.4,5],[12,-36,6.1,6],[-5.5,-2,3.4,7],[5.6,9,3.5,8]].forEach(([x,z,size,seed]) => scene.add(villageTree(x,z,size,seed)));
+  const portalTargets: THREE.Mesh[] = [];
+  scene.traverse(object => { if (object instanceof THREE.Mesh && object.userData.portalKey) portalTargets.push(object); });
   const loader = new GLTFLoader();
-  const modelNames = ["stall-red", "stall-green", "cart", "lantern", "rock-small"];
-  await Promise.all(modelNames.map(name => new Promise<void>(resolve => {
-    loader.load(`/town-models/${name}.glb`, gltf => {
-      const object = gltf.scene;
-      object.traverse(child => { if (child instanceof THREE.Mesh) { child.castShadow = true; child.receiveShadow = true; } });
-      const place = (x: number, z: number, scale: number, rotation = 0) => { const clone = object.clone(true); clone.position.set(x, 0, z); clone.scale.setScalar(scale); clone.rotation.y = rotation; scene.add(clone); };
-      if (name.startsWith("stall")) {
-        for (const [x,z] of name === "stall-red" ? [[-5,-15],[-5,-20]] : [[5,-25],[5,-31]]) place(x,z,3.2, x > 0 ? -Math.PI / 2 : Math.PI / 2);
-      } else if (name === "cart") place(-4.8,14,2.2,.35);
-      else if (name === "lantern") for (const z of [25,14,4,-10,-23]) { place(-4.8,z,3); place(4.8,z-3,3); }
-      else if (name === "rock-small") for (const [x,z] of [[-11,9],[11,0],[-11,-28],[10,-36]]) place(x,z,3);
+  // Photo-scanned CC0 props provide organic surfaces without primitive stand-ins.
+  const scannedProps = [
+    { id: "pine_sapling_small", file: "pine_sapling_small_1k.gltf", height: 6.2, radius: .85, spots: [[-12, 35], [12, 34], [-13, 18], [13, 7], [-14, -5], [13, -18], [-11, -37], [11, -38], [-12, -43], [12, -44], [-10, -49], [10, -49], [-8.8, -51], [8.8, -51], [-12.6, 28], [12.4, 24], [-12.8, 8], [12.5, -4], [-12.4, -23], [12.6, -31], [-11.4, -44], [11.7, -41], [-15.2, 31], [15.1, 29], [-15.4, 11], [15.2, 16], [-15.1, -12], [15.4, -10], [-15.1, -29], [15.2, -34], [-13.7, -47], [13.8, -47], [-5.35, 31.25], [5.35, 31.25], [-5.2, -27.1], [5.2, -27.1]] },
+    { id: "wine_barrel_01", file: "wine_barrel_01_1k.gltf", height: .85, radius: .43, spots: [[5.3, 18.45], [-5.45, -26.3], [5.45, -25.4], [-5.15, 6.2], [5.35, 7.3], [-5.3, -13.35], [5.4, -17.35], [-5.35, -37.4]] },
+    { id: "wooden_crate_01", file: "wooden_crate_01_1k.gltf", height: .62, radius: .44, spots: [[5.4, 19.8], [-5.35, -28.9], [-5.25, -17.25], [5.4, -29.2], [-5.25, 9.65], [5.25, -1.15], [5.3, -17.5], [-5.4, -41.2]] },
+  ];
+  for (const spec of scannedProps) spec.spots = spec.spots.filter(([x, z]) => reserveGround(x, z, spec.radius));
+  let assetsActive = true;
+  void Promise.all(scannedProps.map(spec => new Promise<void>(resolve => {
+    loader.load(`/town-models/polyhaven/${spec.id}/${spec.file}`, gltf => {
+      if (!assetsActive) { resolve(); return; }
+      const source = spec.id === "pine_sapling_small" ? gltf.scene.children[1] : gltf.scene;
+      if (!source) { resolve(); return; }
+      source.traverse(child => {
+        if (!(child instanceof THREE.Mesh)) return;
+        child.castShadow = true;
+        child.receiveShadow = true;
+        if (spec.id === "pine_sapling_small") {
+          const original = child.material as THREE.MeshStandardMaterial;
+          const foliage = original.clone();
+          foliage.side = THREE.DoubleSide;
+          foliage.emissive.setHex(original.name.includes("twig") ? 0xa8bc98 : 0x4d4134);
+          foliage.emissiveMap = original.map;
+          foliage.emissiveIntensity = original.name.includes("twig") ? .9 : .12;
+          child.material = foliage;
+        }
+      });
+      const bounds = new THREE.Box3().setFromObject(source);
+      const center = bounds.getCenter(new THREE.Vector3());
+      const size = bounds.getSize(new THREE.Vector3());
+      if (size.y < .001) { resolve(); return; }
+      spec.spots.forEach(([x,z], i) => {
+        const holder = new THREE.Group(); holder.position.set(x, 0, z); holder.rotation.y=i*1.75;
+        const object = source.clone(true);
+        object.position.set(-center.x, -bounds.min.y, -center.z);
+        holder.scale.setScalar((spec.id === "pine_sapling_small" && Math.abs(x) < 7 ? 3.8 : spec.height) / size.y);
+        holder.add(object); scene.add(holder);
+      });
       resolve();
     }, undefined, () => resolve());
   })));
+  const woodProp = makeTownSurface("oak_wood_planks", 0xb8a08a);
+  woodProp.emissive = new THREE.Color(0x59402b);
+  woodProp.emissiveMap = woodProp.map;
+  woodProp.emissiveIntensity = .15;
+  const stoneProp = makeTownSurface("old_sandstone_02", 0xaba6a0);
+  const ironProp = new THREE.MeshStandardMaterial({ color: 0x3b3734, metalness: .5, roughness: .78 });
+  for (const spec of [
+    { file: "merchant-cart.glb", height: 1.2, spots: [[-9.2, 18.15], [7.8, -27.35], [8.7, -39.15]] },
+    { file: "rock-wide.glb", height: .75, spots: [[-10.4, -36], [10.4, -48], [-10, 34], [11, 26], [-10.7, 14], [10.8, -13]] },
+    { file: "rock-small.glb", height: .42, spots: [[-9.9, -37.1], [10.8, -47.3], [-11, 34.8], [10.3, 26.9], [-10.2, 13.3], [10.5, -13.7]] },
+  ]) {
+    loader.load(`/town-models/${spec.file}`, gltf => {
+      if (!assetsActive) return;
+      const source = gltf.scene;
+      source.traverse(child => {
+        if (!(child instanceof THREE.Mesh)) return;
+        child.material = spec.file.includes("rock") ? stoneProp : child.name.includes("axle") || child.name.includes("wheel rim") ? ironProp : woodProp;
+        child.castShadow = true;
+        child.receiveShadow = true;
+      });
+      const bounds = new THREE.Box3().setFromObject(source);
+      const size = bounds.getSize(new THREE.Vector3());
+      const center = bounds.getCenter(new THREE.Vector3());
+      if (size.y < .001) return;
+      spec.spots.forEach(([x, z], index) => {
+        const holder = new THREE.Group();
+        holder.position.set(x, .015, z);
+        holder.rotation.y = index * 1.48 + .45;
+        holder.scale.setScalar(spec.height / size.y);
+        const object = source.clone(true);
+        object.position.set(-center.x, -bounds.min.y, -center.z);
+        holder.add(object);
+        scene.add(holder);
+      });
+    });
+  }
+  const sheepTargets: THREE.Object3D[] = [];
+  const sheepBillboards: THREE.Mesh[] = [];
+  const sheepBleat = new Audio("/audio/sheep-bleat-loud.mp3?v=2");
+  sheepBleat.volume = 1;
+  const sheepTexture = new THREE.TextureLoader().load("/town-images/sheep-cutout.png");
+  sheepTexture.colorSpace = THREE.SRGBColorSpace;
+  sheepTexture.anisotropy = 8;
+  const sheepMaterial = new THREE.MeshBasicMaterial({ map: sheepTexture, transparent: true, alphaTest: .16, depthWrite: true, side: THREE.DoubleSide, toneMapped: true });
+  [[-5.55, -1.8], [-6.35, -3.65], [-5.45, -5.3]].forEach(([x, z], index) => {
+    const height = index === 1 ? 1.13 : 1.02;
+    const sheep = new THREE.Mesh(new THREE.PlaneGeometry(height * 1.27, height), sheepMaterial);
+    sheep.position.set(x, height / 2 + .025, z);
+    sheep.userData.sheep = true;
+    scene.add(sheep);
+    sheepTargets.push(sheep);
+    sheepBillboards.push(sheep);
+  });
   const resize = () => { const width = host.clientWidth, height = host.clientHeight; if (!width || !height) return; camera.aspect = width / height; camera.updateProjectionMatrix(); renderer.setSize(width,height,false); };
   const observer = new ResizeObserver(resize); observer.observe(host); resize();
   let stage = 0, target = 0, pointerX = 0, pointerY = 0, disposed = false, frame = 0;
@@ -512,12 +633,32 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
   let velocityX = 0, velocityZ = 0, bobPhase = 0, bobStrength = 0;
   let lastWalkEmitted = 0;
   let yaw = 0, yawTarget = 0, pitchTarget = 0, dragging = false, dragX = 0, dragY = 0, dragTravel = 0;
+  let entrance: { key: string; started: number; from: THREE.Vector3; to: THREE.Vector3; fromRotation: THREE.Quaternion; toRotation: THREE.Quaternion; hinge?: THREE.Group; facing: number; covered: boolean; sent: boolean } | null = null;
+  const entryKeys = ["gate", "tavern", "play", "guild", "cartography", "market", "arena"];
+  const beginEntrance = (key: string) => {
+    if (entrance) return;
+    const door = portalTargets.find(mesh => mesh.userData.portalKey === key);
+    const position = door?.getWorldPosition(new THREE.Vector3()) ?? new THREE.Vector3(key === "gate" ? 0 : key === "play" ? -.8 : 0, 1.75, key === "gate" ? 45.3 : key === "play" ? -4.5 : -43);
+    const facing = (door?.userData.portalFacing as number | undefined) ?? 0;
+    const to = door ? new THREE.Vector3(position.x-facing*.85, 1.75, position.z) : new THREE.Vector3(position.x, 1.75, position.z+(key === "gate" ? -1.8 : 3.2));
+    const look = door ? new THREE.Vector3(position.x-facing*3.2, 1.75, position.z) : position;
+    const endingCamera = camera.clone(); endingCamera.position.copy(to); endingCamera.lookAt(look);
+    entrance = { key, started: performance.now(), from: camera.position.clone(), to, fromRotation: camera.quaternion.clone(), toRotation: endingCamera.quaternion.clone(), hinge: door?.userData.portalHinge as THREE.Group | undefined, facing, covered: false, sent: false };
+    freeWalk = false; pressed.clear();
+  };
   const onPointerDown = (event: PointerEvent) => {
     if (event.button !== 0 || !(event.target instanceof HTMLCanvasElement)) return;
     dragging = true; dragX = event.clientX; dragY = event.clientY; dragTravel = 0;
   };
   const onPointerDrag = (event: PointerEvent) => {
-    if (!dragging) return;
+    if (!dragging) {
+      if (event.target === renderer.domElement) {
+        const rect=host.getBoundingClientRect();
+        raycaster.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
+        renderer.domElement.style.cursor=raycaster.intersectObjects([...portalTargets,...signTargets,...sheepTargets],false).length ? "pointer" : "grab";
+      }
+      return;
+    }
     dragTravel += Math.hypot(event.clientX-dragX,event.clientY-dragY);
     yawTarget -= (event.clientX - dragX) * .004;
     pitchTarget = THREE.MathUtils.clamp(pitchTarget - (event.clientY - dragY) * .003, -.65, .65);
@@ -528,8 +669,10 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     if (dragging && dragTravel < 7) {
       const rect = host.getBoundingClientRect();
       raycaster.setFromCamera(new THREE.Vector2((event.clientX-rect.left)/rect.width*2-1,1-(event.clientY-rect.top)/rect.height*2),camera);
-      const hit = raycaster.intersectObjects(signTargets,false)[0];
-      if (hit) markers[hit.object.userData.landmark]?.click();
+      const hit = raycaster.intersectObjects([...portalTargets,...signTargets,...sheepTargets],false)[0];
+      if (hit?.object.userData.portalKey) beginEntrance(hit.object.userData.portalKey);
+      else if (hit?.object.userData.landmark) beginEntrance(hit.object.userData.landmark);
+      else if (hit?.object.userData.sheep) { sheepBleat.currentTime = 0; void sheepBleat.play(); }
     }
     dragging = false;
   };
@@ -556,11 +699,28 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
     if (disposed) return;
     frame = requestAnimationFrame(render);
     const delta = Math.min(clock.getDelta(), .05);
+    const elapsed = clock.elapsedTime;
     const t = 1 - Math.exp(-delta * 2.3);
     stage += (target - stage) * t;
     const lower = Math.floor(stage), upper = Math.min(TOWN_STOPS.length - 1, lower + 1), blend = stage - lower;
     const from = TOWN_STOPS[Math.max(0, lower)], to = TOWN_STOPS[upper];
-    if (freeWalk) {
+    if (entrance) {
+      const progress=THREE.MathUtils.clamp((performance.now()-entrance.started)/1050,0,1);
+      const ease=progress*progress*(3-2*progress);
+      camera.position.lerpVectors(entrance.from,entrance.to,ease);
+      camera.quaternion.copy(entrance.fromRotation).slerp(entrance.toRotation,ease);
+      if (entrance.hinge) entrance.hinge.rotation.y=-entrance.facing*1.25*THREE.MathUtils.smoothstep(progress,.22,.8);
+      if (progress >= .48 && !entrance.covered && entrance.key !== "guild") {
+        entrance.covered = true;
+        onTransitionStart?.(entrance.key);
+      }
+      if (progress>=1 && !entrance.sent) {
+        entrance.sent=true;
+        const key=entrance.key;
+        onEnter?.(key);
+        if (key === "guild") entrance=null;
+      }
+    } else if (freeWalk) {
       let inputX = Number(pressed.has("d")) - Number(pressed.has("a"));
       let inputZ = Number(pressed.has("s")) - Number(pressed.has("w"));
       const length = Math.hypot(inputX, inputZ) || 1;
@@ -596,45 +756,42 @@ export async function createTownWorld(host: HTMLElement, markers: Record<string,
       camera.lookAt(camera.position.x + Math.sin(yaw) * 12, camera.position.y + Math.sin(pitchTarget - pointerY * .25 - .025) * 12, camera.position.z - Math.cos(yaw) * 12);
     }
     camera.updateMatrixWorld();
-    const elapsed = clock.elapsedTime;
 
-    people.forEach((p,i) => {
-      const origin = p.userData.origin as { x: number; z: number };
-      p.position.x = origin.x + Math.sin(elapsed * .2 + i * 2.1) * .55;
-      p.position.z = origin.z + Math.cos(elapsed * .2 + i * 2.1) * .55;
-      p.position.y = Math.abs(Math.sin(elapsed * 2.2 + i)) * .012;
-      p.rotation.y = Math.sin(elapsed * .28 + i) * .22;
-      (p.userData.legs as THREE.Group[]).forEach((leg, side) => { leg.rotation.x = Math.sin(elapsed * 2.2 + i + side * Math.PI) * .22; });
-      (p.userData.arms as THREE.Group[]).forEach((arm, side) => { arm.rotation.x = -Math.sin(elapsed * 2.2 + i + side * Math.PI) * .16; });
-    });
+    sheepBillboards.forEach(sheep => sheep.lookAt(camera.position.x, sheep.position.y, camera.position.z));
+
     cloudClusters.forEach((cloud, i) => { cloud.position.x += delta * (.13 + i * .035); if (cloud.position.x > 43) cloud.position.x = -43; });
     birds.forEach((flyer, i) => {
-      flyer.position.x += delta * (1.7 + i * .22);
-      flyer.position.y = 18 + i * 1.6 + Math.sin(elapsed * .9 + i) * .3;
-      if (flyer.position.x > 38) flyer.position.x = -42 - i * 5;
+      flyer.position.x += delta * (1.55 + (i % 4) * .23);
+      flyer.position.y = (flyer.userData.baseAltitude as number) + Math.sin(elapsed * .9 + i) * .3;
+      if (flyer.position.x > 38) flyer.position.x = -42 - (i % 4) * 4;
       (flyer.userData.wings as THREE.Mesh[]).forEach((wing, side) => { wing.rotation.z = (side ? -1 : 1) * Math.sin(elapsed * 6.2 + i) * .38; });
     });
     flames.forEach(flame => { (flame.userData.flameMaterial as THREE.ShaderMaterial).uniforms.time.value = elapsed; });
-    water.rotation.y += delta * .05;
+    waterMaterial.uniforms.time.value = elapsed;
+    droplets.forEach(({mesh, curve, offset}) => { const t=(elapsed*.8+offset)%1; mesh.position.copy(curve.getPoint(t)); mesh.scale.setScalar(.7+.35*t); });
+    splashRings.forEach(({mesh,phase}) => { const cycle=(elapsed*.9+phase)%1; mesh.scale.setScalar(1+cycle*3); (mesh.material as THREE.MeshBasicMaterial).opacity=.22*(1-cycle); });
     renderer.render(scene,camera);
   };
   render();
   return {
     setStage(value: number) {
+      if (entrance) return;
       target = THREE.MathUtils.clamp(value,0,TOWN_STOPS.length-1);
       if (freeWalk && target === lastWalkEmitted) return;
       freeWalk = false; pressed.clear(); yawTarget = 0; pitchTarget = 0;
     },
+    enterStage(value: number) { beginEntrance(entryKeys[Math.max(0,Math.min(entryKeys.length-1,value))]); },
+    getCameraPosition() { return { x: camera.position.x, z: camera.position.z }; },
     setPointer(x: number,y: number) { pointerX = x; pointerY = y; },
     dispose() {
-      disposed = true; cancelAnimationFrame(frame); observer.disconnect();
+      disposed = true; assetsActive = false; sheepBleat.pause(); cancelAnimationFrame(frame); observer.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
       window.removeEventListener("blur", onBlur);
       window.removeEventListener("pointerdown", onPointerDown);
       window.removeEventListener("pointermove", onPointerDrag);
       window.removeEventListener("pointerup", onPointerUp);
-      scene.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(m => { if (m instanceof THREE.MeshStandardMaterial) m.map?.dispose(); m.dispose(); }); } });
+      scene.traverse(child => { if (child instanceof THREE.Mesh) { child.geometry.dispose(); const materials = Array.isArray(child.material) ? child.material : [child.material]; materials.forEach(m => m.dispose()); } });
       skyTexture.dispose();
       cloudMap.dispose();
       renderer.dispose(); renderer.domElement.remove();

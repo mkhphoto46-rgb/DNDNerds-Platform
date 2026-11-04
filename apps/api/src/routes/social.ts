@@ -8,12 +8,13 @@ import { db } from "../db/client.js";
 import {
   socialProfiles, socialFriendRequests, socialFriendships, socialBlocks,
   socialMessages,
+  users,
 } from "../db/schema.js";
 
 const codeSchema = z.string().trim().toUpperCase().regex(/^DND-[A-F0-9]{24}$/);
 const uuidSchema = z.string().uuid();
 const messageSchema = z.object({ body: z.string().trim().min(1).max(2000) });
-const requestSchema = z.object({ friendCode: codeSchema });
+const requestSchema = z.object({ friendCode: z.string().trim().min(3).max(32) });
 const dailyRequestLimit = 20;
 const outstandingRequestLimit = 15;
 
@@ -53,9 +54,9 @@ async function authorizedFriends(a: string, b: string) {
 }
 async function publicCodes(ids: string[]) {
   if (!ids.length) return new Map<string,string>();
-  const profiles = await db.select({ userId: socialProfiles.userId, friendCode: socialProfiles.friendCode })
-    .from(socialProfiles).where(inArray(socialProfiles.userId, [...new Set(ids)]));
-  return new Map(profiles.map(p => [p.userId, p.friendCode]));
+  const profiles = await db.select({ userId: users.id, username: users.username, friendCode: socialProfiles.friendCode })
+    .from(users).leftJoin(socialProfiles, eq(users.id, socialProfiles.userId)).where(inArray(users.id, [...new Set(ids)]));
+  return new Map(profiles.map(p => [p.userId, p.username ?? p.friendCode ?? ""]));
 }
 
 export async function registerSocialRoutes(app: FastifyInstance) {
@@ -78,7 +79,7 @@ export async function registerSocialRoutes(app: FastifyInstance) {
     const user = await actor(request, reply); if (!user) return;
     const [profile] = await db.select({ friendCode: socialProfiles.friendCode })
       .from(socialProfiles).where(eq(socialProfiles.userId, user.id)).limit(1);
-    return { data: { friendCode: profile?.friendCode ?? null } };
+    return { data: { friendCode: user.username ?? profile?.friendCode ?? null } };
   });
   app.get("/api/v1/social/requests", async (request, reply) => {
     const user = await actor(request, reply); if (!user) return;
@@ -103,8 +104,10 @@ export async function registerSocialRoutes(app: FastifyInstance) {
     const user = await actor(request, reply); if (!user) return;
     const parsed = requestSchema.safeParse(request.body);
     if (!parsed.success) return error(reply, 400, "INVALID_FRIEND_CODE", "Friend ID is invalid.");
-    const [target] = await db.select({ userId: socialProfiles.userId })
-      .from(socialProfiles).where(eq(socialProfiles.friendCode, parsed.data.friendCode)).limit(1);
+    const input = parsed.data.friendCode;
+    const [target] = codeSchema.safeParse(input).success
+      ? await db.select({ userId: socialProfiles.userId }).from(socialProfiles).where(eq(socialProfiles.friendCode, input.toUpperCase())).limit(1)
+      : await db.select({ userId: users.id }).from(users).where(sql`lower(${users.username}) = ${input.toLowerCase()}`).limit(1);
     if (!target) return error(reply, 404, "FRIEND_NOT_FOUND", "Friend ID was not found.");
     if (target.userId === user.id) return error(reply, 400, "SELF_REQUEST", "You cannot invite yourself.");
     if (await isBlocked(user.id, target.userId)) return error(reply, 403, "SOCIAL_BLOCKED", "Invitation unavailable.");

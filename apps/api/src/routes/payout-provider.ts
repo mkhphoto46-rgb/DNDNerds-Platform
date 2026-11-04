@@ -57,7 +57,7 @@ const bodySchema =
   z.object({
     password:
       z.string()
-        .min(12)
+        .min(8)
         .max(128),
 
     idempotencyKey:

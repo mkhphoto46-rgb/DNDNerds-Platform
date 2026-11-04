@@ -1,0 +1,10 @@
+ALTER TABLE game_table_reviews ALTER COLUMN rating DROP NOT NULL;
+ALTER TABLE game_table_reviews DROP CONSTRAINT game_table_reviews_comment_length;
+ALTER TABLE game_table_reviews ADD CONSTRAINT game_table_reviews_comment_length CHECK (length(btrim(comment)) BETWEEN 3 AND 1200);
+CREATE TABLE game_table_deletions (table_id uuid PRIMARY KEY REFERENCES game_tables(id) ON DELETE CASCADE, requested_by uuid NOT NULL REFERENCES users(id), requested_at timestamptz NOT NULL DEFAULT now(), attempt_count integer NOT NULL DEFAULT 0, last_error text, lease_until timestamptz);
+CREATE TABLE game_table_reactions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), table_id uuid NOT NULL REFERENCES game_tables(id) ON DELETE CASCADE, reviewer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, value integer NOT NULL CHECK (value IN (-1,1)), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX game_table_reactions_target_user_uq ON game_table_reactions (table_id, reviewer_user_id);
+CREATE TABLE dm_reactions (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), dm_user_id uuid NOT NULL REFERENCES dm_profiles(user_id) ON DELETE CASCADE, reviewer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, value integer NOT NULL CHECK (value IN (-1,1)), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX dm_reactions_target_user_uq ON dm_reactions (dm_user_id, reviewer_user_id);
+CREATE TABLE dm_reviews (id uuid PRIMARY KEY DEFAULT gen_random_uuid(), dm_user_id uuid NOT NULL REFERENCES dm_profiles(user_id) ON DELETE CASCADE, reviewer_user_id uuid NOT NULL REFERENCES users(id) ON DELETE CASCADE, comment varchar(1200) NOT NULL CHECK (length(btrim(comment)) BETWEEN 3 AND 1200), created_at timestamptz NOT NULL DEFAULT now(), updated_at timestamptz NOT NULL DEFAULT now());
+CREATE UNIQUE INDEX dm_reviews_target_user_uq ON dm_reviews (dm_user_id, reviewer_user_id);
