@@ -1,6 +1,7 @@
 import { registerMarketplaceV21 } from "./routes/marketplace-v21.js";
 import { registerTableDeletionRoutes } from "./routes/table-deletion.js";
 import { registerObservability } from "./observability.js";
+import { vttConfigWarnings } from "./integrations/vtt-origin.js";
 import { assertProductionReady } from "./config/production-guards.js";
 import { registerPayoutProviderRoutes } from "./routes/payout-provider.js";
 import { registerSessionManagementRoutes } from "./routes/session-management.js";
@@ -324,6 +325,9 @@ export async function buildApp() {
 
 
   registerObservability(app);
+
+  // B72: name the missing bridge variable at startup instead of failing quietly later.
+  for (const warning of vttConfigWarnings()) app.log.warn(warning);
 
 
   await app.register(registerAuthRoutes);

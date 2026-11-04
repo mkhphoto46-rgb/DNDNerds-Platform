@@ -10,6 +10,7 @@ import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
 import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
 import { requestNativeVttInvite } from "../integrations/native-vtt-invite.js";
+import { inviteBridgeError } from "../integrations/vtt-origin.js";
 
 import { publicAccountId } from "../auth/public-identity.js";
 import { validProfileImage } from "./profile-image.js";
@@ -196,6 +197,8 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
       } catch { return reply.code(503).send({ error: { message: "نشانی سرور بازی معتبر نیست." } }); }
       const username = user.username && /^[a-z][a-z0-9_]{2,23}$/i.test(user.username) ? user.username : `player_${user.id.replaceAll("-", "").slice(0, 10)}`;
       const result = await requestNativeVttInvite({ code: parsed.data.code, userId: user.id, username }, secret);
+      const bridgeMissing = result.ticket ? null : inviteBridgeError(result.status);
+      if (bridgeMissing) { request.log.warn("Join by code failed: the table-app bridge did not answer and VTT_INTERNAL_URL is not set"); return reply.code(503).send({ error: bridgeMissing }); }
       if (!result.ticket) return reply.code(result.status).send({ error: { message: result.status === 404 ? "کد دعوت معتبر نیست یا میز بایگانی شده است." : result.status === 409 ? "این میز متعلق به حساب DM شماست؛ از میزهای من وارد شوید." : result.status === 429 ? "کمی صبر کنید و دوباره تلاش کنید." : "ارتباط با سرور بازی برقرار نشد." } });
       if (result.tableId) {
         const [table] = await db.select().from(gameTables).where(eq(gameTables.id, result.tableId)).limit(1);
