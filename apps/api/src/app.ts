@@ -78,6 +78,21 @@ function getErrorStatusCode(
   );
 }
 
+// A route may attach a stable, upper-case code (e.g. SLUG_TAKEN) for the website to map to Persian text.
+function getErrorApiCode(
+  error:
+    unknown,
+): string | undefined {
+  const value =
+    typeof error === "object" && error !== null
+      ? (error as { apiCode?: unknown }).apiCode
+      : undefined;
+
+  return typeof value === "string" && /^[A-Z][A-Z0-9_]{1,63}$/.test(value)
+    ? value
+    : undefined;
+}
+
 function getErrorMessage(
   error:
     unknown,
@@ -290,7 +305,7 @@ export async function buildApp() {
             code:
               statusCode === 500
                 ? "INTERNAL_ERROR"
-                : "REQUEST_ERROR",
+                : getErrorApiCode(error) ?? "REQUEST_ERROR",
 
             message:
               statusCode === 500

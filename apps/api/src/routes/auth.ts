@@ -41,6 +41,7 @@ import {
   verifyEncryptedTotp,
 } from "../security/totp.js";
 import { accountEmailReady } from "../email/account-email-policy.js";
+import { NEW_PASSWORD_MIN_LENGTH } from "../auth/password-policy.js";
 import { createEmailActionToken } from "../email/tokens.js";
 import { sendAccountEmail } from "../email/provider.js";
 import { normalizeUsername, publicAccountId, usernameSchema } from "../auth/public-identity.js";
@@ -66,7 +67,7 @@ const credentialsSchema =
         .optional(),
   });
 
-const registrationSchema = credentialsSchema.omit({ totpCode: true }).extend({ username: usernameSchema });
+const registrationSchema = credentialsSchema.omit({ totpCode: true }).extend({ username: usernameSchema, password: z.string().min(NEW_PASSWORD_MIN_LENGTH).max(128) });
 
 const PASSWORD_POLICY = {
   algorithm:

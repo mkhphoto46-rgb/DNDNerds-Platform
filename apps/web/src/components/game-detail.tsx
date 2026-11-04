@@ -5,13 +5,14 @@ import { useCallback, useState } from "react";
 import styles from "./game-hub.module.css";
 import { CoverImage, Reactions, Reviews, type FeedbackSummary, type FeedbackReview } from "./discovery";
 import { useVisibleRefresh } from "@/lib/use-visible-refresh";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type Detail = FeedbackSummary & { hostUserId: string; genres: string[]; imageData: string | null; id: string; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; hostName: string | null; hostBio: string | null; reviews: FeedbackReview[]; canReview: boolean };
 
 async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, body: data ? JSON.stringify(data) : undefined });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد.", response.status));
   return body.data as T;
 }
 

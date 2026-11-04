@@ -38,6 +38,7 @@ import {
   productVariants,
   products,
   storeCommissionSettings,
+  storeMembers,
   stores,
 } from "../db/schema.js";
 
@@ -795,6 +796,14 @@ export async function registerOrderRoutes(
 
               // Serialize exposure across every SKU of a store in a stable lock order.
               const scopedStores = await tx.select({id:products.storeId}).from(products).where(inArray(products.id,productIds));
+              // B52: every order route needs a verified buyer, and a store's own members can't buy from it.
+              const verified=await tx.execute(sql`SELECT u.email_verified,b.mobile_verified_at,b.evidence_ref FROM users u LEFT JOIN marketplace_buyer_verifications b ON b.user_id=u.id WHERE u.id=${authUser.id}`);
+              if(!verified[0]?.email_verified||!verified[0]?.mobile_verified_at||!verified[0]?.evidence_ref)throw new CheckoutConflict(403,"BUYER_VERIFICATION_REQUIRED","Verify email and mobile before checkout.");
+              const scopedStoreIds=[...new Set(scopedStores.map(r=>r.id))];
+              if(scopedStoreIds.length){
+                const own=await tx.select({storeId:storeMembers.storeId}).from(storeMembers).where(and(eq(storeMembers.userId,authUser.id),inArray(storeMembers.storeId,scopedStoreIds))).limit(1);
+                if(own.length)throw new CheckoutConflict(403,"SELF_PURCHASE","You can't order from a store you belong to.");
+              }
               await tx.select({id:stores.id}).from(stores).where(inArray(stores.id,[...new Set(scopedStores.map(r=>r.id))])).orderBy(stores.id).for("update");
 
               const productRows =
@@ -967,8 +976,6 @@ export async function registerOrderRoutes(
               }
               const shippingByStore = new Map<string,{storeId:string;feeRial:number;version:number;method:string;dispatchDays:number}>();
               if(checkoutSnapshotId){
-                const verified=await tx.execute(sql`SELECT u.email_verified,b.mobile_verified_at,b.evidence_ref FROM users u LEFT JOIN marketplace_buyer_verifications b ON b.user_id=u.id WHERE u.id=${authUser.id}`);
-                if(!verified[0]?.email_verified||!verified[0]?.mobile_verified_at||!verified[0]?.evidence_ref)throw new CheckoutConflict(403,"BUYER_VERIFICATION_REQUIRED","Verify email and mobile before checkout.");
                 const snap=await tx.execute(sql`SELECT * FROM marketplace_checkout_snapshots WHERE id=${checkoutSnapshotId} AND user_id=${authUser.id} FOR UPDATE`);
                 const snapshot=snap[0];
                 if(!snapshot||snapshot.order_id||new Date(String(snapshot.expires_at))<=new Date())throw new CheckoutConflict(409,"SNAPSHOT_EXPIRED","Review checkout again.");

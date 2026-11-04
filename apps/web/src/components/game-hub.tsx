@@ -9,6 +9,8 @@ import { prepareProfileImage } from "@/lib/profile-pages";
 import styles from "./game-hub.module.css";
 import { CoverImage, DmCard, Reactions, RecentReviews, DeleteCampaign, type FeedbackSummary, type FeedbackReview } from "./discovery";
 import { useVisibleRefresh, invalidateDiscovery } from "@/lib/use-visible-refresh";
+import { apiErrorMessage } from "@/lib/api-error";
+import { singleFlight } from "@/lib/single-flight";
 
 type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
 type SessionStatus = { onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] } | null;
@@ -17,14 +19,15 @@ const genreChoices = ["فانتزی", "ماجراجویی", "وحشت", "معم�
 type Table = FeedbackSummary & { deletionPending?: boolean; recentReviews?: FeedbackReview[]; hostPublicId?: string; genres?: string[]; imageData?: string | null; hostUsername?: string | null; id: string; hostUserId: string; hostName?: string | null; title: string; description: string; system: string; language: string; playStyle: string; levelRange: string; schedule: string; capacity: number; visibility: "PUBLIC" | "PRIVATE"; status?: string; updatedAt?: string; sessionStatus?: SessionStatus; reviewCount?: number };
 type Profile = FeedbackSummary & { bannerData?: string | null; recentReviews?: FeedbackReview[]; username?: string | null; publicId?: string; userId: string; displayName: string; bio: string; playStyle: string; languages: string; experienceYears: number; avatarData?: string | null; reviewCount?: number };
 type Application = { id: string; tableId: string; title?: string; note: string; status: string; tableStatus?: string; tableUpdatedAt?: string; sessionStatus?: SessionStatus; email?: string };
-type Listing = { id: string; ownerUserId: string; opponentUserId?: string | null; mode: string; title: string; note: string; status: string };
+type Listing = { id: string; ownerUserId: string; opponentUserId?: string | null; mode: string; title: string; note: string; status: string; playerCount?: number; playerLimit?: number };
+const arenaFill = (listing: Listing) => listing.playerLimit ? ` · ${listing.playerCount ?? 1}/${listing.playerLimit} بازیکن` : "";
 type Mine = { hosted: Table[]; applications: Application[] };
 type Mode = "find-game" | "find-dm" | "play" | "create-game" | "arena";
 
 async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, body: data ? JSON.stringify(data) : undefined });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد.", response.status));
   return body.data as T;
 }
 const headings: Record<Mode, { eyebrow: string; title: string; description: string }> = {
@@ -68,7 +71,11 @@ export function GameHub({ mode }: { mode: Mode }) {
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(filter), 250); return () => clearTimeout(timer); }, [filter]);
   const [gamePage, setGamePage] = useState(1);
   const [gameSort, setGameSort] = useState<"newest" | "likes">("newest");
-  const [tableForm, setTableForm] = useState({ genres: [] as string[], imageData: null as string | null, title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
+  const emptyTableForm = () => ({ genres: [] as string[], imageData: null as string | null, title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
+  const [tableForm, setTableForm] = useState(emptyTableForm);
+  const messageRef = useRef<HTMLDivElement>(null);
+  // B74: show the result where the DM is looking.
+  useEffect(() => { if (notice || error) messageRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" }); }, [notice, error]);
   const [inviteCode, setInviteCode] = useState("");
   const [codeInput, setCodeInput] = useState("");
   const [editTableId, setEditTableId] = useState<string | null>(null);
@@ -113,6 +120,18 @@ export function GameHub({ mode }: { mode: Mode }) {
   }, [mode, searchQuery, genre]);
   const refresh = useVisibleRefresh(reload);
 
+  // B74: one save at a time; a new table clears the form so a second click can't duplicate it.
+  const saveTableRun = useRef<() => Promise<void>>(async () => {});
+  const saveTable = useRef(singleFlight(() => saveTableRun.current())).current;
+  saveTableRun.current = async () => {
+    const editing = editTableId;
+    await act(async () => {
+      const result = await request<{ inviteCode?: string | null }>(editing ? `tables/${editing}` : "tables", editing ? "PUT" : "POST", tableForm);
+      setInviteCode(result.inviteCode ?? "");
+      if (!editing) setTableForm(emptyTableForm());
+    }, editing ? "میز ویرایش شد." : "میز ساخته شد.");
+  };
+
   async function act(action: () => Promise<unknown>, message: string) {
     setBusy(true); setError(""); setNotice("");
     try { await action(); setNotice(message); invalidateDiscovery(); if (selected) setApplications(await request<Application[]>(`tables/${selected}/applications`)); }
@@ -146,8 +165,8 @@ export function GameHub({ mode }: { mode: Mode }) {
       <nav className={styles.localNav} aria-label="مسیر بازی"><Link href="/games">بازی‌ها</Link><span aria-hidden="true"> / </span><span>{headings[mode].title}</span></nav>
       <header className={styles.intro}><span className="section-kicker">{heading.eyebrow}</span><h1>{heading.title}</h1><p>{heading.description}</p></header>
 
-      {error && <p role="alert" className={styles.error}>{error}</p>}
-      {notice && <p role="status" className={styles.notice}>{notice}</p>}
+      <div ref={messageRef}>{error && <p role="alert" className={styles.error}>{error}</p>}
+      {notice && <p role="status" className={styles.notice}>{notice}</p>}</div>
       {loading && <p role="status">در حال بارگذاری…</p>}
       {(["find-game", "play", "create-game"] as Mode[]).includes(mode) && signedIn === false && <section className={styles.panel}><h2>برای بازی، اول وارد حساب شو</h2><p>ساخت میز و پیوستن به بازی با حساب فعال سایت انجام می‌شود.</p><div className={styles.actions}><Link href={`/register?next=${encodeURIComponent(returnTo || (mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find))}`}>ساخت حساب</Link><Link href={`/login?next=${encodeURIComponent(returnTo || (mode === "create-game" ? routes.create : mode === "play" ? routes.play : routes.find))}`}>حساب دارم؛ ورود</Link></div></section>}
 
@@ -180,7 +199,7 @@ export function GameHub({ mode }: { mode: Mode }) {
 
       {(mode === "play" || mode === "create-game") && !loading && <>
         {!mine && signedIn && <div className={styles.empty}>میزهای تو بارگذاری نشدند. صفحه را تازه‌سازی کن.</div>}
-        {mine && <>{mode === "create-game" && <section className={styles.panel}><h2>{editTableId ? "ویرایش میز" : "میز تازه"}</h2><form onSubmit={event => { event.preventDefault(); void act(async () => { const result = await request<{ inviteCode?: string | null }>(editTableId ? `tables/${editTableId}` : "tables", editTableId ? "PUT" : "POST", tableForm); setInviteCode(result.inviteCode ?? ""); }, editTableId ? "میز ویرایش شد." : "میز ساخته شد."); }}>
+        {mine && <>{mode === "create-game" && <section className={styles.panel}><h2>{editTableId ? "ویرایش میز" : "میز تازه"}</h2><form onSubmit={event => { event.preventDefault(); void saveTable(); }}>
           <label>عنوان میز<input required minLength={3} value={tableForm.title} onChange={e => setTableForm({ ...tableForm, title: e.target.value })} /></label>
           <details className={styles.expandField} open={editTableId ? true : undefined}><summary>درباره کمپین <span>توضیحات کامل را اینجا بنویس</span></summary><label>توضیحات کمپین<textarea maxLength={2000} value={tableForm.description} onChange={e => setTableForm({ ...tableForm, description: e.target.value })} /></label></details>
           <fieldset className={styles.genreTags}><legend>ژانر کمپین · حداکثر ۴ تگ</legend>{genreChoices.map(value => <label key={value}><input type="checkbox" checked={tableForm.genres.includes(value)} disabled={!tableForm.genres.includes(value) && tableForm.genres.length >= 4} onChange={e => setTableForm({ ...tableForm, genres: e.target.checked ? [...tableForm.genres, value] : tableForm.genres.filter(item => item !== value) })}/>{value}</label>)}</fieldset>
@@ -207,9 +226,9 @@ export function GameHub({ mode }: { mode: Mode }) {
 
       {mode === "arena" && !loading && <>
         <section className={styles.panel}><h2>دعوت تازه</h2><form className={styles.arenaForm} onSubmit={event => { event.preventDefault(); void act(() => request("arena", "POST", arenaForm), "دعوت آرنا ثبت شد."); }}><label>عنوان<input required minLength={3} value={arenaForm.title} onChange={e => setArenaForm({ ...arenaForm, title: e.target.value })} /></label><label>حالت<select value={arenaForm.mode} onChange={e => setArenaForm({ ...arenaForm, mode: e.target.value })}><option value="1V1">1v1</option><option value="2V2">2v2</option><option value="3V3">3v3</option></select></label><label className={styles.fullRow}>توضیحات<textarea maxLength={500} value={arenaForm.note} onChange={e => setArenaForm({ ...arenaForm, note: e.target.value })} /></label><div className={styles.formActions}><button disabled={busy}>ثبت دعوت</button></div></form></section>
-        <h2>دعوت‌های باز</h2><div className={styles.grid}>{listings.map(listing => <article className={styles.card} key={listing.id}><small>{listing.mode}</small><h3>{listing.title}</h3><p>{listing.note || "بدون توضیح"}</p><button disabled={busy} onClick={() => void act(() => request(`arena/${listing.id}/join`, "POST"), "به دعوت پیوستی. اجرای بازی پس از اتصال WebVTT فعال می‌شود.")}>پیوستن</button></article>)}</div>
+        <h2>دعوت‌های باز</h2><div className={styles.grid}>{listings.map(listing => <article className={styles.card} key={listing.id}><small>{listing.mode}{arenaFill(listing)}</small><h3>{listing.title}</h3><p>{listing.note || "بدون توضیح"}</p><button disabled={busy} onClick={() => void act(() => request(`arena/${listing.id}/join`, "POST"), "به دعوت پیوستی. اجرای بازی پس از اتصال WebVTT فعال می‌شود.")}>پیوستن</button></article>)}</div>
         {!listings.length && <div className={styles.empty}>هنوز دعوت بازی وجود ندارد.</div>}
-        {!!myListings.length && <><h2>دعوت‌های من</h2><div className={styles.grid}>{myListings.map(listing => <article className={styles.card} key={listing.id}><h3>{listing.title}</h3><p>{listing.mode} · {listing.status}</p>{listing.status === "OPEN" && <button disabled={busy} onClick={() => void act(() => request(`arena/${listing.id}/cancel`, "POST"), "دعوت لغو شد.")}>لغو دعوت</button>}</article>)}</div></>}
+        {!!myListings.length && <><h2>دعوت‌های من</h2><div className={styles.grid}>{myListings.map(listing => <article className={styles.card} key={listing.id}><h3>{listing.title}</h3><p>{listing.mode} · {listing.status}{arenaFill(listing)}</p>{listing.status === "OPEN" && <button disabled={busy} onClick={() => void act(() => request(`arena/${listing.id}/cancel`, "POST"), "دعوت لغو شد.")}>لغو دعوت</button>}</article>)}</div></>}
       </>}
     </div>
   </main>;

@@ -16,6 +16,7 @@ import {
 } from "next/navigation";
 
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function RegisterPage() {
   const router =
@@ -97,8 +98,7 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error?.message ??
-          "ساخت حساب انجام نشد",
+          apiErrorMessage(data, "ساخت حساب انجام نشد"),
         );
       }
 
@@ -152,7 +152,7 @@ export default function RegisterPage() {
         </h1>
 
         <p>
-          ایمیل، نام کاربری یکتا و رمزی با دست‌کم ۸ نویسه وارد کن
+          ایمیل، نام کاربری یکتا و رمزی با دست‌کم ۱۲ نویسه وارد کن
         </p>
 
         {verificationRequired ? (
@@ -194,7 +194,7 @@ export default function RegisterPage() {
               id="register-password"
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              minLength={8}
+              minLength={12}
               maxLength={128}
               value={password}
               onChange={
@@ -215,7 +215,7 @@ export default function RegisterPage() {
             <input
               type={showPassword ? "text" : "password"}
               autoComplete="new-password"
-              minLength={8}
+              minLength={12}
               maxLength={128}
               value={confirmPassword}
               onChange={(event) => setConfirmPassword(event.target.value)}

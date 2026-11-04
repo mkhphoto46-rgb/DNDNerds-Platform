@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import styles from "./accounts.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 
 
@@ -17,7 +18,7 @@ const date = (value?: string | null) => value ? new Intl.DateTimeFormat("fa-IR",
 async function read<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", ...init });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد."));
   return body as T;
 }
 
