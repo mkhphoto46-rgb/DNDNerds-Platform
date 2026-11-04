@@ -30,3 +30,25 @@ test("B1: the embedded PostgreSQL cluster is created in UTF8, not the Windows co
   const rows = await api.query("select pg_encoding_to_char(encoding) as encoding from pg_database where datname = 'template1'") as { encoding: string }[];
   assert.equal(rows[0]?.encoding, "UTF8");
 });
+
+const sellerApplication = (slug: string) => ({ name: "RC10 store", slug, description: "Dice and maps", category: "accessories" });
+
+test("B51: a taken store slug is refused with 409 SLUG_TAKEN, not a 500", async () => {
+  const first = await api.register("b51a");
+  const second = await api.register("b51b");
+  const slug = `rc10-slug-${Date.now()}`;
+  const ok = await api.request({ method: "POST", url: "/api/v1/marketplace/v21/seller/apply", token: first.token, payload: sellerApplication(slug) });
+  assert.equal(ok.status, 201, JSON.stringify(ok.body));
+  const taken = await api.request({ method: "POST", url: "/api/v1/marketplace/v21/seller/apply", token: second.token, payload: sellerApplication(slug) });
+  assert.equal(taken.status, 409, JSON.stringify(taken.body));
+  assert.equal(taken.body.error.code, "SLUG_TAKEN");
+});
+
+test("B51: two applications from one user at once give one 201 and one 409", async () => {
+  const applicant = await api.register("b51c");
+  const stamp = Date.now();
+  const results = await Promise.all([1, 2].map((n) => api.request({ method: "POST", url: "/api/v1/marketplace/v21/seller/apply", token: applicant.token, payload: sellerApplication(`rc10-twice-${stamp}-${n}`) })));
+  assert.deepEqual(results.map((r) => r.status).sort(), [201, 409], JSON.stringify(results.map((r) => r.body)));
+  const refused = results.find((r) => r.status === 409)!;
+  assert.equal(refused.body.error.code, "APPLICATION_EXISTS");
+});

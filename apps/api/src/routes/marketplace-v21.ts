@@ -11,7 +11,7 @@ const id=z.string().uuid();
 const text=(max=500)=>z.string().trim().min(1).max(max);
 const price=z.number().int().min(1000).max(2_000_000_000);
 const slug=z.string().regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/).min(3).max(100);
-function fail(statusCode:number,message:string):never{throw Object.assign(new Error(message),{statusCode});}
+function fail(statusCode:number,message:string,apiCode?:string):never{throw Object.assign(new Error(message),{statusCode,...(apiCode?{apiCode}:{})});}
 async function variantWrite<T>(write:()=>Promise<T>):Promise<T>{
   try{return await write();}catch(error){
     const e=error as {code?:string;constraint_name?:string};
@@ -64,13 +64,19 @@ export async function registerMarketplaceV21(app:FastifyInstance){
   });
   app.post(`${base}/seller/apply`,async(req,reply)=>{
     const u=await user(req);const b=parse(z.object({name:text(180),slug,description:text(800),category:text(120)}),req.body);
-    const [exists]=await q`select id from seller_profiles where user_id=${u.id}`;if(exists)fail(409,'درخواست فروشندگی قبلاً ثبت شده است.');
+    const [exists]=await q`select id from seller_profiles where user_id=${u.id}`;if(exists)fail(409,'درخواست فروشندگی قبلاً ثبت شده است.','APPLICATION_EXISTS');
+    const [slugTaken]=await q`select id from stores where slug=${b.slug}`;if(slugTaken)fail(409,'این نشانی فروشگاه قبلاً گرفته شده است.','SLUG_TAKEN');
+    // B51: the checks above can race; the unique constraints decide, and answer 409 instead of 500.
     const created=await q.begin(async tx=>{
       const [seller]=await tx`insert into seller_profiles(user_id,display_name,status) values(${u.id},${b.name},'PENDING_REVIEW') returning id`;
       if(!seller)fail(500,'Seller insert failed');
       const [store]=await tx`insert into stores(seller_profile_id,name,slug,description,category,status) values(${seller.id},${b.name},${b.slug},${b.description},${b.category},'PENDING_REVIEW') returning id,slug,status`;
       if(!store)fail(500,'Store insert failed');
       await tx`insert into store_members(store_id,user_id,role) values(${store.id},${u.id},'OWNER')`;return store;
+    }).catch((error:{code?:string;constraint_name?:string})=>{
+      if(error?.code==='23505'&&error.constraint_name==='stores_slug_unique')fail(409,'این نشانی فروشگاه قبلاً گرفته شده است.','SLUG_TAKEN');
+      if(error?.code==='23505'&&error.constraint_name==='seller_profiles_user_id_unique')fail(409,'درخواست فروشندگی قبلاً ثبت شده است.','APPLICATION_EXISTS');
+      throw error;
     });return reply.code(201).send(created);
   });
   app.get(`${base}/seller/dashboard`,async(req)=>{
