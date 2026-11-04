@@ -4,13 +4,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { arenaListings, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
+import { arenaListings, arenaParticipants, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
 import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
 import { fetchVttTableStatuses } from "../integrations/vtt-table-status.js";
 import { requestNativeVttInvite } from "../integrations/native-vtt-invite.js";
 import { notifyMembershipRevoked } from "../integrations/vtt-membership-revoked.js";
+import { inviteBridgeError } from "../integrations/vtt-origin.js";
 
 import { publicAccountId } from "../auth/public-identity.js";
 import { validProfileImage } from "./profile-image.js";
@@ -178,7 +179,15 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     if (pending) return reply.code(409).send({ error: { message: "حذف میز در حال انجام است." } });
     const visibility = parsed.data.visibility ?? existing.visibility;
     const inviteCode = visibility === "PRIVATE" && !existing.inviteCodeHash ? newInviteCode() : null;
-    const [row] = await db.update(gameTables).set({ ...parsed.data, visibility, ...(inviteCode ? { inviteCodeHash: inviteHash(inviteCode) } : {}), updatedAt: new Date() }).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id), ne(gameTables.status, "HIDDEN"))).returning();
+    // B73: the row lock is the same one seat reservations take, so the seated count can't change underneath.
+    const row = await db.transaction(async tx => {
+      await tx.execute(sql`select id from game_tables where id = ${key.data} for update`);
+      const [seated] = await tx.select({ total: sql<number>`count(*)::int` }).from(gameApplications).where(and(eq(gameApplications.tableId, key.data), eq(gameApplications.status, "ACCEPTED")));
+      if (parsed.data.capacity < (seated?.total ?? 0)) return { seated: seated?.total ?? 0 };
+      const [updated] = await tx.update(gameTables).set({ ...parsed.data, visibility, ...(inviteCode ? { inviteCodeHash: inviteHash(inviteCode) } : {}), updatedAt: new Date() }).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id), ne(gameTables.status, "HIDDEN"))).returning();
+      return updated;
+    });
+    if (row && "seated" in row) return reply.code(409).send({ error: { code: "CAPACITY_BELOW_SEATED", message: `ظرفیت نمی‌تواند از تعداد بازیکنان پذیرفته‌شده (${row.seated.toLocaleString("fa-IR")}) کمتر باشد.` } });
     if (!row) return reply.code(404).send({ error: { message: "میز پیدا نشد یا دسترسی ندارید." } });
     if (existing.status === "PUBLISHED" && (row.status === "CLOSED" || row.status === "DRAFT")) await revokeSeats(row.id, "table-closed", request.log);
     return { data: { ...publicTable(row), inviteCode } };
@@ -204,6 +213,8 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
       } catch { return reply.code(503).send({ error: { message: "نشانی سرور بازی معتبر نیست." } }); }
       const username = user.username && /^[a-z][a-z0-9_]{2,23}$/i.test(user.username) ? user.username : `player_${user.id.replaceAll("-", "").slice(0, 10)}`;
       const result = await requestNativeVttInvite({ code: parsed.data.code, userId: user.id, username }, secret);
+      const bridgeMissing = result.ticket ? null : inviteBridgeError(result.status);
+      if (bridgeMissing) { request.log.warn("Join by code failed: the table-app bridge did not answer and VTT_INTERNAL_URL is not set"); return reply.code(503).send({ error: bridgeMissing }); }
       if (!result.ticket) return reply.code(result.status).send({ error: { message: result.status === 404 ? "کد دعوت معتبر نیست یا میز بایگانی شده است." : result.status === 409 ? "این میز متعلق به حساب DM شماست؛ از میزهای من وارد شوید." : result.status === 429 ? "کمی صبر کنید و دوباره تلاش کنید." : "ارتباط با سرور بازی برقرار نشد." } });
       if (result.tableId) {
         const [table] = await db.select().from(gameTables).where(eq(gameTables.id, result.tableId)).limit(1);
@@ -301,13 +312,17 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     return { data: result };
   });
 
+  // B55: players per side by mode; the owner counts as one of them.
+  const arenaPlayerLimit = sql<number>`case ${arenaListings.mode} when '3V3' then 6 when '2V2' then 4 else 2 end`.mapWith(Number);
+  const arenaPlayerCount = sql<number>`(1 + (select count(*) from arena_participants p where p.listing_id = ${arenaListings.id}))::int`.mapWith(Number);
+  const arenaColumns = { id: arenaListings.id, ownerUserId: arenaListings.ownerUserId, opponentUserId: arenaListings.opponentUserId, mode: arenaListings.mode, title: arenaListings.title, note: arenaListings.note, status: arenaListings.status, createdAt: arenaListings.createdAt, updatedAt: arenaListings.updatedAt, playerCount: arenaPlayerCount, playerLimit: arenaPlayerLimit };
   app.get(`${base}/arena`, async () => {
-    const rows = await db.select().from(arenaListings).where(eq(arenaListings.status, "OPEN")).orderBy(desc(arenaListings.createdAt)).limit(80);
+    const rows = await db.select(arenaColumns).from(arenaListings).where(eq(arenaListings.status, "OPEN")).orderBy(desc(arenaListings.createdAt)).limit(80);
     return { data: rows };
   });
   app.get(`${base}/arena/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
-    const rows = await db.select().from(arenaListings).where(sql`${arenaListings.ownerUserId} = ${user.id} or ${arenaListings.opponentUserId} = ${user.id}`).orderBy(desc(arenaListings.createdAt)).limit(80);
+    const rows = await db.select(arenaColumns).from(arenaListings).where(sql`${arenaListings.ownerUserId} = ${user.id} or exists (select 1 from arena_participants p where p.listing_id = ${arenaListings.id} and p.user_id = ${user.id})`).orderBy(desc(arenaListings.createdAt)).limit(80);
     return { data: rows };
   });
   app.post(`${base}/arena`, async (request, reply) => {
@@ -319,7 +334,16 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
   app.post<{ Params: { listingId: string } }>(`${base}/arena/:listingId/join`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
     const key = id.safeParse(request.params.listingId); if (!key.success) return invalid(reply);
-    const [row] = await db.update(arenaListings).set({ opponentUserId: user.id, status: "MATCHED", updatedAt: new Date() }).where(and(eq(arenaListings.id, key.data), eq(arenaListings.status, "OPEN"), ne(arenaListings.ownerUserId, user.id))).returning();
+    const row = await db.transaction(async tx => {
+      const [listing] = await tx.select().from(arenaListings).where(eq(arenaListings.id, key.data)).for("update").limit(1);
+      if (!listing || listing.status !== "OPEN" || listing.ownerUserId === user.id) return null;
+      const [joined] = await tx.insert(arenaParticipants).values({ listingId: listing.id, userId: user.id }).onConflictDoNothing().returning();
+      if (!joined) return null;
+      const [count] = await tx.select({ total: sql<number>`count(*)::int` }).from(arenaParticipants).where(eq(arenaParticipants.listingId, listing.id));
+      const playerCount = 1 + (count?.total ?? 0), playerLimit = listing.mode === "3V3" ? 6 : listing.mode === "2V2" ? 4 : 2;
+      const [updated] = await tx.update(arenaListings).set({ opponentUserId: listing.opponentUserId ?? user.id, status: playerCount >= playerLimit ? "MATCHED" : "OPEN", updatedAt: new Date() }).where(eq(arenaListings.id, listing.id)).returning();
+      return updated ? { ...updated, playerCount, playerLimit } : null;
+    });
     if (!row) return reply.code(409).send({ error: { message: "این دعوت دیگر در دسترس نیست." } });
     return { data: row };
   });

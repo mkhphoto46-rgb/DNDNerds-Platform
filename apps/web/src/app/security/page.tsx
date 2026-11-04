@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type Status = {
   enabled: boolean;
@@ -69,8 +70,7 @@ export default function SecurityPage() {
 
     if (!response.ok) {
       throw new Error(
-        data?.error?.message ??
-        "Security status failed",
+        apiErrorMessage(data, "وضعیت امنیت حساب دریافت نشد."),
       );
     }
 
@@ -124,8 +124,7 @@ export default function SecurityPage() {
 
     if (!response.ok) {
       setMessage(
-        data?.error?.message ??
-        "MFA setup failed",
+        apiErrorMessage(data, "راه‌اندازی تأیید دومرحله‌ای انجام نشد."),
       );
 
       return;
@@ -169,8 +168,7 @@ export default function SecurityPage() {
 
     if (!response.ok) {
       setMessage(
-        data?.error?.message ??
-        "MFA confirmation failed",
+        apiErrorMessage(data, "تأیید دومرحله‌ای فعال نشد."),
       );
 
       return;
@@ -211,8 +209,7 @@ export default function SecurityPage() {
 
     if (!response.ok) {
       setMessage(
-        data?.error?.message ??
-        "MFA disable failed",
+        apiErrorMessage(data, "تأیید دومرحله‌ای غیرفعال نشد."),
       );
 
       return;

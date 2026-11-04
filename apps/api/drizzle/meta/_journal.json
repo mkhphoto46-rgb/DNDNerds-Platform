@@ -253,6 +253,20 @@
       "when": 1793664000002,
       "tag": "0035_variant_identity_price_audit",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1793664000003,
+      "tag": "0036_campaign_cover_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1793664000004,
+      "tag": "0037_arena_participants",
+      "breakpoints": true
     }
   ]
 }

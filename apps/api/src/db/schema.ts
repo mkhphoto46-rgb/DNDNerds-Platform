@@ -9,6 +9,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   uniqueIndex,
@@ -4230,6 +4231,16 @@ export const arenaListings = pgTable("arena_listings", {
   index("arena_listings_owner_idx").on(t.ownerUserId),
   check("arena_listings_mode_valid", sql`${t.mode} IN ('1V1','2V2','3V3')`),
   check("arena_listings_status_valid", sql`${t.status} IN ('OPEN','MATCHED','CANCELLED','HIDDEN')`),
+]);
+
+// B55: one row per player who joined an arena invitation (the owner is not listed).
+export const arenaParticipants = pgTable("arena_participants", {
+  listingId: uuid("listing_id").notNull().references(() => arenaListings.id, { onDelete: "cascade" }),
+  userId: uuid("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  joinedAt: timestamp("joined_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  primaryKey({ name: "arena_participants_pk", columns: [t.listingId, t.userId] }),
+  index("arena_participants_user_idx").on(t.userId),
 ]);
 
 export const sitePosts = pgTable("site_posts", {

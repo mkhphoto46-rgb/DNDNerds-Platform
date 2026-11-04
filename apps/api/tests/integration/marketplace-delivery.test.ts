@@ -45,6 +45,7 @@ test('sandbox payout policies require explicit windows, an independent approver,
 });
 test('independent evidence marks delivery without releasing money; self-review and early eligibility are refused', async () => {
   const buyer = await api.register('delivery-buyer');
+  await sql(async q => { await q`update users set email_verified=true where id=${buyer.userId}`; await q`insert into marketplace_buyer_verifications(user_id,mobile_verified_at,evidence_ref) values(${buyer.userId},now(),'synthetic-only')`; });
   const slug = 'qa-' + randomUUID().slice(0, 8);
   const onboard = await api.request({ method: 'POST', url: '/api/v1/seller/onboard', token: author.token,
     payload: { displayName: 'Synthetic Seller', storeName: 'Synthetic Workshop', storeSlug: slug, description: 'Synthetic fixture for independent delivery.', category: 'dice' } });

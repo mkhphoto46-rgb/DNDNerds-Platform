@@ -7,6 +7,7 @@ import {
 } from "react";
 
 import styles from "../seller/seller-dashboard.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 
 
@@ -62,8 +63,7 @@ export default function AdminPage() {
 
     if (!response.ok) {
       throw new Error(
-        body?.error?.message ??
-        "Admin access failed",
+        apiErrorMessage(body, "دسترسی مدیر تأیید نشد."),
       );
     }
 
@@ -126,8 +126,7 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setError(
-        body?.error?.message ??
-        "Moderation failed",
+        apiErrorMessage(body, "تصمیم مدیریتی ثبت نشد."),
       );
       return;
     }
@@ -144,7 +143,7 @@ export default function AdminPage() {
     });
     const body = await response.json();
     if (!response.ok) {
-      setError(body?.error?.message ?? "تأیید حساب انجام نشد");
+      setError(apiErrorMessage(body, "تأیید حساب انجام نشد"));
       return;
     }
     setError(null);
@@ -177,8 +176,7 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setError(
-        body?.error?.message ??
-        "Commission update failed",
+        apiErrorMessage(body, "کارمزد به‌روز نشد."),
       );
       return;
     }
@@ -228,8 +226,7 @@ export default function AdminPage() {
 
     if (!response.ok) {
       setError(
-        body?.error?.message ??
-        "Store commission update failed",
+        apiErrorMessage(body, "کارمزد فروشگاه به‌روز نشد."),
       );
       return;
     }

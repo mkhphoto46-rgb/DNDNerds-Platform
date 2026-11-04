@@ -1,3 +1,5 @@
+import { forwardedForHeaders } from "./bff-api";
+
 export type MarketplaceTone =
   | "crimson"
   | "gold"
@@ -110,6 +112,7 @@ async function requestJson<T>(
         signal: AbortSignal.timeout(8000),
         headers: {
           Accept: "application/json",
+          ...(await forwardedForHeaders()),
         },
       },
     );
@@ -136,6 +139,7 @@ async function requestNullable<T>(
         signal: AbortSignal.timeout(8000),
         headers: {
           Accept: "application/json",
+          ...(await forwardedForHeaders()),
         },
       },
     );

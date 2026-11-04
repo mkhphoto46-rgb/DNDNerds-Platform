@@ -31,6 +31,14 @@ async function sql<T = Record<string, unknown>>(run: (client: any) => Promise<T>
   try { return await run(client); } finally { await client.end(); }
 }
 
+// B52: every order route requires a verified buyer (email, mobile and evidence).
+async function verifiedBuyer(label: string) {
+  const buyer = await api.register(label);
+  await sql((client) => client`update users set email_verified = true where id = ${buyer.userId}`);
+  await sql((client) => client`insert into marketplace_buyer_verifications (user_id, mobile_verified_at, evidence_ref) values (${buyer.userId}, now(), 'synthetic-only')`);
+  return buyer;
+}
+
 let adminUser: Awaited<ReturnType<TestApi["register"]>> | null = null;
 async function marketplaceAdmin() {
   if (adminUser) return adminUser;
@@ -76,7 +84,7 @@ async function ledgerImbalance(): Promise<number> {
 
 test("order, pay through the signed webhook; the ledger balances and a replay changes nothing", async () => {
   const { productId, priceRial } = await sellerWithProduct();
-  const buyer = await api.register("buyer");
+  const buyer = await verifiedBuyer("buyer");
   const listed = await api.request({ method: "GET", url: "/api/v1/products" });
   assert.ok(JSON.stringify(listed.body).includes(productId), "published product is listed");
 
@@ -114,7 +122,7 @@ test("order, pay through the signed webhook; the ledger balances and a replay ch
 
 test("an order beyond the stock is refused; an unknown product too", async () => {
   const { productId } = await sellerWithProduct(1);
-  const buyer = await api.register("buyer2");
+  const buyer = await verifiedBuyer("buyer2");
   const tooMany = await api.request({ method: "POST", url: "/api/v1/marketplace/orders", token: buyer.token, payload: { idempotencyKey: key("order"), address, items: [{ productId, quantity: 2 }] } });
   assert.ok(tooMany.status >= 400 && tooMany.status < 500, `${tooMany.status} ${JSON.stringify(tooMany.body)}`);
   const unknown = await api.request({ method: "POST", url: "/api/v1/marketplace/orders", token: buyer.token, payload: { idempotencyKey: key("order"), address, items: [{ productId: randomUUID(), quantity: 1 }] } });
@@ -123,7 +131,7 @@ test("an order beyond the stock is refused; an unknown product too", async () =>
 
 test('item refunds execute once per quantity, restore only selected units and conserve the paid ledger', async () => {
   const { productId, storeId, seller } = await sellerWithProduct(5, 100003);
-  const buyer = await api.register('partial-refund');
+  const buyer = await verifiedBuyer('partial-refund');
   const placed = await api.request({ method: 'POST', url: '/api/v1/marketplace/orders', token: buyer.token,
     payload: { idempotencyKey: key('partial'), address, items: [{ productId, quantity: 3 }] } });
   ok(placed);
@@ -217,4 +225,21 @@ test('item refunds execute once per quantity, restore only selected units and co
   const [unchanged] = await sql<any[]>(q => q`select quantity_on_hand from inventory where variant_id=${line.variant_id}`);
   assert.equal(unchanged.quantity_on_hand, 3);
   assert.equal(await ledgerImbalance(), 0);
+});
+
+test("B52: an order without buyer verification is refused on the direct order route", async () => {
+  const { productId } = await sellerWithProduct();
+  const unverified = await api.register("unverified");
+  const order = await api.request({ method: "POST", url: "/api/v1/marketplace/orders", token: unverified.token, payload: { idempotencyKey: key("order"), address, items: [{ productId, quantity: 1 }] } });
+  assert.equal(order.status, 403, JSON.stringify(order.body));
+  assert.equal(find(order.body, "code"), "BUYER_VERIFICATION_REQUIRED");
+});
+
+test("B52: a store member can't order the store's own product", async () => {
+  const { seller, productId } = await sellerWithProduct();
+  await sql((client) => client`update users set email_verified = true where id = ${seller.userId}`);
+  await sql((client) => client`insert into marketplace_buyer_verifications (user_id, mobile_verified_at, evidence_ref) values (${seller.userId}, now(), 'synthetic-only')`);
+  const order = await api.request({ method: "POST", url: "/api/v1/marketplace/orders", token: seller.token, payload: { idempotencyKey: key("order"), address, items: [{ productId, quantity: 1 }] } });
+  assert.equal(order.status, 403, JSON.stringify(order.body));
+  assert.equal(find(order.body, "code"), "SELF_PURCHASE");
 });
