@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { arenaListings, arenaParticipants, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
+import { arenaListings, arenaParticipants, dmProfiles, gameApplications, playerProfiles, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
 import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
@@ -106,10 +106,11 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     const term = `%${query ?? ""}%`;
     const matchesCampaign = sql`EXISTS (SELECT 1 FROM game_tables t WHERE t.host_user_id = ${dmProfiles.userId} AND t.visibility = 'PUBLIC' AND t.status = 'PUBLISHED' AND (${!query} OR t.title ILIKE ${term} OR t.description ILIKE ${term} OR t.genres::text ILIKE ${term}) AND (${!genre} OR t.genres @> ${JSON.stringify(genre ? [genre] : [])}::jsonb))`;
     const publicIdMatch = sql`translate(rtrim(encode(substring(sha256(convert_to(${users.id}::text, 'UTF8')) from 1 for 9), 'base64'), '='), '+/', '-_') ILIKE ${term}`;
-    const rows = await db.select({ username: users.username, userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears, avatarData: dmProfiles.avatarData, bannerData: dmProfiles.bannerData }).from(dmProfiles).innerJoin(users, eq(dmProfiles.userId, users.id)).where(and(eq(dmProfiles.visible, true), eq(users.status, "ACTIVE"), query ? or(ilike(dmProfiles.displayName, term), ilike(dmProfiles.bio, term), ilike(users.username, term), sql`${users.id}::text ILIKE ${term}`, publicIdMatch, matchesCampaign) : undefined, genre ? sql`EXISTS (SELECT 1 FROM game_tables t WHERE t.host_user_id = ${dmProfiles.userId} AND t.visibility = 'PUBLIC' AND t.status = 'PUBLISHED' AND t.genres @> ${JSON.stringify([genre])}::jsonb)` : undefined)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
+    const rows = await db.select({ username: users.username, userId: dmProfiles.userId, displayName: dmProfiles.displayName, bio: dmProfiles.bio, playStyle: dmProfiles.playStyle, languages: dmProfiles.languages, experienceYears: dmProfiles.experienceYears, avatarData: dmProfiles.avatarData, bannerData: dmProfiles.bannerData }).from(dmProfiles).innerJoin(users, eq(dmProfiles.userId, users.id)).where(and(eq(dmProfiles.visible, true), eq(users.status, "ACTIVE"), query ? or(ilike(dmProfiles.displayName, term), ilike(dmProfiles.bio, term), ilike(users.username, term), publicIdMatch, matchesCampaign) : undefined, genre ? sql`EXISTS (SELECT 1 FROM game_tables t WHERE t.host_user_id = ${dmProfiles.userId} AND t.visibility = 'PUBLIC' AND t.status = 'PUBLISHED' AND t.genres @> ${JSON.stringify([genre])}::jsonb)` : undefined)).orderBy(desc(dmProfiles.updatedAt)).limit(60);
     const viewer = await requireAuthUser(request);
     const summaries = await discoveryFeedbackList("dm", rows.map(row=>({id:row.userId,ownerId:row.userId})), viewer?.id);
-    return { data: rows.map(row=>({...row,publicId:publicAccountId(row.userId),...summaries.get(row.userId)!})) };
+    // B40: public by publicId only; the account UUID stays on the server.
+    return { data: rows.map(({ userId, ...row })=>({...row,publicId:publicAccountId(userId),...summaries.get(userId)!})) };
   });
   app.get(`${base}/dms/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
@@ -128,10 +129,10 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     if (!parsed.success) return invalid(reply);
     const query = parsed.data.q, genre = parsed.data.genre, term = `%${parsed.data.q ?? ""}%`;
     const publicIdMatch = sql`translate(rtrim(encode(substring(sha256(convert_to(${users.id}::text, 'UTF8')) from 1 for 9), 'base64'), '='), '+/', '-_') ILIKE ${term}`;
-    const rows = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, title: gameTables.title, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData, hostUsername: users.username, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).innerJoin(users, eq(gameTables.hostUserId, users.id)).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"), query ? or(ilike(gameTables.title, term), ilike(gameTables.description, term), ilike(gameTables.system, term), ilike(gameTables.playStyle, term), ilike(dmProfiles.displayName, term), ilike(users.username, term), sql`${users.id}::text ILIKE ${term}`, publicIdMatch, sql`${gameTables.genres}::text ILIKE ${term}`) : undefined, genre ? sql`${gameTables.genres} @> ${JSON.stringify([genre])}::jsonb` : undefined)).orderBy(desc(gameTables.createdAt)).limit(80);
+    const rows = await db.select({ id: gameTables.id, hostUserId: gameTables.hostUserId, hostName: dmProfiles.displayName, title: gameTables.title, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData, hostUsername: users.username, system: gameTables.system, language: gameTables.language, playStyle: gameTables.playStyle, levelRange: gameTables.levelRange, schedule: gameTables.schedule, capacity: gameTables.capacity, visibility: gameTables.visibility, createdAt: gameTables.createdAt }).from(gameTables).innerJoin(users, eq(gameTables.hostUserId, users.id)).leftJoin(dmProfiles, eq(gameTables.hostUserId, dmProfiles.userId)).where(and(eq(gameTables.status, "PUBLISHED"), eq(gameTables.visibility, "PUBLIC"), query ? or(ilike(gameTables.title, term), ilike(gameTables.description, term), ilike(gameTables.system, term), ilike(gameTables.playStyle, term), ilike(dmProfiles.displayName, term), ilike(users.username, term), publicIdMatch, sql`${gameTables.genres}::text ILIKE ${term}`) : undefined, genre ? sql`${gameTables.genres} @> ${JSON.stringify([genre])}::jsonb` : undefined)).orderBy(desc(gameTables.createdAt)).limit(80);
     const viewer = await requireAuthUser(request);
     const summaries = await discoveryFeedbackList("table", rows.map(row=>({id:row.id,ownerId:row.hostUserId})), viewer?.id);
-    return { data: rows.map(row=>({...row,hostPublicId:publicAccountId(row.hostUserId),...summaries.get(row.id)!})) };
+    return { data: rows.map(({ hostUserId, ...row })=>({...row,hostPublicId:publicAccountId(hostUserId),...summaries.get(row.id)!})) };
   });
   app.get<{ Params: { tableId: string } }>(`${base}/tables/:tableId`, async (request, reply) => {
     const key = id.safeParse(request.params.tableId); if (!key.success) return invalid(reply);
@@ -139,7 +140,8 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     if (!table) return reply.code(404).send({ error: { message: "این کمپین پیدا نشد." } });
     const user = await requireAuthUser(request);
     const summary = await discoveryFeedback("table", table.id, table.hostUserId, user?.id);
-    return { data: { ...table, ...summary, canReview: summary.canReact } };
+    const { hostUserId: _host, ...publicDetail } = table;
+    return { data: { ...publicDetail, hostPublicId: publicAccountId(table.hostUserId), ...summary, canReview: summary.canReact } };
   });
   app.get(`${base}/tables/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
@@ -273,8 +275,9 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     const key = id.safeParse(request.params.tableId); if (!key.success) return invalid(reply);
     const [table] = await db.select().from(gameTables).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id))).limit(1);
     if (!table) return reply.code(404).send({ error: { message: "میز پیدا نشد." } });
-    const rows = await db.select({ id: gameApplications.id, userId: gameApplications.userId, email: users.email, note: gameApplications.note, status: gameApplications.status, createdAt: gameApplications.createdAt }).from(gameApplications).innerJoin(users, eq(gameApplications.userId, users.id)).where(eq(gameApplications.tableId, key.data)).orderBy(desc(gameApplications.createdAt));
-    return { data: rows };
+    // B40: the DM sees the player's name and public ID, never the email address or account UUID.
+    const rows = await db.select({ id: gameApplications.id, userId: gameApplications.userId, username: users.username, profileName: playerProfiles.displayName, note: gameApplications.note, status: gameApplications.status, createdAt: gameApplications.createdAt }).from(gameApplications).innerJoin(users, eq(gameApplications.userId, users.id)).leftJoin(playerProfiles, eq(playerProfiles.userId, gameApplications.userId)).where(eq(gameApplications.tableId, key.data)).orderBy(desc(gameApplications.createdAt));
+    return { data: rows.map(({ userId, username, profileName, ...row }) => { const applicantPublicId = publicAccountId(userId); return { ...row, applicantName: profileName || username || `بازیکن ${applicantPublicId.slice(0, 6)}`, applicantPublicId }; }) };
   });
   app.post<{ Params: { applicationId: string } }>(`${base}/applications/:applicationId/respond`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
@@ -305,7 +308,8 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
   const arenaColumns = { id: arenaListings.id, ownerUserId: arenaListings.ownerUserId, opponentUserId: arenaListings.opponentUserId, mode: arenaListings.mode, title: arenaListings.title, note: arenaListings.note, status: arenaListings.status, createdAt: arenaListings.createdAt, updatedAt: arenaListings.updatedAt, playerCount: arenaPlayerCount, playerLimit: arenaPlayerLimit };
   app.get(`${base}/arena`, async () => {
     const rows = await db.select(arenaColumns).from(arenaListings).where(eq(arenaListings.status, "OPEN")).orderBy(desc(arenaListings.createdAt)).limit(80);
-    return { data: rows };
+    // B40: the public list names no account UUIDs.
+    return { data: rows.map(({ ownerUserId, opponentUserId: _opponent, ...row }) => ({ ...row, ownerPublicId: publicAccountId(ownerUserId) })) };
   });
   app.get(`${base}/arena/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;

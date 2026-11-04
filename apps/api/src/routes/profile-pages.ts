@@ -2,6 +2,8 @@ import type { FastifyInstance, FastifyRequest } from "fastify";
 import { and, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
+import { publicAccountId } from "../auth/public-identity.js";
+import { resolveUserRef } from "../auth/public-user-ref.js";
 import { db } from "../db/client.js";
 import { dmProfiles, gameTableReviews, gameTables, playerCharacters, playerProfiles, users } from "../db/schema.js";
 import { validProfileImage } from "./profile-image.js";
@@ -61,7 +63,8 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
 
   app.post(`${base}/dms/me/activate`, async (request, reply) => {
     const user = await authenticated(request, reply); if (!user) return;
-    const fallback = user.username ?? user.email.split("@")[0] ?? "DM";
+    // B40: never derive a public name from the email address.
+    const fallback = user.username ?? "DM";
     await db.insert(dmProfiles).values({ userId: user.id, displayName: fallback.length >= 2 ? fallback.slice(0, 100) : "DM" }).onConflictDoNothing();
     const [profile] = await db.select().from(dmProfiles).where(eq(dmProfiles.userId, user.id)).limit(1);
     return { data: profile };
@@ -76,7 +79,7 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { userId: string } }>(`${base}/dms/:userId/page`, async (request, reply) => {
-    const parsed = uuid.safeParse(request.params.userId); if (!parsed.success) return invalid(reply);
+    const parsed = uuid.safeParse(await resolveUserRef(request.params.userId)); if (!parsed.success) return reply.code(404).send({ error: { message: "صفحهٔ DM پیدا نشد." } });
     const [profile] = await db.select({ profile: dmProfiles }).from(dmProfiles).innerJoin(users, eq(dmProfiles.userId, users.id)).where(and(eq(dmProfiles.userId, parsed.data), eq(dmProfiles.visible, true), eq(users.status, "ACTIVE"))).limit(1);
     if (!profile) return reply.code(404).send({ error: { message: "صفحهٔ DM پیدا نشد." } });
     const [reviews, tables] = await Promise.all([
@@ -92,7 +95,9 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
     ]);
     const viewer = await requireAuthUser(request);
     const summary = await discoveryFeedback("dm", profile.profile.userId, profile.profile.userId, viewer?.id);
-    return { data: { profile: profile.profile, ...summary, canReview: summary.canReact, campaignReviews: reviews.map(({rating: _rating, ...review}) => ({ ...review, author: review.reviewerName ?? `بازیکن ${review.reviewerUserId.slice(0,6)}`, mine: review.reviewerUserId === viewer?.id })), tables } };
+    // B40: the public page carries public IDs only.
+    const { userId: dmUserId, ...publicProfile } = profile.profile;
+    return { data: { profile: { ...publicProfile, publicId: publicAccountId(dmUserId) }, ...summary, canReview: summary.canReact, campaignReviews: reviews.map(({rating: _rating, reviewerUserId, ...review}) => { const reviewerPublicId = publicAccountId(reviewerUserId); return { ...review, reviewerPublicId, author: review.reviewerName ?? `بازیکن ${reviewerPublicId.slice(0,6)}`, mine: reviewerUserId === viewer?.id }; }), tables } };
   });
 
   app.get(`${base}/characters/me`, async (request, reply) => {
@@ -133,12 +138,13 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
   });
 
   app.get<{ Params: { userId: string } }>(`${base}/players/:userId/page`, async (request, reply) => {
-    const key = uuid.safeParse(request.params.userId); if (!key.success) return invalid(reply);
+    const key = uuid.safeParse(await resolveUserRef(request.params.userId)); if (!key.success) return reply.code(404).send({ error: { message: "صفحهٔ بازیکن پیدا نشد." } });
     const [player] = await db.select({ id: users.id, username: users.username, status: users.status }).from(users).where(eq(users.id, key.data)).limit(1);
     if (!player || player.status !== "ACTIVE") return reply.code(404).send({ error: { message: "صفحهٔ بازیکن پیدا نشد." } });
     const characters = await db.select().from(playerCharacters).where(and(eq(playerCharacters.userId, key.data), eq(playerCharacters.public, true))).orderBy(desc(playerCharacters.createdAt));
     const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, key.data)).limit(1);
     const [dm] = await db.select({ userId: dmProfiles.userId }).from(dmProfiles).where(and(eq(dmProfiles.userId, key.data), eq(dmProfiles.visible, true))).limit(1);
-    return { data: { player: { id: player.id, name: profile?.displayName ?? player.username ?? `بازیکن ${player.id.slice(0, 6)}`, bio: profile?.bio ?? "", avatarData: profile?.avatarData ?? null, bannerData: profile?.bannerData ?? null, dmPage: Boolean(dm) }, characters } };
+    const publicId = publicAccountId(player.id);
+    return { data: { player: { publicId, name: profile?.displayName ?? player.username ?? `بازیکن ${publicId.slice(0, 6)}`, bio: profile?.bio ?? "", avatarData: profile?.avatarData ?? null, bannerData: profile?.bannerData ?? null, dmPage: Boolean(dm) }, characters: characters.map(({ userId: _owner, ...character }) => character) } };
   });
 }

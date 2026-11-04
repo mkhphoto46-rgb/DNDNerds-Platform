@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { startApi } from "../support/api.js";
+import { publicAccountId } from "../../src/auth/public-identity.js";
 
 test("profiles, campaign metadata and public privacy are enforced by the API", async () => {
   const api = await startApi();
@@ -45,7 +46,8 @@ test("profiles, campaign metadata and public privacy are enforced by the API", a
     assert.equal(noGenre.body.data.length, 0);
     const byId = await api.request({ method: "GET", url: `${base}/tables?q=${dms.body.data[0].publicId}` });
     assert.equal(byId.body.data.length, 1);
-    assert.ok(dms.body.data.find((dm: { userId: string; publicId: string }) => dm.userId === owner.userId && dm.publicId));
+    // B40: the public DM list identifies DMs by publicId only.
+    assert.ok(dms.body.data.find((dm: { userId?: string; publicId: string }) => dm.publicId === publicAccountId(owner.userId) && dm.userId === undefined));
     assert.equal((await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: { ...table, genres: ["unknown"] } })).status, 400);
     assert.equal((await api.request({ method: "POST", url: `${base}/tables`, token: owner.token, payload: { ...table, imageData: "data:image/webp;base64," + "A".repeat(140000) } })).status, 400);
   } finally { await api.stop(); }
