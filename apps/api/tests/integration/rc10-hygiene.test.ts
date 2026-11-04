@@ -52,3 +52,31 @@ test("B51: two applications from one user at once give one 201 and one 409", asy
   const refused = results.find((r) => r.status === 409)!;
   assert.equal(refused.body.error.code, "APPLICATION_EXISTS");
 });
+
+async function seatPlayers(owner: { token: string }, tableId: string, count: number) {
+  const players = [];
+  for (let n = 0; n < count; n += 1) {
+    const player = await api.register(`seat${n}`);
+    const applied = await api.request({ method: "POST", url: `/api/v1/game-hub/tables/${tableId}/apply`, token: player.token, payload: { note: "" } });
+    assert.equal(applied.status, 200, JSON.stringify(applied.body));
+    const accepted = await api.request({ method: "POST", url: `/api/v1/game-hub/applications/${applied.body.data.id}/respond`, token: owner.token, payload: { accept: true } });
+    assert.equal(accepted.status, 200, JSON.stringify(accepted.body));
+    players.push({ ...player, applicationId: applied.body.data.id as string });
+  }
+  return players;
+}
+
+test("B73: capacity can't be set below the number of seated players", async () => {
+  const owner = await api.register("b73");
+  const created = await api.request({ method: "POST", url: "/api/v1/game-hub/tables", token: owner.token, payload: tableInput() });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const tableId = created.body.data.id;
+  await seatPlayers(owner, tableId, 3);
+  const lowered = await api.request({ method: "PUT", url: `/api/v1/game-hub/tables/${tableId}`, token: owner.token, payload: tableInput({ capacity: 2 }) });
+  assert.equal(lowered.status, 409, JSON.stringify(lowered.body));
+  assert.equal(lowered.body.error.code, "CAPACITY_BELOW_SEATED");
+  const listed = await api.request({ method: "GET", url: `/api/v1/game-hub/tables/${tableId}` });
+  assert.equal(listed.body.data.capacity, 4);
+  const same = await api.request({ method: "PUT", url: `/api/v1/game-hub/tables/${tableId}`, token: owner.token, payload: tableInput({ capacity: 3 }) });
+  assert.equal(same.status, 200, JSON.stringify(same.body));
+});

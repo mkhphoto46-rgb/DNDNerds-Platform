@@ -171,7 +171,15 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     if (pending) return reply.code(409).send({ error: { message: "حذف میز در حال انجام است." } });
     const visibility = parsed.data.visibility ?? existing.visibility;
     const inviteCode = visibility === "PRIVATE" && !existing.inviteCodeHash ? newInviteCode() : null;
-    const [row] = await db.update(gameTables).set({ ...parsed.data, visibility, ...(inviteCode ? { inviteCodeHash: inviteHash(inviteCode) } : {}), updatedAt: new Date() }).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id), ne(gameTables.status, "HIDDEN"))).returning();
+    // B73: the row lock is the same one seat reservations take, so the seated count can't change underneath.
+    const row = await db.transaction(async tx => {
+      await tx.execute(sql`select id from game_tables where id = ${key.data} for update`);
+      const [seated] = await tx.select({ total: sql<number>`count(*)::int` }).from(gameApplications).where(and(eq(gameApplications.tableId, key.data), eq(gameApplications.status, "ACCEPTED")));
+      if (parsed.data.capacity < (seated?.total ?? 0)) return { seated: seated?.total ?? 0 };
+      const [updated] = await tx.update(gameTables).set({ ...parsed.data, visibility, ...(inviteCode ? { inviteCodeHash: inviteHash(inviteCode) } : {}), updatedAt: new Date() }).where(and(eq(gameTables.id, key.data), eq(gameTables.hostUserId, user.id), ne(gameTables.status, "HIDDEN"))).returning();
+      return updated;
+    });
+    if (row && "seated" in row) return reply.code(409).send({ error: { code: "CAPACITY_BELOW_SEATED", message: `ظرفیت نمی‌تواند از تعداد بازیکنان پذیرفته‌شده (${row.seated.toLocaleString("fa-IR")}) کمتر باشد.` } });
     if (!row) return reply.code(404).send({ error: { message: "میز پیدا نشد یا دسترسی ندارید." } });
     return { data: { ...publicTable(row), inviteCode } };
   });
