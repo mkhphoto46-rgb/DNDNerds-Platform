@@ -38,8 +38,8 @@ export default function ResetPasswordPage() {
     {message ? <><p role="status">{message}</p><Link href="/login">ورود با رمز جدید</Link></> :
       <form className={styles.form} onSubmit={submit}>
         {!token && <label className={styles.field}><span>کد بازیابی</span><input dir="ltr" value={token} onChange={event => setToken(event.target.value)} required /></label>}
-        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required /></label>
-        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
+        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required /></label>
+        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
         {error && <p className={styles.error} role="alert">{error}</p>}
         <button className={styles.button} type="submit" disabled={busy}>{busy ? "در حال تغییر…" : "ثبت رمز جدید"}</button>
       </form>}

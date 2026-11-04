@@ -1,6 +1,7 @@
 // RC10: Platform API hygiene fixes, each reproduced on a database built only
 // from the repository's migrations.
 import assert from "node:assert/strict";
+import { hash } from "@node-rs/argon2";
 import { after, before, test } from "node:test";
 
 import { startApi, type TestApi } from "../support/api.js";
@@ -111,4 +112,35 @@ test("B55: a 1V1 invitation still closes after one opponent", async () => {
   const joined = await api.request({ method: "POST", url: `/api/v1/game-hub/arena/${created.body.data.id}/join`, token: opponent.token });
   assert.equal(joined.body.data.status, "MATCHED");
   assert.equal(joined.body.data.opponentUserId, opponent.userId);
+});
+
+test("B83: sign-up refuses an 11-character password and accepts 12", async () => {
+  const stamp = Date.now().toString(36);
+  const attempt = (password: string, n: number) => api.request({ method: "POST", url: "/api/v1/auth/register", payload: { email: `b83.${stamp}.${n}@example.test`, password, username: `b83_${stamp}_${n}` }, remoteAddress: `10.83.0.${n}` });
+  assert.equal((await attempt("Abcdefgh-11", 1)).status, 400);
+  assert.equal((await attempt("Abcdefgh-123", 2)).status, 201);
+});
+
+test("B83: password change refuses an 11-character new password", async () => {
+  const user = await api.register("b83change");
+  const change = (newPassword: string) => api.request({ method: "POST", url: "/api/v1/account/password/change", token: user.token, payload: { currentPassword: user.password, newPassword }, remoteAddress: user.address });
+  assert.equal((await change("Abcdefgh-11")).status, 400);
+  assert.equal((await change("Abcdefgh-123")).status, 200);
+});
+
+test("B83: password reset refuses an 11-character new password before looking at the token", async () => {
+  // Reset email needs a real provider, so an unknown token is used: a valid password reaches the token check.
+  const confirm = (newPassword: string) => api.request({ method: "POST", url: "/api/v1/account/password-reset/confirm", payload: { token: "x".repeat(40), newPassword }, remoteAddress: "10.83.1.1" });
+  const short = await confirm("Abcdefgh-11");
+  assert.equal(short.body.error.code, "VALIDATION_ERROR", JSON.stringify(short.body));
+  const long = await confirm("Abcdefgh-123");
+  assert.equal(long.body.error.code, "INVALID_OR_EXPIRED_TOKEN", JSON.stringify(long.body));
+});
+
+test("B83: an existing 8-character password still signs in", async () => {
+  const user = await api.register("b83legacy");
+  const legacyHash = await hash("Legacy-8");
+  await api.query(`update users set password_hash = '${legacyHash}' where id = '${user.userId}'`);
+  const login = await api.request({ method: "POST", url: "/api/v1/auth/login", payload: { email: user.email, password: "Legacy-8" }, remoteAddress: user.address });
+  assert.equal(login.status, 200, JSON.stringify(login.body));
 });

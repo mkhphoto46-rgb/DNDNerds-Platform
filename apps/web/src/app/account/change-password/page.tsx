@@ -36,8 +36,8 @@ export default function ChangePasswordPage() {
       <p>رمز فعلی و رمز جدید را وارد کن. رمز جدید باید دست‌کم ۱۲ نویسه باشد.</p>
       <form className={styles.form} onSubmit={submit}>
         <label className={styles.field}><span>رمز فعلی</span><input type="password" autoComplete="current-password" value={currentPassword} onChange={event => setCurrentPassword(event.target.value)} required /></label>
-        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} required /></label>
-        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
+        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={newPassword} onChange={event => setNewPassword(event.target.value)} required /></label>
+        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
         {error && <p className={styles.error} role="alert">{error}</p>}
         <button className={styles.button} type="submit" disabled={busy}>{busy ? "در حال تغییر…" : "تغییر رمز"}</button>
       </form>
