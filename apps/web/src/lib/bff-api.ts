@@ -1,6 +1,11 @@
 import {
   cookies,
+  headers as incomingHeaders,
 } from "next/headers";
+
+import {
+  visitorAddress,
+} from "./visitor-address";
 
 export const SESSION_COOKIE =
   "dnd_session";
@@ -22,6 +27,20 @@ export async function getSessionToken() {
   );
 }
 
+/**
+ * C3: the API sees every website request coming from this server, so pass on the
+ * visitor's address. The API trusts it only from a loopback peer (API_TRUST_PROXY).
+ */
+export async function forwardedForHeaders(): Promise<Record<string, string>> {
+  try {
+    const address = visitorAddress(await incomingHeaders());
+    return address ? { "X-Forwarded-For": address } : {};
+  } catch {
+    // Outside a request (build time, background work) there is no visitor.
+    return {};
+  }
+}
+
 export async function apiFetch(
   path: string,
   init:
@@ -40,6 +59,10 @@ export async function apiFetch(
       "Authorization",
       `Bearer ${token}`,
     );
+  }
+
+  for (const [name, value] of Object.entries(await forwardedForHeaders())) {
+    headers.set(name, value);
   }
 
   return fetch(

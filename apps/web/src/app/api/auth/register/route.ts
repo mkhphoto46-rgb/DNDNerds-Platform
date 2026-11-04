@@ -3,6 +3,7 @@ import {
 } from "next/server";
 
 import {
+  forwardedForHeaders,
   publicSessionCookie,
 } from "@/lib/bff-api";
 
@@ -27,6 +28,7 @@ export async function POST(
         headers: {
           "Content-Type":
             "application/json",
+          ...(await forwardedForHeaders()),
         },
 
         body,

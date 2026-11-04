@@ -39,6 +39,7 @@ import Fastify from "fastify";
 
 import {
   config,
+  parseTrustProxy,
 } from "./config";
 
 import {
@@ -107,6 +108,12 @@ export async function buildApp() {
       genReqId:
         () =>
           randomUUID(),
+
+      // C3: rate limits and session records need the visitor's address, not the proxy's.
+      trustProxy:
+        parseTrustProxy(
+          config.API_TRUST_PROXY,
+        ),
 
       bodyLimit:
         1024 * 1024,
