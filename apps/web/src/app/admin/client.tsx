@@ -267,6 +267,7 @@ export default function AdminPage() {
           <Link href="/admin/game-hub">مدیریت میزها، Dungeon Masters و آرنا ←</Link>
           <Link href="/admin/accounts">مدیریت حساب‌ها و دسترسی کاربران ←</Link>
           <Link href="/admin/marketplace">بررسی بازارچه</Link>
+          <Link href="/admin/sales">حسابداری و فروش</Link>
           <Link href="/admin/feedback">انتقادها، نظرها و پیشنهادهای کاربران ←</Link>
           {data.admin.role === "SUPER_ADMIN" && <Link href="/admin/subscriptions">مدیریت اشتراک و دسترسی بازی ←</Link>}
           {data.admin.role === "SUPER_ADMIN" && <Link href="/admin/system">وضعیت سایت، بازی و سرور ←</Link>}

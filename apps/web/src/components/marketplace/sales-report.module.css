@@ -1,0 +1,32 @@
+:global(.dnd-site-shell) .report { color: #f7f5ef; background: rgba(5,30,51,.9); border: 1px solid rgba(54,201,218,.3); border-radius: 22px; padding: clamp(16px,3vw,28px); margin-block: 24px; min-width: 0; }
+:global(.dnd-site-shell) .report h2 { color: #efc477; margin-block: 0 12px; }
+:global(.dnd-site-shell) .report p { line-height: 1.9; }
+:global(.dnd-site-shell) .filters { display: grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap: 14px; align-items: end; margin-block: 24px; }
+:global(.dnd-site-shell) .filters label { display: grid; gap: 8px; color: #afc2d0; }
+:global(.dnd-site-shell) .filters input, :global(.dnd-site-shell) .filters select { width: 100%; min-height: 44px; padding: 10px; border: 1px solid rgba(54,201,218,.5); border-radius: 10px; background: #061427; color: #f7f5ef; font: inherit; box-sizing: border-box; color-scheme: dark; }
+:global(.dnd-site-shell) .report button { min-height: 44px; font: inherit; cursor: pointer; }
+:global(.dnd-site-shell) .report button:disabled { opacity: .5; cursor: default; }
+:global(.dnd-site-shell) .report :is(input,select,button,summary):focus-visible { outline: 3px solid #36c9da; outline-offset: 3px; }
+:global(.dnd-site-shell) .totals { display: grid; grid-template-columns: repeat(auto-fit,minmax(180px,1fr)); gap: 12px; }
+:global(.dnd-site-shell) .total { padding: 18px; display: grid; gap: 12px; background: #0a253d; border-radius: 16px; border: 1px solid rgba(54,201,218,.22); }
+:global(.dnd-site-shell) .total span, :global(.dnd-site-shell) .note { color: #afc2d0; }
+:global(.dnd-site-shell) .total strong { color: #efc477; overflow-wrap: anywhere; }
+:global(.dnd-site-shell) .rows { display: grid; gap: 16px; margin-block: 24px; }
+:global(.dnd-site-shell) .sale { border: 1px solid rgba(54,201,218,.28); border-radius: 18px; padding: 18px; background: rgba(6,20,39,.8); min-width: 0; }
+:global(.dnd-site-shell) .rowHeading { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; align-items: center; }
+:global(.dnd-site-shell) .rowHeading h3 { margin: 0; color: #36c9da; }
+:global(.dnd-site-shell) .facts { display: grid; grid-template-columns: repeat(auto-fit,minmax(200px,1fr)); gap: 16px; margin-block: 20px; }
+:global(.dnd-site-shell) .facts dt { color: #afc2d0; font-size: .9rem; margin-bottom: 6px; }
+:global(.dnd-site-shell) .facts dd { margin: 0; overflow-wrap: anywhere; line-height: 1.8; }
+:global(.dnd-site-shell) .sale summary { cursor: pointer; color: #efc477; padding-block: 12px; min-height: 44px; box-sizing: border-box; }
+:global(.dnd-site-shell) .tableScroll { overflow-x: auto; }
+:global(.dnd-site-shell) .report table { border-collapse: collapse; width: 100%; text-align: right; }
+:global(.dnd-site-shell) .report :is(th,td) { padding: 12px; border-bottom: 1px solid rgba(54,201,218,.2); white-space: nowrap; }
+:global(.dnd-site-shell) .report th { color: #afc2d0; }
+:global(.dnd-site-shell) .report caption { text-align: right; padding-block: 12px; color: #afc2d0; }
+:global(.dnd-site-shell) .report small { display: block; color: #afc2d0; margin-top: 6px; }
+:global(.dnd-site-shell) .warning { color: #efc477; border-right: 3px solid #efc477; padding: 12px; }
+:global(.dnd-site-shell) .error { color: #ffb6b6; border: 1px solid #a54a56; border-radius: 12px; padding: 16px; }
+:global(.dnd-site-shell) .empty { border: 1px dashed #36c9da; padding: 24px; border-radius: 14px; }
+:global(.dnd-site-shell) .pagination { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; margin-block: 24px 0; }
+@media(max-width: 560px) { :global(.dnd-site-shell) .filters, :global(.dnd-site-shell) .facts { grid-template-columns: 1fr; } :global(.dnd-site-shell) .sale { padding: 14px; } }
