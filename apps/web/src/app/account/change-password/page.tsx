@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import styles from "../../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ChangePasswordPage() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -23,7 +24,7 @@ export default function ChangePasswordPage() {
         body: JSON.stringify({ currentPassword, newPassword }),
       });
       if (response.status === 401) throw new Error("رمز فعلی اشتباه است یا نشستت تمام شده است.");
-      if (!response.ok) throw new Error("تغییر رمز انجام نشد. دوباره تلاش کن.");
+      if (!response.ok) throw new Error(apiErrorMessage(await response.json().catch(() => null), "تغییر رمز انجام نشد. دوباره تلاش کن.", response.status));
       setDone(true); setCurrentPassword(""); setNewPassword(""); setConfirmation("");
       window.dispatchEvent(new Event("dnd-auth-change"));
     } catch (reason) { setError(reason instanceof Error ? reason.message : "ارتباط با سرور برقرار نشد."); }

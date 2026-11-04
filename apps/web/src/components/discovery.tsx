@@ -3,13 +3,14 @@ import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { invalidateDiscovery } from "@/lib/use-visible-refresh";
 import styles from "./discovery.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export type FeedbackSummary = { likes?: number; dislikes?: number; myVote?: 1 | -1 | null; canReact?: boolean; reviewCount?: number };
 export type FeedbackReview = { id: string; author: string; authorId?: string; comment: string; mine?: boolean; createdAt?: string; updatedAt?: string };
 export async function discoveryRequest<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api/game-hub/${path}`, { method, credentials: "same-origin", cache: "no-store", headers: data !== undefined ? { "Content-Type": "application/json" } : undefined, body: data !== undefined ? JSON.stringify(data) : undefined });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد.", response.status));
   return body.data as T;
 }
 

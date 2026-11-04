@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -25,7 +26,7 @@ export default function ResetPasswordPage() {
       const response = await fetch("/api/account/password-reset/confirm", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, newPassword: password }),
       });
-      if (!response.ok) throw new Error("پیوند نامعتبر یا منقضی شده است. از صفحهٔ فراموشی رمز، پیوند تازه بگیر.");
+      if (!response.ok) throw new Error(apiErrorMessage(await response.json().catch(() => null), "پیوند نامعتبر یا منقضی شده است. از صفحهٔ فراموشی رمز، پیوند تازه بگیر.", response.status));
       setMessage("رمز عبور تغییر کرد. برای امنیت حساب، همهٔ نشست‌های قبلی بسته شدند. دوباره وارد شو.");
       setPassword(""); setConfirmation(""); setToken("");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "تغییر رمز انجام نشد."); }

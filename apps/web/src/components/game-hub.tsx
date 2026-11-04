@@ -9,6 +9,7 @@ import { prepareProfileImage } from "@/lib/profile-pages";
 import styles from "./game-hub.module.css";
 import { CoverImage, DmCard, Reactions, RecentReviews, DeleteCampaign, type FeedbackSummary, type FeedbackReview } from "./discovery";
 import { useVisibleRefresh, invalidateDiscovery } from "@/lib/use-visible-refresh";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type GameSession = { id: string; number: number; startedAt: string; endedAt: string | null };
 type SessionStatus = { onlineCount: number; activeSession: GameSession | null; recentSessions: GameSession[] } | null;
@@ -25,7 +26,7 @@ type Mode = "find-game" | "find-dm" | "play" | "create-game" | "arena";
 async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
   const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, body: data ? JSON.stringify(data) : undefined });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد.", response.status));
   return body.data as T;
 }
 const headings: Record<Mode, { eyebrow: string; title: string; description: string }> = {

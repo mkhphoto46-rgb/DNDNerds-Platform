@@ -16,6 +16,7 @@ import {
 } from "next/navigation";
 
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function RegisterPage() {
   const router =
@@ -97,8 +98,7 @@ export default function RegisterPage() {
 
       if (!response.ok) {
         throw new Error(
-          data?.error?.message ??
-          "ساخت حساب انجام نشد",
+          apiErrorMessage(data, "ساخت حساب انجام نشد"),
         );
       }
 
