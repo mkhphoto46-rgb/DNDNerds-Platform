@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { arenaListings, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
+import { arenaListings, arenaParticipants, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
 import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
@@ -299,13 +299,17 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
     return { data: result };
   });
 
+  // B55: players per side by mode; the owner counts as one of them.
+  const arenaPlayerLimit = sql<number>`case ${arenaListings.mode} when '3V3' then 6 when '2V2' then 4 else 2 end`.mapWith(Number);
+  const arenaPlayerCount = sql<number>`(1 + (select count(*) from arena_participants p where p.listing_id = ${arenaListings.id}))::int`.mapWith(Number);
+  const arenaColumns = { id: arenaListings.id, ownerUserId: arenaListings.ownerUserId, opponentUserId: arenaListings.opponentUserId, mode: arenaListings.mode, title: arenaListings.title, note: arenaListings.note, status: arenaListings.status, createdAt: arenaListings.createdAt, updatedAt: arenaListings.updatedAt, playerCount: arenaPlayerCount, playerLimit: arenaPlayerLimit };
   app.get(`${base}/arena`, async () => {
-    const rows = await db.select().from(arenaListings).where(eq(arenaListings.status, "OPEN")).orderBy(desc(arenaListings.createdAt)).limit(80);
+    const rows = await db.select(arenaColumns).from(arenaListings).where(eq(arenaListings.status, "OPEN")).orderBy(desc(arenaListings.createdAt)).limit(80);
     return { data: rows };
   });
   app.get(`${base}/arena/me`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
-    const rows = await db.select().from(arenaListings).where(sql`${arenaListings.ownerUserId} = ${user.id} or ${arenaListings.opponentUserId} = ${user.id}`).orderBy(desc(arenaListings.createdAt)).limit(80);
+    const rows = await db.select(arenaColumns).from(arenaListings).where(sql`${arenaListings.ownerUserId} = ${user.id} or exists (select 1 from arena_participants p where p.listing_id = ${arenaListings.id} and p.user_id = ${user.id})`).orderBy(desc(arenaListings.createdAt)).limit(80);
     return { data: rows };
   });
   app.post(`${base}/arena`, async (request, reply) => {
@@ -317,7 +321,16 @@ export async function registerGameHubRoutes(app: FastifyInstance) {
   app.post<{ Params: { listingId: string } }>(`${base}/arena/:listingId/join`, async (request, reply) => {
     const user = await auth(request, reply); if (!user) return;
     const key = id.safeParse(request.params.listingId); if (!key.success) return invalid(reply);
-    const [row] = await db.update(arenaListings).set({ opponentUserId: user.id, status: "MATCHED", updatedAt: new Date() }).where(and(eq(arenaListings.id, key.data), eq(arenaListings.status, "OPEN"), ne(arenaListings.ownerUserId, user.id))).returning();
+    const row = await db.transaction(async tx => {
+      const [listing] = await tx.select().from(arenaListings).where(eq(arenaListings.id, key.data)).for("update").limit(1);
+      if (!listing || listing.status !== "OPEN" || listing.ownerUserId === user.id) return null;
+      const [joined] = await tx.insert(arenaParticipants).values({ listingId: listing.id, userId: user.id }).onConflictDoNothing().returning();
+      if (!joined) return null;
+      const [count] = await tx.select({ total: sql<number>`count(*)::int` }).from(arenaParticipants).where(eq(arenaParticipants.listingId, listing.id));
+      const playerCount = 1 + (count?.total ?? 0), playerLimit = listing.mode === "3V3" ? 6 : listing.mode === "2V2" ? 4 : 2;
+      const [updated] = await tx.update(arenaListings).set({ opponentUserId: listing.opponentUserId ?? user.id, status: playerCount >= playerLimit ? "MATCHED" : "OPEN", updatedAt: new Date() }).where(eq(arenaListings.id, listing.id)).returning();
+      return updated ? { ...updated, playerCount, playerLimit } : null;
+    });
     if (!row) return reply.code(409).send({ error: { message: "این دعوت دیگر در دسترس نیست." } });
     return { data: row };
   });

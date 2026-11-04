@@ -80,3 +80,35 @@ test("B73: capacity can't be set below the number of seated players", async () =
   const same = await api.request({ method: "PUT", url: `/api/v1/game-hub/tables/${tableId}`, token: owner.token, payload: tableInput({ capacity: 3 }) });
   assert.equal(same.status, 200, JSON.stringify(same.body));
 });
+
+test("B55: a 2V2 arena invitation accepts joins until four players, then closes", async () => {
+  const owner = await api.register("b55owner");
+  const created = await api.request({ method: "POST", url: "/api/v1/game-hub/arena", token: owner.token, payload: { mode: "2V2", title: "Team fight", note: "" } });
+  assert.equal(created.status, 201, JSON.stringify(created.body));
+  const listingId = created.body.data.id;
+  const joiners = [await api.register("b55a"), await api.register("b55b"), await api.register("b55c"), await api.register("b55d")];
+  const join = (token: string) => api.request({ method: "POST", url: `/api/v1/game-hub/arena/${listingId}/join`, token });
+  const first = await join(joiners[0]!.token);
+  assert.equal(first.status, 200, JSON.stringify(first.body));
+  assert.equal(first.body.data.status, "OPEN");
+  assert.equal((await join(joiners[0]!.token)).status, 409, "the same player can't join twice");
+  assert.equal((await join(owner.token)).status, 409, "the owner can't join their own invitation");
+  const second = await join(joiners[1]!.token);
+  assert.equal(second.body.data.status, "OPEN");
+  const third = await join(joiners[2]!.token);
+  assert.equal(third.status, 200, JSON.stringify(third.body));
+  assert.equal(third.body.data.status, "MATCHED");
+  assert.equal(third.body.data.playerCount, 4);
+  assert.equal((await join(joiners[3]!.token)).status, 409, "a full invitation refuses more players");
+  const mine = await api.request({ method: "GET", url: "/api/v1/game-hub/arena/me", token: joiners[1]!.token });
+  assert.ok(mine.body.data.some((row: { id: string }) => row.id === listingId), "a joined player sees the invitation in their list");
+});
+
+test("B55: a 1V1 invitation still closes after one opponent", async () => {
+  const owner = await api.register("b55solo");
+  const created = await api.request({ method: "POST", url: "/api/v1/game-hub/arena", token: owner.token, payload: { mode: "1V1", title: "Duel", note: "" } });
+  const opponent = await api.register("b55opp");
+  const joined = await api.request({ method: "POST", url: `/api/v1/game-hub/arena/${created.body.data.id}/join`, token: opponent.token });
+  assert.equal(joined.body.data.status, "MATCHED");
+  assert.equal(joined.body.data.opponentUserId, opponent.userId);
+});
