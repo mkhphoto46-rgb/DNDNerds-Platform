@@ -25,7 +25,7 @@ type Mine = { hosted: Table[]; applications: Application[] };
 type Mode = "find-game" | "find-dm" | "play" | "create-game" | "arena";
 
 async function request<T>(path: string, method = "GET", data?: unknown): Promise<T> {
-  const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, body: data ? JSON.stringify(data) : undefined });
+  const response = await fetch(`/api/game-hub/${path}`, { method, cache: "no-store", headers: data ? { "Content-Type": "application/json" } : undefined, ...(data ? { body: JSON.stringify(data) } : {}) });
   const body = await response.json();
   if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد.", response.status));
   return body.data as T;

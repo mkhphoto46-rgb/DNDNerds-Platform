@@ -13,7 +13,9 @@ test("profile limits allow 500KB avatar and 1MB header while campaign remains sm
  assert.equal(validProfileImage(webp(500_002), "avatar"), false);
  assert.equal(validProfileImage(webp(1_000_000), "banner"), true);
  assert.equal(validProfileImage(webp(1_000_002), "banner"), false);
- assert.equal(validProfileImage(webp(300_000), "campaign"), false);
+ // B35: a campaign cover may be up to 500KB too, and no more.
+ assert.equal(validProfileImage(webp(500_000), "campaign"), true);
+ assert.equal(validProfileImage(webp(500_002), "campaign"), false);
 });
 test("text feedback persists privately, admin review is authorized and large profiles save", async () => {
  delete process.env.FREE_LAUNCH_MODE;

@@ -1054,7 +1054,7 @@ export async function registerOrderRoutes(
 
               if(new Set(prepared.map(r=>r.variantId)).size!==prepared.length)throw new CheckoutConflict(409,"DUPLICATE_VARIANT","The same SKU cannot occur more than once.");
 
-              for(const storeId of [...new Set(prepared.map(r=>r.storeId))]) {
+              for(const storeId of new Set(prepared.map(r=>r.storeId))) {
                 const result = await tx.execute(sql`SELECT s.risk_cap_rial as cap,coalesce((SELECT sum(so.gross_rial) FROM marketplace_seller_orders so WHERE so.store_id=s.id AND so.status NOT IN ('CANCELLED','REFUNDED')),0) as exposure FROM stores s WHERE s.id=${storeId}`);
                 const incoming=prepared.filter(r=>r.storeId===storeId).reduce((n,r)=>n+r.lineTotalRial,0)+(shippingByStore.get(storeId)?.feeRial??0);
                 if(Number(result[0]?.exposure??0)+incoming>Number(result[0]?.cap??0))throw new CheckoutConflict(409,"SELLER_EXPOSURE_LIMIT","Seller open exposure limit exceeded.");

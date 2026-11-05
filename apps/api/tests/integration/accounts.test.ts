@@ -1,8 +1,6 @@
 // Accounts and sessions against a real database and Redis: registration,
 // login, the session list, revocation, and password reset revoking sessions.
 import assert from "node:assert/strict";
-import fs from "node:fs";
-import path from "node:path";
 import { after, before, test } from "node:test";
 
 import { startApi, type TestApi } from "../support/api.js";
@@ -17,7 +15,7 @@ test("register, then log in; a wrong password and a duplicate email are refused"
   assert.equal(me.status, 200);
   assert.equal(JSON.stringify(me.body).includes(user.email), true);
 
-  const duplicate = await api.request({ method: "POST", url: "/api/v1/auth/register", payload: { email: user.email, password: user.password } });
+  const duplicate = await api.request({ method: "POST", url: "/api/v1/auth/register", payload: { email: user.email, password: user.password, username: `dup_${Date.now().toString(36)}` } });
   assert.equal(duplicate.status, 409);
   const wrong = await api.request({ method: "POST", url: "/api/v1/auth/login", payload: { email: user.email, password: `${user.password}x` }, remoteAddress: user.address });
   assert.equal(wrong.status, 401);
@@ -57,14 +55,12 @@ test("logout ends the session", async () => {
 
 test("a password reset changes the password and ends every session", async () => {
   const user = await api.register("reset");
+  // Without a configured email provider (tests use the development one) a reset email is refused
+  // rather than silently dropped, so the token is minted the way the request route mints it.
   const requested = await api.request({ method: "POST", url: "/api/v1/account/password-reset/request", payload: { email: user.email }, remoteAddress: user.address });
-  assert.ok(requested.status === 200 || requested.status === 202, JSON.stringify(requested.body));
-  // The development email provider writes to logs/email-outbox.log at the repository root.
-  const outbox = path.resolve(process.cwd(), "../../logs/email-outbox.log");
-  const message = fs.readFileSync(outbox, "utf8").trim().split("\n").map((line) => JSON.parse(line)).reverse()
-    .find((entry) => JSON.stringify(entry).includes(user.email));
-  const token = JSON.stringify(message).match(/token[=":]+([A-Za-z0-9_-]{20,})/)?.[1];
-  assert.ok(token, "reset token in the outbox");
+  assert.equal(requested.status, 503, JSON.stringify(requested.body));
+  const { createEmailActionToken } = await import("../../src/email/tokens.js");
+  const { token } = await createEmailActionToken(user.userId, "PASSWORD_RESET", 30);
 
   const newPassword = `${user.password}-new`;
   const confirmed = await api.request({ method: "POST", url: "/api/v1/account/password-reset/confirm", payload: { token, password: newPassword, newPassword }, remoteAddress: user.address });
