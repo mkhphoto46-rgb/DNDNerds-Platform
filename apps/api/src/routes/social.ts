@@ -256,6 +256,8 @@ export async function registerSocialRoutes(app: FastifyInstance) {
     const target = request.params.userId;
     if (!uuidSchema.safeParse(target).success) return error(reply, 400, "INVALID_ID", "Invalid user ID.");
     const parsed = messageSchema.safeParse(request.body);
+    // Control characters are matched on purpose: they are stripped from user text.
+    // oxlint-disable-next-line no-control-regex
     if (!parsed.success || /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(parsed.data?.body ?? ""))
       return error(reply, 400, "INVALID_MESSAGE", "Text must contain 1 to 2000 characters.");
     if (!(await authorizedFriends(user.id, target))) return error(reply, 403, "NOT_FRIENDS", "Chat available for friends only.");

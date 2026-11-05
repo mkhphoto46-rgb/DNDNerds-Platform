@@ -20,7 +20,7 @@ type PanelTab="friends"|"chats"|"groups";
 async function api<T>(path:string,method="GET",data?:unknown):Promise<T>{
   const res=await fetch(`/api/social/${path}`,{method,credentials:"same-origin",cache:"no-store",
     headers:data===undefined?undefined:{"Content-Type":"application/json"},
-    body:data===undefined?undefined:JSON.stringify(data)});
+    ...(data===undefined?{}:{body:JSON.stringify(data)})});
   const body: {data?:T;error?:{message?:string}}=await res.json();
   if(!res.ok)throw new Error(body.error?.message??`Request failed (${res.status})`);
   return body.data as T;

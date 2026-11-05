@@ -67,7 +67,7 @@ export async function startApi(): Promise<TestApi> {
   const request: TestApi["request"] = async ({ token, headers, ...options }) => {
     const response = await app.inject({
       ...options,
-      headers: { ...(headers ?? {}), ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      headers: { ...headers, ...(token ? { authorization: `Bearer ${token}` } : {}) },
     });
     let body: unknown = null;
     try { body = response.json(); } catch { body = response.body; }

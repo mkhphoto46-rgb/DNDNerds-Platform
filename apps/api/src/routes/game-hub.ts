@@ -4,7 +4,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { db } from "../db/client.js";
-import { arenaListings, arenaParticipants, dmProfiles, gameApplications, gameTableReviews, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
+import { arenaListings, arenaParticipants, dmProfiles, gameApplications, gameTableDeletions, gameTables, marketplaceAdminAuditLogs, sitePosts, users } from "../db/schema.js";
 import { getAdmin, reauth } from "./admin.js";
 import { canLaunchTable } from "./table-access.js";
 import { createVttTicket } from "./vtt-ticket.js";
