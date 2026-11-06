@@ -26,6 +26,8 @@ try{
  assert.ok((await send('GET','dms?q=Invited')).data.some(x=>x.userId===host.id));
  const profile=(await send('GET',`dms/${host.id}/page`)).data;
  assert.ok(profile.tables.some(t=>t.id===privateTable.id));assert.ok(!profile.tables.some(t=>t.id===draft.id));
+ await send('PUT',`tables/${privateTable.id}/reaction`,p,{value:1});
+ await send('PUT',`tables/${privateTable.id}/review`,p,{comment:'بازخورد آزمایشی برای میز دعوتی قابل مشاهده است.'});
  await send('POST',`tables/${privateTable.id}/launch`,p,{role:'player'},403);
  await send('POST',`tables/${privateTable.id}/launch`,p,{role:'dm'},403);
  await send('POST','tables/join-by-code',p,{code:'INVALIDCODE123'},404);

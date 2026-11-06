@@ -51,7 +51,7 @@ export async function registerDiscoveryFeedbackRoutes(app: FastifyInstance) {
  // Lock target through the write so deletion/privacy updates cannot race admission.
  if(kind==='table') {
  await tx.execute(sql`select id from game_tables where id=${key.data} for update`);
- const [target]=await tx.select().from(gameTables).where(and(eq(gameTables.id,key.data),eq(gameTables.status,'PUBLISHED'),eq(gameTables.visibility,'PUBLIC'))).limit(1);
+ const [target]=await tx.select().from(gameTables).where(and(eq(gameTables.id,key.data),eq(gameTables.status,'PUBLISHED'))).limit(1);
  if(!target||target.hostUserId===user.id)return null;
  if(action==='reaction') { const value=(input.data as {value:1|-1|null}).value;
  if(value===null)await tx.delete(gameTableReactions).where(and(eq(gameTableReactions.tableId,key.data),eq(gameTableReactions.reviewerUserId,user.id)));
