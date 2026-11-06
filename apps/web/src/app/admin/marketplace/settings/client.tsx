@@ -6,7 +6,7 @@ import {
   useState,
 } from "react";
 
-import styles from "../seller/seller-dashboard.module.css";
+import styles from "../../../seller/seller-dashboard.module.css";
 import { apiErrorMessage } from "@/lib/api-error";
 
 
@@ -259,16 +259,9 @@ export default function AdminPage() {
             DND NERDS ADMIN
           </div>
           <h1>
-            داشبورد مدیریت سایت
+            تنظیمات و کارمزد بازارچه
           </h1>
-          <Link href="/admin/control">مدیریت ویرایش و حذف میزها، فروشگاه‌ها و محصولات ←</Link>
-          <Link href="/admin/game-hub">مدیریت میزها، Dungeon Masters و آرنا ←</Link>
-          <Link href="/admin/accounts">مدیریت حساب‌ها و دسترسی کاربران ←</Link>
-          <Link href="/admin/marketplace">بررسی بازارچه</Link>
-          <Link href="/admin/sales">حسابداری و فروش</Link>
-          <Link href="/admin/feedback">انتقادها، نظرها و پیشنهادهای کاربران ←</Link>
-          {data.admin.role === "SUPER_ADMIN" && <Link href="/admin/subscriptions">مدیریت اشتراک و دسترسی بازی ←</Link>}
-          {data.admin.role === "SUPER_ADMIN" && <Link href="/admin/system">وضعیت سایت، بازی و سرور ←</Link>}
+          <Link href="/admin/commerce">← بازارچه و فروش</Link>
           <div className={styles.meta}>
             {data.admin.email}
             {" · "}

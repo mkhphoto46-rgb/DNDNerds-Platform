@@ -54,5 +54,25 @@ test('admin control edits non-owned resources, protects limits, archives commerc
   const deletion=await api.request({method:'DELETE',url:`${base}/tables/${table.id}`,token:admin.token,payload:{...auth,confirmTitle:'Corrected QA Campaign'}});assert.equal(deletion.status,202);assert.equal(deletion.body.data.deletionPending,true);
   await call('PATCH',`/tables/${table.id}`,admin.token,{...auth,status:'PUBLISHED'},409);
   const [job]=await q`select d.requested_by,t.host_user_id from game_table_deletions d join game_tables t on t.id=d.table_id where d.table_id=${table.id}`;assert.equal(job!.requested_by,admin.userId);assert.equal(job!.host_user_id,owner.userId);
+  const pendingDetail=await call('GET',`/tables/${table.id}`,admin.token);
+  const fetchBefore=globalThis.fetch;
+  process.env.VTT_BRIDGE_SECRET='a'.repeat(64);
+  globalThis.fetch=(async(input,init)=>{
+   if(String(input).endsWith('/api/platform/delete-table')){
+    const payload=JSON.parse(String(init?.body));
+    assert.equal(payload.hostUserId,owner.userId,'VTT receives the original owner, not the admin');
+    assert.equal(payload.tableId,table.id);
+    return new Response(JSON.stringify({data:{deleted:true}}));
+   }
+   return fetchBefore(input,init);
+  }) as typeof fetch;
+  try{
+   const completed=await call('DELETE',`/tables/${table.id}`,admin.token,{...auth,expectedVersion:pendingDetail.version,confirmTitle:'Corrected QA Campaign'});
+   assert.equal(completed.deleted,true);
+   assert.equal((await q`select id from game_tables where id=${table.id}`).length,0);
+   assert.equal((await q`select table_id from game_table_deletions where table_id=${table.id}`).length,0);
+   assert.equal((await q`select id from users where id=${owner.userId}`).length,1,'deleting a table retains the owner account');
+   assert.equal((await q`select id from products where id=${product}`).length,1,'unrelated commerce is preserved');
+  }finally{globalThis.fetch=fetchBefore;}
  }finally{await q.end();await api.stop();}
 });
