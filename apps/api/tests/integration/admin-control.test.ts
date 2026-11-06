@@ -30,6 +30,11 @@ test('admin control edits non-owned resources, protects limits, archives commerc
   await q`update stores set featured_until='2030-01-01T00:00:00Z' where id=${store}`;
   await call('PATCH',`/stores/${store}`,admin.token,{...auth,name:'Corrected store',featured:true});
   assert.equal((await q`select extract(year from featured_until)::int y from stores where id=${store}`)[0]!.y,2030);
+  const images=await q`insert into marketplace_media(owner_id,data_webp) values(${owner.userId},'data:image/webp;base64,UklGRg=='),(${owner.userId},'data:image/webp;base64,UklGRg==') returning id`;
+  await q`update products set image_url=${'/api/marketplace/v21/media/'+images[0]!.id} where id=${product}`;
+  assert.equal((await api.request({method:'GET',url:'/api/v1/marketplace/v21/media/'+images[0]!.id,token:admin.token})).status,200);
+  assert.equal((await api.request({method:'GET',url:'/api/v1/marketplace/v21/media/'+images[0]!.id,token:player.token})).status,404);
+  assert.equal((await api.request({method:'GET',url:'/api/v1/marketplace/v21/media/'+images[1]!.id,token:admin.token})).status,404,'admin resource control cannot read unrelated customer uploads');
   const detail=await call('GET',`/products/${product}`,admin.token);const variant=detail.variants[0];
   await q`update inventory set quantity_reserved=2 where variant_id=${variant.id}`;
   await call('PATCH',`/products/${product}/variants/${variant.id}`,admin.token,{...auth,stock:1},409);
