@@ -86,8 +86,8 @@ export async function registerProfilePagesRoutes(app: FastifyInstance) {
         .innerJoin(users, eq(gameTableReviews.reviewerUserId, users.id))
         .where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTableReviews.createdAt)).limit(100),
-      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, system: gameTables.system, levelRange: gameTables.levelRange, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData })
-        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), eq(gameTables.visibility, "PUBLIC"), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
+      db.select({ id: gameTables.id, title: gameTables.title, status: gameTables.status, visibility: gameTables.visibility, system: gameTables.system, levelRange: gameTables.levelRange, description: gameTables.description, genres: gameTables.genres, imageData: gameTables.imageData })
+        .from(gameTables).where(and(eq(gameTables.hostUserId, profile.profile.userId), inArray(gameTables.status, ["PUBLISHED", "CLOSED"])))
         .orderBy(desc(gameTables.createdAt)).limit(30),
     ]);
     const viewer = await requireAuthUser(request);

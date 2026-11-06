@@ -274,6 +274,13 @@
       "when": 1793664000005,
       "tag": "0038_product_community",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1793923200000,
+      "tag": "0039_knowledge_homebrew",
+      "breakpoints": true
     }
   ]
 }

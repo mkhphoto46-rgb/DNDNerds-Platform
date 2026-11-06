@@ -113,3 +113,15 @@
 .dnd-site-shell .site-route-loading{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:22px;min-height:calc(100svh - 150px);padding:130px 24px 50px;color:#d9ecf5}
 .dnd-site-shell .site-route-loading img{object-fit:contain}
 @media(max-width:540px){.dnd-site-shell .guild-art{height:50vw}.dnd-site-shell .guild-home:has(.guild-xp .xp-progress){padding-top:126px}.dnd-site-shell .guild-title h1{font-size:40px}.dnd-site-shell .guild-intro>p{font-size:16px;margin:4px 0 12px}.dnd-site-shell .guild-slogan span{margin-top:4px}}
+
+/* November 4: full-width ornamental XP without an enclosing panel. */
+.dnd-site-shell .guild-xp{inset:112px auto auto 32px;width:min(480px,42%);padding:0 4px;background:none;border:0;border-radius:0;box-shadow:none}
+.dnd-site-shell .guild-xp .xp-progress-labels{align-items:center;margin-bottom:10px}
+.dnd-site-shell .guild-xp .xp-progress-labels strong{display:flex;align-items:center;gap:10px;font-size:20px;color:#ffe2a0;text-shadow:0 0 16px #dc9b4c88}
+.xp-progress-emblem{width:32px;height:38px;object-fit:contain;vertical-align:middle}
+.dnd-site-shell .guild-xp .xp-progress-labels span{font-size:14px;color:#e5f7ff}
+.dnd-site-shell .guild-xp .xp-progress-track{height:14px;background:#06283bea;border:1px solid #5bcbd3;box-shadow:0 0 14px #17c3d442,inset 0 2px 6px #0008}
+.dnd-site-shell .guild-xp .xp-progress-track span{background:linear-gradient(90deg,#08768f,#22d8cd 55%,#f4cf77);box-shadow:0 0 16px #35d7db80}
+.dnd-site-shell .guild-xp small{font-size:12px;color:#d2e8ef;margin-top:6px}
+@media(max-width:900px){.dnd-site-shell .guild-xp{position:relative;inset:auto;order:-1;width:100%;max-width:none;margin:0 0 14px;padding:0}.dnd-site-shell .guild-home:has(.guild-xp .xp-progress){padding-top:116px}.dnd-site-shell .guild-xp .xp-progress-labels strong{font-size:20px}.dnd-site-shell .guild-xp .xp-progress-labels span{font-size:13px}}
+@media(max-width:540px){.dnd-site-shell .guild-home:has(.guild-xp .xp-progress){padding-top:94px}.dnd-site-shell .guild-xp .xp-progress-track{height:15px}.dnd-site-shell .guild-xp{margin-bottom:4px}.dnd-site-shell .guild-table-actions{flex-wrap:wrap;gap:14px}.dnd-site-shell .guild-title{width:100%}}

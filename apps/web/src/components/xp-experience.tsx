@@ -95,7 +95,7 @@ export function XpBar({ compact = false }: { compact?: boolean }) {
   const xp = useContext(XpContext);
   if (!xp) return null;
   return <div className={`xp-progress${compact ? " xp-progress-compact" : ""}`} role="progressbar" aria-label={`سطح ${xp.level}، پیشرفت تا سطح بعد`} aria-valuenow={xp.levelXp} aria-valuemin={0} aria-valuemax={xp.xpToNextLevel}>
-    <div className="xp-progress-labels"><strong>LVL {xp.level.toLocaleString("en-US")}</strong><span dir="ltr">{xp.levelXp.toLocaleString("en-US")} <i>/</i> {xp.xpToNextLevel.toLocaleString("en-US")} XP</span></div>
+    <div className="xp-progress-labels"><strong><img className="xp-progress-emblem" src="/site-ui/icon-home.png" alt="" width="36" height="44" /> LVL {xp.level.toLocaleString("en-US")}</strong><span dir="ltr">{xp.levelXp.toLocaleString("en-US")} <i>/</i> {xp.xpToNextLevel.toLocaleString("en-US")} XP</span></div>
     <div className="xp-progress-track"><span style={{ width: `${Math.min(100, xp.levelXp / xp.xpToNextLevel * 100)}%` }} /></div>
     {!compact && <small>مجموع تجربه: {xp.totalXp.toLocaleString("fa-IR")} XP</small>}
   </div>;

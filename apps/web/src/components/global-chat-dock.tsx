@@ -185,9 +185,7 @@ export function GlobalChatDock(){
           {notice&&<p className={styles.error} role="alert">{notice}<button onClick={()=>setNotice("")} aria-label="بستن خطا">×</button></p>}
         </>}
       </section>
-      <button className={styles.launcher} type="button" aria-expanded={open} aria-controls="dnd-social-panel" onClick={()=>{setOpen(v=>!v);setNotice("");}}>
-        <span className={styles.spark}>✧</span><span>دوستان و گفتگو</span><span className={styles.chevron}>{open?"⌄":"⌃"}</span>
-      </button>
+
     </div>
   );
 }

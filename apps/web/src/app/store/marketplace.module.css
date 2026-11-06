@@ -1550,3 +1550,13 @@
 .variantPanel select,.variantPanel input,.variantPanel textarea {width:100%;min-height:44px;background:rgba(4,24,39,1);color:var(--site-text);border:1px solid rgba(75,181,203,0.533333);border-radius:8px;padding:10px;box-sizing:border-box;font:inherit}
 .variantActions {display:flex;gap:12px;flex-wrap:wrap}
 @media(max-width:640px){.marketIntro{display:block}.marketIntro a{margin-top:18px}.marketFilters{grid-template-columns:1fr 1fr;padding:14px}.categoryBoxes a{padding:14px}.variantPanel{padding:14px}}
+
+.categoryRail{display:flex;flex-wrap:nowrap;gap:10px;overflow-x:auto;overscroll-behavior-inline:contain;scroll-snap-type:x proximity;padding:6px 2px 14px;max-width:100%;min-width:0;scrollbar-color:#36c9da #062135}
+.categoryRail a{flex:0 0 auto;white-space:nowrap;scroll-snap-align:start;padding:12px 20px;border:1px solid #39758a;border-radius:999px;background:#062135;color:#eaf6ff;min-height:46px}
+.categoryRail a[aria-current=page]{border-color:#edc66d;color:#ffe3a1;background:#174454}
+.filterDisclosure{border:1px solid #39758a;border-radius:18px;background:#042032;margin:18px 0;min-width:0}
+.filterDisclosure summary{cursor:pointer;padding:16px 20px;color:#f4d48e;font-weight:750;list-style-position:inside}
+.filterDisclosure summary span{font-size:12px;color:#c8e5ef;margin-inline-start:12px;font-weight:400}
+.filterDisclosure[open] summary span{display:none}.filterDisclosure .marketFilters{border:0;background:transparent}
+.shell,.section,.productCard,.storeCard{min-width:0}.marketIntro>*{min-width:0}.productBody :is(h3,p){overflow-wrap:anywhere}
+@media(max-width:400px){.marketFilters{grid-template-columns:1fr}.filterDisclosure summary span{display:block;margin-inline-start:20px}.marketIntro .primaryButton{max-width:100%;white-space:normal}}
