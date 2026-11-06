@@ -18,3 +18,21 @@
 .mobile .panel { position: static; width: 100%; box-shadow:none; margin-top: 8px; }
 .mobile.guestActions { align-items: stretch; flex-direction: column; }
 @media (max-width: 900px) { .mobile .accountLabel { max-width: 230px; } }
+/* Header controls sit away from the viewport edge; anchor the mobile popup to
+   the viewport instead of letting it grow past the account button. */
+@media (max-width: 900px) {
+  .menu:not(.mobile) .panel {
+    position: fixed;
+    top: 80px;
+    inset-inline: 12px;
+    width: auto;
+    max-width: 340px;
+    margin-inline: auto;
+    max-height: calc(100dvh - 100px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+}
+@media (max-width: 540px) {
+  .menu:not(.mobile) .panel { top: 64px; max-height: calc(100dvh - 84px); }
+}
