@@ -61,7 +61,7 @@ export default function GameHubAdminPage() {
     finally { setBusy(false); }
   }
   return <main className={styles.page}><div className="shell">
-    <header className={styles.intro}><span className="section-kicker">DND NERDS ADMIN</span><h1>داشبورد جامعه و میزها</h1><p>مدیریت پروفایل DM، میزهای منتشرشده و دعوت‌های آرنا</p><Link href="/admin">بازگشت به داشبورد مدیریت ←</Link></header>
+    <header className={styles.intro}><span className="section-kicker">DND NERDS ADMIN</span><h1>داشبورد جامعه و میزها</h1><p>مدیریت پروفایل DM، میزهای منتشرشده و دعوت‌های آرنا</p><Link href="/admin/control">ویرایش و حذف میزها و موارد سایت ←</Link> <Link href="/admin">بازگشت به داشبورد مدیریت ←</Link></header>
     {error && <p className={styles.error} role="alert">{error}</p>}{notice && <p className={styles.notice} role="status">{notice}</p>}
     {!data && !error && <p>در حال بارگذاری…</p>}
     {data && <>

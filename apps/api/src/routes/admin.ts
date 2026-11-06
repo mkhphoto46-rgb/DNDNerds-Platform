@@ -1,3 +1,4 @@
+import {registerAdminControl} from './admin-control.js';
 import {registerSalesReporting} from '../marketplace/sales-reporting.js';
 import {registerStorefront} from '../marketplace/storefront.js';
 import {registerProductCommunity} from '../marketplace/product-community.js';
@@ -190,6 +191,7 @@ const storeCommissionBody =
 export async function registerAdminRoutes(
   app: FastifyInstance,
 ) {
+  await registerAdminControl(app);
   await registerSalesReporting(app);
   await registerSellerAccess(app);
   await registerProductPublishing(app);

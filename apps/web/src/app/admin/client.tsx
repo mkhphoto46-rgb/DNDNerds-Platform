@@ -261,6 +261,7 @@ export default function AdminPage() {
           <h1>
             داشبورد مدیریت سایت
           </h1>
+          <Link href="/admin/control">مدیریت ویرایش و حذف میزها، فروشگاه‌ها و محصولات ←</Link>
           <Link href="/admin/game-hub">مدیریت میزها، Dungeon Masters و آرنا ←</Link>
           <Link href="/admin/accounts">مدیریت حساب‌ها و دسترسی کاربران ←</Link>
           <Link href="/admin/marketplace">بررسی بازارچه</Link>
