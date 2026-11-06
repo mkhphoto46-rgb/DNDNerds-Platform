@@ -50,7 +50,7 @@ export function GuildHome() {
     </div>
     <section className="guild-intro" aria-labelledby="home-heading">
       <div className="guild-title"><h1 id="home-heading">خانه</h1><img src="/site-ui/spark.png" alt="" width="40" height="35" /></div>
-      <p className="guild-slogan">تاس سرنوشتت را تعیین می‌کند<span lang="en" dir="ltr">Dice Will Decide Your Fate</span></p>
+      <p className="guild-slogan">تاس سرنوشتت را تعیین می‌کند<img className="guild-slogan-art" src="/site-ui/slogan-antique-gold.png" alt="Dice Will Decide Your Fate" width="1984" height="789" /></p>
       <div className="guild-intro-actions">
         <Link className="site-primary" href="/games"><SiteIcon name="person" />میز بازی</Link>
         <Link className="site-secondary" href="/learn"><SiteIcon name="play" />آشنایی با امکانات</Link>
