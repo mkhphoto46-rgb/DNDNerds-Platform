@@ -25,7 +25,7 @@ export async function registerKnowledgeRoutes(app:FastifyInstance){
   const [row]=await db.select({...listing,body:posts.body,authorUserId:posts.authorUserId,author:users.username,authorStatus:users.status}).from(posts).innerJoin(users,eq(posts.authorUserId,users.id)).where(eq(posts.id,request.params.id)).limit(1);
   const user=await requireAuthUser(request);
   if(!row||row.authorStatus!=='ACTIVE'||(row.status!=='PUBLISHED'&&row.authorUserId!==user?.id))return reply.code(404).send({error:{message:'نوشته پیدا نشد.'}});
-  const {authorUserId,authorStatus,...safe}=row;return {data:{...safe,mine:authorUserId===user?.id}};
+  const {authorUserId,authorStatus:_authorStatus,...safe}=row;return {data:{...safe,mine:authorUserId===user?.id}};
  });
  app.post(base,{config:{rateLimit:{max:10,timeWindow:'1 minute'}}},async(request,reply)=>{
   const user=await requireAuthUser(request);if(!user)return reply.code(401).send({error:{message:'برای نوشتن وارد حساب شو.'}});

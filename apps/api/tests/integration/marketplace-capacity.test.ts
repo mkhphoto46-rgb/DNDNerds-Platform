@@ -23,6 +23,7 @@ async function pay(orderId:string){
 }
 before(async()=>{
  api=await startApi();owner=await api.register('capacity-owner');buyer=await api.register('capacity-buyer');other=await api.register('capacity-other');
+ await sql(async q=>{await q`update users set email_verified=true where id=${buyer.userId}`;await q`insert into marketplace_buyer_verifications (user_id,mobile_verified_at,evidence_ref) values (${buyer.userId},now(),'synthetic-capacity-buyer')`;});
  const slug='capacity-'+randomUUID().slice(0,8);
  const on=await api.request({method:'POST',url:'/api/v1/seller/onboard',token:owner.token,payload:{displayName:'Synthetic maker',storeName:'Synthetic capacity shop',storeSlug:slug,description:'Finite production capacity fixture.',category:'dice'}});assert.equal(on.status,201);
  await sql(async q=>{const[s]=await q`update stores set status='ACTIVE' where slug=${slug} returning id`;storeId=s!.id;

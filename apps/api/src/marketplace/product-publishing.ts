@@ -1,4 +1,4 @@
-import type {FastifyInstance,FastifyRequest} from 'fastify';
+import type {FastifyInstance} from 'fastify';
 import {z} from 'zod';
 import {sqlClient as q} from '../db/client.js';
 import {requireAuthUser} from '../auth/session.js';

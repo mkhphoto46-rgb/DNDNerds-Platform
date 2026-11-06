@@ -6,7 +6,7 @@ import {fetchSession} from '@/lib/session-client';
 import styles from '@/app/knowledge/knowledge.module.css';
 type Entry={id:string;title:string;summary:string;body?:string;author?:string;mine?:boolean;kind:string;status:string;createdAt:string};
 const kinds=[['ITEM','آیتم'],['CHARACTER','شخصیت'],['CREATURE','موجود'],['STORY','داستان و ماژول'],['RULE','قانون خانگی'],['OTHER','سایر']] as const;
-async function request<T>(path:string,method='GET',data?:unknown):Promise<T>{const response=await fetch(`/api/game-hub/homebrew${path}`,{method,cache:'no-store',headers:data?{'Content-Type':'application/json'}:undefined,body:data?JSON.stringify(data):undefined});const value=await response.json();if(!response.ok)throw new Error(value?.error?.message??'دریافت اطلاعات انجام نشد.');return value as T;}
+async function request<T>(path:string,method='GET',data?:unknown):Promise<T>{const response=await fetch(`/api/game-hub/homebrew${path}`,{method,cache:'no-store',headers:data?{'Content-Type':'application/json'}:undefined,...(data?{body:JSON.stringify(data)}:{})});const value=await response.json();if(!response.ok)throw new Error(value?.error?.message??'دریافت اطلاعات انجام نشد.');return value as T;}
 const path=(id:string)=>`/knowledge/homebrew/read/${id}`;
 export function HomebrewList({mine=false}:{mine?:boolean}){
  const [rows,setRows]=useState<Entry[]>([]),[page,setPage]=useState(1),[total,setTotal]=useState(0),[error,setError]=useState(''),[loading,setLoading]=useState(true),[version,retry]=useState(0);

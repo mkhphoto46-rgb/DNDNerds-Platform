@@ -1,5 +1,5 @@
-import {apiErrorMessage} from '@/lib/api-error';
 'use client';
+import {apiErrorMessage} from '@/lib/api-error';
 import Link from 'next/link';
 import {SellerAccess} from '@/components/marketplace/SellerAccess';
 import {ProductCommunityModeration} from '@/components/marketplace/ProductCommunityModeration';

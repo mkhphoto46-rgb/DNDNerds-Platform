@@ -131,7 +131,7 @@ test("an order beyond the stock is refused; an unknown product too", async () =>
 
 test('separate paid orders accumulate seller balances beyond signed 32-bit without money loss', async () => {
   const { productId, storeId } = await sellerWithProduct(5, 1_500_000_000);
-  const buyer = await api.register('large-balance');
+  const buyer = await verifiedBuyer('large-balance');
   await sql(q => q`update stores set risk_cap_rial=10000000000 where id=${storeId}`);
   for (let n = 0; n < 2; n++) {
     const placed = await api.request({ method: 'POST', url: '/api/v1/marketplace/orders', token: buyer.token,

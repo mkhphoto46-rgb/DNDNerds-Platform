@@ -1488,7 +1488,7 @@ export const marketplaceOrderAddresses =
 // DND_NERDS_PHASE_DE_PAYMENT_LEDGER_V1
 import {
   index as deIndex,
-  integer as deInteger,
+  
   pgEnum as dePgEnum,
   pgTable as dePgTable,
   primaryKey as dePrimaryKey,
@@ -2362,7 +2362,7 @@ export const marketplaceShipments =
 import {
   boolean as hBoolean,
   index as hIndex,
-  integer as hInteger,
+  
   pgEnum as hPgEnum,
   pgTable as hPgTable,
   primaryKey as hPrimaryKey,

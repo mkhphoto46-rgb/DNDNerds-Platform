@@ -23,6 +23,7 @@ export interface TestApi {
 }
 
 let counter = 0;
+const suiteAddress = [...randomBytes(2)];
 
 export async function startApi(): Promise<TestApi> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "dnd-api-test-"));
@@ -79,7 +80,7 @@ export async function startApi(): Promise<TestApi> {
     const email = `${label}.${counter}.${randomBytes(3).toString("hex")}@example.test`;
     const password = `Test-password-${randomBytes(6).toString("hex")}`;
     // Each test user gets its own client address, so the per-address rate limits stay out of the way.
-    const address = `10.20.${Math.floor(counter / 250)}.${(counter % 250) + 1}`;
+    const address = `10.${suiteAddress[0]}.${suiteAddress[1]}.${(counter % 250) + 1}`;
     const response = await request({ method: "POST", url: "/api/v1/auth/register", payload: { email, password, username: `test_${randomBytes(6).toString("hex")}` }, remoteAddress: address });
     if (response.status !== 201) throw new Error(`register failed: ${response.status} ${JSON.stringify(response.body)}`);
     return { token: response.body.sessionToken, userId: response.body.user.id, email, password, address };
