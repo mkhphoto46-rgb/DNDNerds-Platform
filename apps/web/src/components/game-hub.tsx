@@ -31,7 +31,7 @@ async function request<T>(path: string, method = "GET", data?: unknown): Promise
   return body.data as T;
 }
 const headings: Record<Mode, { eyebrow: string; title: string; description: string }> = {
-  "find-game": { eyebrow: "میزهای بازی · Player", title: "کمپین بعدی‌ات را پیدا کن", description: "همهٔ میزهای منتشرشده و DMها را ببین؛ ورود به میز آزاد مستقیم و ورود به میز قفل‌شده با کد دعوت است." },
+  "find-game": { eyebrow: "میزهای بازی · Player", title: "کمپین بعدی‌ات را پیدا کن", description: "همهٔ میزهای منتشرشده را ببین؛ ورود به میز آزاد مستقیم و ورود به میز قفل‌شده با کد دعوت است." },
   "find-dm": { eyebrow: "راهنمایان بازی", title: "DM مناسب گروهت را پیدا کن", description: "سبک اجرا، زبان و سابقه Dungeon Masters را پیش از انتخاب میز ببین." },
   play: { eyebrow: "بازی‌های من", title: "میزهای من", description: "میزهایی که میزبانی می‌کنی و بازی‌هایی که در آن‌ها عضو هستی، همراه با سشن‌های فعال و گذشته." },
   "create-game": { eyebrow: "میز تازه · DM", title: "ساخت میز", description: "مشخصات میز را ثبت کن، سپس از «میزهای من» با نمای DM وارد بازی شو." },
@@ -94,7 +94,7 @@ export function GameHub({ mode }: { mode: Mode }) {
   const reload = useCallback(async () => {
     const version = ++searchVersion.current; setError("");
     try {
-      if (mode === "find-game") { const query = new URLSearchParams({ q: searchQuery, genre }); const [games, dms] = await Promise.all([request<Table[]>(`tables?${query}`), request<Profile[]>(`dms?${query}`)]); if (version === searchVersion.current) { setTables(games); setProfiles(dms); } }
+      if (mode === "find-game") { const query = new URLSearchParams({ q: searchQuery, genre }); const games = await request<Table[]>(`tables?${query}`); if (version === searchVersion.current) setTables(games); }
       if (mode === "find-dm") { const dms = await request<Profile[]>(`dms?${new URLSearchParams({ q: searchQuery })}`); if (version === searchVersion.current) setProfiles(dms); }
       if (mode === "play" || mode === "create-game") {
         try {
@@ -177,7 +177,7 @@ export function GameHub({ mode }: { mode: Mode }) {
 
       {mode === "find-game" && !loading && <>
 
-        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="نام یا ID دی‌ام، موضوع کمپین یا ژانر" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "likes"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="likes">بیشترین پسند</option></select></label><label>ژانر <select value={genre} onChange={e => { setGenre(e.target.value); setGamePage(1); }}><option value="">همهٔ ژانرها</option>{genreChoices.map(value => <option key={value}>{value}</option>)}</select></label><span>{visibleGames.length} کمپین</span></div>
+        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="نام میز، موضوع کمپین، ژانر یا نام میزبان" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "likes"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="likes">بیشترین پسند</option></select></label><label>ژانر <select value={genre} onChange={e => { setGenre(e.target.value); setGamePage(1); }}><option value="">همهٔ ژانرها</option>{genreChoices.map(value => <option key={value}>{value}</option>)}</select></label><span>{visibleGames.length} کمپین</span></div>
         <div className={styles.gameGrid}>{visibleGames.slice((gamePage - 1) * gamesPerPage, gamePage * gamesPerPage).map(table => <article className={styles.gameCard} key={table.id}>
           <CoverImage src={table.imageData} title={table.title} /><div className={styles.gameCardBody}>
           <small>{table.visibility === "PRIVATE" ? "🔒 ورود با کد دعوت" : "✦ ورود آزاد"} · {table.system} · {table.language} · سطح {table.levelRange}</small><h2><Link href={`/find-game/${table.id}`}>{table.title}</Link></h2><div className={styles.genreTags}>{table.genres?.map(value => <span key={value}>{value}</span>)}</div><p>{table.description || "DM هنوز توضیحی برای این میز ننوشته است."}</p>
@@ -186,7 +186,6 @@ export function GameHub({ mode }: { mode: Mode }) {
           <Link className={styles.detailLink} href={`/find-game/${table.id}`}>دیدن جزئیات کمپین ←</Link></div>
         </article>)}</div>
         {visibleGames.length > gamesPerPage && <nav className={styles.pagination} aria-label="صفحه‌های کمپین"><button disabled={gamePage === 1} onClick={() => setGamePage(page => page - 1)}>صفحهٔ پیشین</button><span>صفحهٔ {gamePage} از {Math.ceil(visibleGames.length / gamesPerPage)}</span><button disabled={gamePage * gamesPerPage >= visibleGames.length} onClick={() => setGamePage(page => page + 1)}>صفحهٔ بعدی</button></nav>}
-        <section className={styles.panel}><h2>Dungeon Masterها</h2><p>با نام یا شناسه جستجو کن و معرفی، کمپین‌ها و نظر بازیکنان را ببین.</p><div className={styles.dmGrid}>{profiles.map(profile => <DmCard key={profile.userId} profile={profile} />)}</div><Link href="/find-dm">همهٔ DMها ←</Link></section>
         {!tables.length && <div className={styles.empty}>هنوز میز منتشرشده‌ای وجود ندارد. اگر DM هستی، نخستین میز را بساز. <Link href={routes.create}>ساخت میز</Link></div>}
       </>}
 
