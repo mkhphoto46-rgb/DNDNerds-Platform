@@ -19,8 +19,6 @@
   ],
   "exclude": [
     "node_modules",
-    "dist",
-    "src/routes/game-tables.ts",
-    "src/routes/table-launch.ts"
+    "dist"
   ]
 }

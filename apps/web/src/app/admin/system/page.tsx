@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import styles from "./system.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type Health = { sampledAt: string; uptimeSeconds: number; load1m: number; memoryTotalBytes: number; memoryFreeBytes: number; diskTotalBytes: number; diskFreeBytes: number; services: Record<string, boolean> };
 const serviceNames: Record<string, string> = { api: "رابط برنامه", database: "پایگاه داده", web: "سایت", vtt: "بازی", voice: "ارتباط صوتی" };
@@ -18,7 +19,7 @@ export default function SystemPage() {
     try {
       const response = await fetch("/api/admin/system/health", { cache: "no-store" });
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message ?? "دریافت وضعیت سرور انجام نشد.");
+      if (!response.ok) throw new Error(apiErrorMessage(body, "دریافت وضعیت سرور انجام نشد."));
       setHealth(body.data as Health);
     } catch (failure) { setError(failure instanceof Error ? failure.message : "دریافت وضعیت سرور انجام نشد."); }
     finally { setLoading(false); }

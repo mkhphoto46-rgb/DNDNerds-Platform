@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ResetPasswordPage() {
   const [token, setToken] = useState("");
@@ -25,7 +26,7 @@ export default function ResetPasswordPage() {
       const response = await fetch("/api/account/password-reset/confirm", {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ token, newPassword: password }),
       });
-      if (!response.ok) throw new Error("پیوند نامعتبر یا منقضی شده است. از صفحهٔ فراموشی رمز، پیوند تازه بگیر.");
+      if (!response.ok) throw new Error(apiErrorMessage(await response.json().catch(() => null), "پیوند نامعتبر یا منقضی شده است. از صفحهٔ فراموشی رمز، پیوند تازه بگیر.", response.status));
       setMessage("رمز عبور تغییر کرد. برای امنیت حساب، همهٔ نشست‌های قبلی بسته شدند. دوباره وارد شو.");
       setPassword(""); setConfirmation(""); setToken("");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "تغییر رمز انجام نشد."); }
@@ -38,8 +39,8 @@ export default function ResetPasswordPage() {
     {message ? <><p role="status">{message}</p><Link href="/login">ورود با رمز جدید</Link></> :
       <form className={styles.form} onSubmit={submit}>
         {!token && <label className={styles.field}><span>کد بازیابی</span><input dir="ltr" value={token} onChange={event => setToken(event.target.value)} required /></label>}
-        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required /></label>
-        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={8} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
+        <label className={styles.field}><span>رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={password} onChange={event => setPassword(event.target.value)} required /></label>
+        <label className={styles.field}><span>تکرار رمز جدید</span><input type="password" autoComplete="new-password" minLength={12} maxLength={128} value={confirmation} onChange={event => setConfirmation(event.target.value)} required /></label>
         {error && <p className={styles.error} role="alert">{error}</p>}
         <button className={styles.button} type="submit" disabled={busy}>{busy ? "در حال تغییر…" : "ثبت رمز جدید"}</button>
       </form>}

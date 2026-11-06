@@ -11,7 +11,7 @@ export async function profileRequest<T>(path: string, method = "GET", payload?: 
   const response = await fetch(`/api/game-hub/${path}`, {
     method, cache: "no-store", credentials: "same-origin",
     headers: payload === undefined ? undefined : { "Content-Type": "application/json" },
-    body: payload === undefined ? undefined : JSON.stringify(payload),
+    ...(payload === undefined ? {} : { body: JSON.stringify(payload) }),
   });
   const body = await response.json();
   if (!response.ok) throw new Error(body.error?.message ?? "درخواست انجام نشد.");

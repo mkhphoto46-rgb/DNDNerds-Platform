@@ -2,6 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import styles from "@/components/game-hub.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 
 
@@ -21,7 +22,7 @@ export default function GameHubAdminPage() {
   const reload = useCallback(async () => {
     const response = await fetch("/api/game-hub/admin/overview", { cache: "no-store" });
     const body = await response.json();
-    if (!response.ok) throw new Error(body?.error?.message ?? "دسترسی مدیر لازم است.");
+    if (!response.ok) throw new Error(apiErrorMessage(body, "دسترسی مدیر لازم است."));
     setData(body.data);
     const postsResponse = await fetch("/api/game-hub/admin/posts", { cache: "no-store" });
     if (postsResponse.ok) setPosts((await postsResponse.json()).data);
@@ -35,7 +36,7 @@ export default function GameHubAdminPage() {
     try {
       const response = await fetch(`/api/game-hub/admin/${kind}/${targetId}/moderate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action, password, reason }) });
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message ?? "ثبت تصمیم ناموفق بود.");
+      if (!response.ok) throw new Error(apiErrorMessage(body, "ثبت تصمیم ناموفق بود."));
       setNotice("تصمیم ثبت شد."); await reload();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "خطا رخ داد."); }
     finally { setBusy(false); }
@@ -45,7 +46,7 @@ export default function GameHubAdminPage() {
     try {
       const response = await fetch(editPostId ? `/api/game-hub/admin/posts/${editPostId}` : "/api/game-hub/admin/posts", { method: editPostId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ...postForm, password }) });
       const body = await response.json();
-      if (!response.ok) throw new Error(body?.error?.message ?? "خبر ذخیره نشد.");
+      if (!response.ok) throw new Error(apiErrorMessage(body, "خبر ذخیره نشد."));
       setNotice("خبر ذخیره شد."); setEditPostId(null); setPostForm({ title: "", summary: "", body: "", status: "DRAFT" }); await reload();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "خطا رخ داد."); }
     finally { setBusy(false); }
@@ -54,7 +55,7 @@ export default function GameHubAdminPage() {
     setBusy(true); setError("");
     try {
       const response = await fetch(`/api/game-hub/admin/posts/${post.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ title: post.title, summary: post.summary, body: post.body, status: post.status === "PUBLISHED" ? "DRAFT" : "PUBLISHED", password }) });
-      const body = await response.json(); if (!response.ok) throw new Error(body?.error?.message ?? "خبر ویرایش نشد.");
+      const body = await response.json(); if (!response.ok) throw new Error(apiErrorMessage(body, "خبر ویرایش نشد."));
       await reload();
     } catch (reason) { setError(reason instanceof Error ? reason.message : "خطا رخ داد."); }
     finally { setBusy(false); }

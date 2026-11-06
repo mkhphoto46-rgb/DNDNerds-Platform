@@ -6,6 +6,7 @@ import Link from "next/link";
 import { XpBar } from "@/components/xp-experience";
 import { useCallback, useEffect, useRef, useState } from "react";
 import styles from "./account.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type AccountUser = {
   id: string;
@@ -130,7 +131,7 @@ export default function AccountHomePage({ commerceEnabled = true }: { commerceEn
     try {
       const response = await fetch("/api/auth/username", { method: "PUT", credentials: "same-origin", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ username }) });
       const body = await response.json();
-      if (!response.ok) throw new Error(body.error?.message ?? "ثبت نام کاربری انجام نشد");
+      if (!response.ok) throw new Error(apiErrorMessage(body, "ثبت نام کاربری انجام نشد"));
       setAccount(current => current.kind === "ready" ? { ...current, user: { ...current.user, username: body.user.username } } : current);
       setUsername(body.user.username);
       setUsernameMessage("نام کاربری ذخیره شد");

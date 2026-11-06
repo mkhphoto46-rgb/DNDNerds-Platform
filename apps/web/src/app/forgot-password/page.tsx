@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState, type FormEvent } from "react";
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -18,7 +19,7 @@ export default function ForgotPasswordPage() {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }),
       });
       if (response.status === 503) throw new Error("ارسال ایمیل هنوز برای سایت فعال نشده است. بعد از راه‌اندازی سرویس ایمیل دوباره تلاش کن.");
-      if (!response.ok) throw new Error("درخواست انجام نشد. کمی بعد دوباره تلاش کن.");
+      if (!response.ok) throw new Error(apiErrorMessage(await response.json().catch(() => null), "درخواست انجام نشد. کمی بعد دوباره تلاش کن.", response.status));
       setMessage("اگر این ایمیل حساب داشته باشد، پیوند بازیابی برایش فرستاده می‌شود. پوشهٔ Spam را هم بررسی کن.");
     } catch (reason) { setError(reason instanceof Error ? reason.message : "ارتباط با سرور برقرار نشد."); }
     finally { setBusy(false); }

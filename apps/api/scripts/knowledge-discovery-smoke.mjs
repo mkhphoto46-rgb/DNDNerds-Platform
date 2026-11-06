@@ -12,6 +12,7 @@ const app=Fastify();await registerGameHubRoutes(app);await registerProfilePagesR
 let checks=0;
 const send=async(method,path,token,payload,status=200)=>{const r=await app.inject({method,url:'/api/v1/game-hub/'+path,headers:token?{authorization:'Bearer '+token}:{},payload});assert.equal(r.statusCode,status,`${method} ${path}: ${r.body}`);checks++;return r.json();};
 try{
+ await sqlClient`TRUNCATE users CASCADE`;
  const [host,player,other]=await db.insert(users).values(['host','player','other'].map(role=>({email:`${role}-${randomUUID()}@example.invalid`,username:`${role}_${randomUUID().slice(0,8)}`,emailVerified:true}))).returning();
  const h=(await issueSession(host.id)).token,p=(await issueSession(player.id)).token,o=(await issueSession(other.id)).token;
  await send('PUT','dms/me',h,{displayName:'QA Visible DM',bio:'A public DM profile',playStyle:'داستانی',languages:'فارسی',experienceYears:1,visible:true});
@@ -23,9 +24,8 @@ try{
  assert.ok(list.some(t=>t.id===privateTable.id));assert.ok(list.some(t=>t.id===open.id));assert.ok(!list.some(t=>t.id===draft.id));assert.ok(list.every(t=>!('inviteCodeHash'in t)&&!('inviteCode'in t)));
  await send('GET',`tables/${privateTable.id}`);await send('GET',`tables/${draft.id}`,null,undefined,404);
  assert.ok((await send('GET','dms?q=Invited')).data.some(x=>x.userId===host.id));
- const profile=await app.inject({url:`/api/v1/profiles/dm/${host.id}`});
- // Public profile route is also exercised when its registered route matches.
- const profileRoute=app.printRoutes();assert.ok(profileRoute.includes('dm'));
+ const profile=(await send('GET',`dms/${host.id}/page`)).data;
+ assert.ok(profile.tables.some(t=>t.id===privateTable.id));assert.ok(!profile.tables.some(t=>t.id===draft.id));
  await send('POST',`tables/${privateTable.id}/launch`,p,{role:'player'},403);
  await send('POST',`tables/${privateTable.id}/launch`,p,{role:'dm'},403);
  await send('POST','tables/join-by-code',p,{code:'INVALIDCODE123'},404);

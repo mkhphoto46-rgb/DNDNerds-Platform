@@ -1,5 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
-import { and, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
 import { messagePage } from "./social-message-page.js";
@@ -11,6 +11,8 @@ const uuid = z.string().uuid();
 const groupName = z.object({ title: z.string().trim().min(2).max(80) });
 const inviteBody = z.object({ friendCode: z.string().trim().min(3).max(32) });
 const textBody = z.object({ body: z.string().trim().min(1).max(2000) });
+// Control characters are matched on purpose: they are stripped from user text.
+// oxlint-disable-next-line no-control-regex
 const badChars = /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/;
 const maxGroupMembers = 20;
 function fail(reply: FastifyReply, status: number, code: string, message: string) {

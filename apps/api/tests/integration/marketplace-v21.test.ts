@@ -7,6 +7,8 @@ import { startApi, type TestApi } from '../support/api.js';
 let api: TestApi;
 let owner: Awaited<ReturnType<TestApi['register']>>;
 let other: Awaited<ReturnType<TestApi['register']>>;
+// B52: the direct order route now requires a verified buyer; `other` stays unverified for the preview test.
+let buyer: Awaited<ReturnType<TestApi['register']>>;
 let storeId: string;
 let productId: string;
 let variantId: string;
@@ -16,7 +18,8 @@ async function sql(run: (q: ReturnType<typeof postgres>) => Promise<unknown>) {
   try { return await run(q); } finally { await q.end(); }
 }
 before(async () => {
-  api = await startApi(); owner = await api.register('market-owner'); other = await api.register('market-other');
+  api = await startApi(); owner = await api.register('market-owner'); other = await api.register('market-other'); buyer = await api.register('market-buyer');
+  await sql(async q=>{await q`update users set email_verified=true where id=${buyer.userId}`;await q`insert into marketplace_buyer_verifications(user_id,mobile_verified_at,evidence_ref) values(${buyer.userId},now(),'synthetic-only')`;});
   const onboard = await api.request({method:'POST',url:'/api/v1/seller/onboard',token:owner.token,payload:{displayName:'Maker',storeName:'کارگاه تست',storeSlug:slug,description:'فروشگاه آزمایشی با داده ساختگی',category:'dice'}});
   assert.equal(onboard.status,201,JSON.stringify(onboard.body));
   await sql(async q => {
@@ -89,7 +92,7 @@ test('checkout uses selected variant, rejects repricing, and 100 concurrent requ
   assert.equal(added.status,201,JSON.stringify(added.body));
   const selected=added.body.id;
   const address={fullName:'Synthetic Buyer',phone:'09120000000',province:'Tehran',city:'Tehran',addressLine1:'Synthetic test street',postalCode:'1234567890'};
-  const order=(expectedPriceRial:number)=>({remoteAddress:'10.41.0.1',method:'POST' as const,url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId:selected,expectedPriceRial,quantity:1}]}});
+  const order=(expectedPriceRial:number)=>({remoteAddress:'10.41.0.1',method:'POST' as const,url:'/api/v1/marketplace/orders',token:buyer.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId:selected,expectedPriceRial,quantity:1}]}});
   assert.equal((await api.request(order(140000))).status,409,'a changed price requires new acceptance');
   const results=await Promise.all(Array.from({length:100},()=>api.request(order(150000))));
   assert.equal(results.filter(r=>r.status===201).length,1,JSON.stringify(results.map(r=>r.status)));
@@ -110,7 +113,7 @@ test('private references reject guessed keys and malicious media; financial jour
 test('50 concurrent checkouts cannot exceed seller exposure cap',async()=>{
  await sql(async q=>{const [r]=await q`select coalesce(sum(gross_rial),0)::int as exposure from marketplace_seller_orders where store_id=${storeId} and status not in ('CANCELLED','REFUNDED')`;await q`update stores set risk_cap_rial=${Number(r?.exposure)+240000} where id=${storeId}`;await q`update inventory set quantity_on_hand=50,quantity_reserved=0 where variant_id=${variantId}`;});
  const address={fullName:'Synthetic Buyer',phone:'09120000000',province:'Tehran',city:'Tehran',addressLine1:'Synthetic test street',postalCode:'1234567890'};
- const rs=await Promise.all(Array.from({length:50},()=>api.request({remoteAddress:'10.41.0.2',method:'POST',url:'/api/v1/marketplace/orders',token:other.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId,expectedPriceRial:120000,quantity:1}]}})));
+ const rs=await Promise.all(Array.from({length:50},()=>api.request({remoteAddress:'10.41.0.2',method:'POST',url:'/api/v1/marketplace/orders',token:buyer.token,payload:{idempotencyKey:randomUUID(),address,items:[{productId,variantId,expectedPriceRial:120000,quantity:1}]}})));
  assert.equal(rs.filter(r=>r.status===201).length,2,JSON.stringify(rs.map(r=>r.status)));assert.ok(rs.every(r=>r.status===201||r.status===409));
 });
 

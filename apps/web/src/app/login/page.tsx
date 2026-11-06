@@ -16,6 +16,7 @@ import {
 } from "next/navigation";
 
 import styles from "../auth.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 export default function LoginPage() {
   const router =
@@ -120,8 +121,7 @@ export default function LoginPage() {
         }
 
         throw new Error(
-          data?.error?.message ??
-          "ورود انجام نشد",
+          apiErrorMessage(data, "ورود انجام نشد"),
         );
       }
 

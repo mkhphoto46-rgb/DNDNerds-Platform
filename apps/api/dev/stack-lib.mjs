@@ -44,7 +44,9 @@ export async function startPostgres({ dir, port, database, persistent = false })
   const password = "local-only";
   const dataDir = path.join(dir, "postgres");
   const exists = fs.existsSync(path.join(dataDir, "PG_VERSION"));
-  const pg = new EmbeddedPostgres({ databaseDir: dataDir, user, password, port, persistent, onLog: () => {} });
+  // B1: initdb would otherwise inherit the Windows code page (WIN1252), and the
+  // migrations contain Persian text.
+  const pg = new EmbeddedPostgres({ databaseDir: dataDir, user, password, port, persistent, initdbFlags: ["--encoding=UTF8", "--locale=C"], onLog: () => {} });
   if (!exists) await pg.initialise();
   await pg.start();
   try {

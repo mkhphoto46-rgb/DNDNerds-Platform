@@ -19,16 +19,30 @@ Development email goes to `logs/email-outbox.log`; payments and payouts use mock
 
 ## Entering a table in the Web VTT
 
-A DM's table launches into the DM's own Web VTT with a signed, single-use
-ticket that lives 60 seconds.
+Players and DMs enter a table from the website's game hub ("My tables", or a
+6-character invite code). The API signs a short-lived ticket and sends the
+browser to the table app; the two apps also talk directly over a private
+bridge. Set these on both apps:
 
-1. Generate a key: `npm run launch-key --workspace apps/api` (or run
-   `node dev/launch-key.mjs` in `apps/api`). Put the printed
-   `PLATFORM_LAUNCH_PRIVATE_KEY` line in `apps/api/.env`; never commit it.
-2. On `/play`, the DM registers the VTT's address (https, or http on localhost)
-   and picks it for the table. The table page then shows the instance id and the
-   Platform's public key.
-3. On the VTT host computer, paste both into the D&D Nerds Platform settings on
-   the start screen.
-4. The DM enters first (that creates the campaign in the table's edition);
-   players and the observer follow with "Enter the table".
+- `VTT_BRIDGE_SECRET`: a random secret of at least 32 characters, the same in
+  the API, the website and the table app. It signs launch tickets and every
+  bridge call. Never commit it.
+- `VTT_PUBLIC_URL` (API): the table app's address as the browser sees it. Use
+  https in production; http is accepted only outside production.
+- `VTT_INTERNAL_URL` (API and website): the table app's bridge address, used
+  for invite codes, session status, table deletion and presence. It must be a
+  loopback http origin with no path (`http://127.0.0.1:4200`,
+  `http://localhost:4200` or `http://host.docker.internal:4200`). If it is
+  unset, the bridge falls back to `http://127.0.0.1:4200`; the API logs a
+  warning at startup when `VTT_PUBLIC_URL` is set without it, and joining by
+  code answers `503 VTT_INTERNAL_URL_MISSING` when the bridge does not answer.
+
+Local example (table app on port 4200):
+
+```
+VTT_BRIDGE_SECRET=<64 random hex characters>
+VTT_PUBLIC_URL=http://localhost:4200/
+VTT_INTERNAL_URL=http://127.0.0.1:4200
+```
+
+A local end-to-end check of the invite bridge is in `apps/api/dev/join-bridge-smoke.mjs`.

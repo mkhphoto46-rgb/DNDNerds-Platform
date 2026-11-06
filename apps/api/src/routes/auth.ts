@@ -41,9 +41,11 @@ import {
   verifyEncryptedTotp,
 } from "../security/totp.js";
 import { accountEmailReady } from "../email/account-email-policy.js";
+import { NEW_PASSWORD_MIN_LENGTH } from "../auth/password-policy.js";
 import { createEmailActionToken } from "../email/tokens.js";
 import { sendAccountEmail } from "../email/provider.js";
 import { normalizeUsername, publicAccountId, usernameSchema } from "../auth/public-identity.js";
+import { notifyMembershipRevoked } from "../integrations/vtt-membership-revoked.js";
 
 const credentialsSchema =
   z.object({
@@ -66,7 +68,7 @@ const credentialsSchema =
         .optional(),
   });
 
-const registrationSchema = credentialsSchema.omit({ totpCode: true }).extend({ username: usernameSchema });
+const registrationSchema = credentialsSchema.omit({ totpCode: true }).extend({ username: usernameSchema, password: z.string().min(NEW_PASSWORD_MIN_LENGTH).max(128) });
 
 const PASSWORD_POLICY = {
   algorithm:
@@ -613,9 +615,22 @@ export async function registerAuthRoutes(
       request,
       reply,
     ) => {
+      const signedIn =
+        await requireAuthUser(
+          request,
+        );
+
       await revokeRequestSession(
         request,
       );
+
+      // RC7: the table app closes this user's table sessions too.
+      if (signedIn) {
+        notifyMembershipRevoked(
+          { platformTableId: null, platformUserId: signedIn.id, reason: "logout" },
+          request.log,
+        );
+      }
 
       return reply
         .code(200)

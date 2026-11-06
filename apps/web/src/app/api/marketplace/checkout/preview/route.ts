@@ -1,3 +1,5 @@
+import { forwardedForHeaders } from "@/lib/bff-api";
+
 const API_BASE_URL =
   process.env.MARKETPLACE_API_BASE_URL ??
   "http://127.0.0.1:4100";
@@ -43,6 +45,7 @@ export async function POST(
 
             Accept:
               "application/json",
+            ...(await forwardedForHeaders()),
           },
 
           body:

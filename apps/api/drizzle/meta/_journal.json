@@ -281,6 +281,20 @@
       "when": 1793923200000,
       "tag": "0039_knowledge_homebrew",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1793923200001,
+      "tag": "0040_campaign_cover_limit",
+      "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1793923200002,
+      "tag": "0041_arena_participants",
+      "breakpoints": true
     }
   ]
 }

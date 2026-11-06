@@ -179,6 +179,8 @@ export function normalizeEvidenceOriginalName(
   const withoutControls =
     rawName
       .replace(
+        // Control characters are matched on purpose: they are stripped from user text.
+        // oxlint-disable-next-line no-control-regex
         /[\u0000-\u001f\u007f]/g,
         "",
       )

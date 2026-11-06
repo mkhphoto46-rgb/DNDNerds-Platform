@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import styles from "./subscriptions.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type Grant = { id: string; email: string; startsAt: string; endsAt: string; revokedAt: string | null; reason: string; createdAt: string };
 type Result = { data: { priceRial: number; account: { id: string; email: string; emailVerified: boolean; status: string } | null; grants: Grant[] } };
@@ -11,7 +12,7 @@ const formatDate = (value: string) => new Intl.DateTimeFormat("fa-IR", { dateSty
 async function request<T>(url: string, init?: RequestInit): Promise<T> {
   const response = await fetch(url, { cache: "no-store", ...init });
   const body = await response.json();
-  if (!response.ok) throw new Error(body?.error?.message ?? "درخواست انجام نشد.");
+  if (!response.ok) throw new Error(apiErrorMessage(body, "درخواست انجام نشد."));
   return body as T;
 }
 

@@ -17,7 +17,7 @@ test("Resend account mail uses the production action URL and rejects failed deli
       assert.deepEqual(body.to, ["member@example.com"]);
       assert.match(body.text, /https:\/\/dndnerds.ir\/verify-email#token=opaque-token/);
       assert.equal(body.reply_to, "info@dndnerds.ir");
-      assert.ok((init?.headers as Record<string,string>)["Idempotency-Key"]);
+      assert.ok((init!.headers as Record<string,string>)["Idempotency-Key"]);
       return new Response(JSON.stringify({ id: "email-id" }), { status: 200 });
     };
     assert.equal((await resendEmailProvider.sendAccountEmail({to:"member@example.com",kind:"VERIFY_EMAIL",token:"opaque-token"})).messageId, "email-id");

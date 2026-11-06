@@ -43,6 +43,7 @@ import {
   findUsableActionToken,
 } from "../email/tokens.js";
 import { accountEmailReady, statusAfterVerification } from "../email/account-email-policy.js";
+import { NEW_PASSWORD_MIN_LENGTH } from "../auth/password-policy.js";
 
 const emailSchema =
   z.object({
@@ -70,13 +71,13 @@ const resetConfirmSchema =
 
     newPassword:
       z.string()
-        .min(8)
+        .min(NEW_PASSWORD_MIN_LENGTH)
         .max(128),
   });
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1).max(128),
-  newPassword: z.string().min(8).max(128),
+  newPassword: z.string().min(NEW_PASSWORD_MIN_LENGTH).max(128),
 });
 
 function emailUnavailable(reply: import("fastify").FastifyReply) {

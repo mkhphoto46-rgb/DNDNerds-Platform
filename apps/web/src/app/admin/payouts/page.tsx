@@ -6,6 +6,7 @@ import {
 } from "react";
 
 import styles from "../../seller/seller-dashboard.module.css";
+import { apiErrorMessage } from "@/lib/api-error";
 
 type Row = {
   id: string;
@@ -67,8 +68,7 @@ export default function AdminPayoutsPage() {
 
     if (!response.ok) {
       throw new Error(
-        body?.error?.message ??
-        "Payout list failed",
+        apiErrorMessage(body, "فهرست تسویه‌ها دریافت نشد."),
       );
     }
 
@@ -126,8 +126,7 @@ export default function AdminPayoutsPage() {
 
     if (!response.ok) {
       setError(
-        body?.error?.message ??
-        "Payout review failed",
+        apiErrorMessage(body, "بررسی تسویه انجام نشد."),
       );
 
       return;
@@ -176,8 +175,7 @@ export default function AdminPayoutsPage() {
 
     if (!response.ok) {
       setError(
-        body?.error?.message ??
-        "Mark paid failed",
+        apiErrorMessage(body, "ثبت پرداخت انجام نشد."),
       );
 
       return;
