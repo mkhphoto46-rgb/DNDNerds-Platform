@@ -15,3 +15,5 @@ Guarded deployment: stage routes passed, zero active human rooms before cutover,
 Verified rollback archive: `F:/DND_NERDS_OPS/deploy/admin-organize-20261106/live-web-before.tar.gz`, SHA256 `55a5d1272393480c33e5aa64a67c0220bc001892614382a189b70598a5cda7db`. Read and verified all archived files before cutover. Previous build `gkdGkQ8jD4TMXXYHv4-ZT`. Temporary server stage and redundant uploaded archives cleaned after verification; local backup retained. Disposable QA resources stopped and removed.
 
 Proof: `live-admin-desktop.png`, `live-admin-390.png`, `admin-home-320.png`, `qa-deleted-390.png` in the same deployment directory. Existing unrelated generated-file changes preserved.
+
+Additional live read-only checks: the VTT deletion endpoint rejects an unsigned request with 403. The actual API and VTT service processes both have a configured matching bridge secret; no secret values were output and no configuration was changed.
