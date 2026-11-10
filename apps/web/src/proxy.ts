@@ -1,3 +1,4 @@
+import {visitorAddress} from './lib/visitor-address';
 import {storeHostRoute} from './lib/store-address';
 import {
   NextResponse,
@@ -61,14 +62,22 @@ function securityHeaders(
   return response;
 }
 
-export function proxy(
+export async function proxy(
   request:
     NextRequest,
 ) {
   const storeRoute=storeHostRoute(request.headers.get('host')??request.nextUrl.host,request.nextUrl.pathname);
   if(storeRoute){
     const destination=request.nextUrl.clone();destination.pathname=storeRoute.pathname;
-    if(storeRoute.kind==='rewrite')return securityHeaders(NextResponse.rewrite(destination));
+    if(storeRoute.kind==='rewrite'){
+      try{
+        const address=visitorAddress(request.headers);
+        const result=await fetch(`${process.env.MARKETPLACE_API_BASE_URL??'http://127.0.0.1:4100'}/api/v1/stores/${encodeURIComponent(storeRoute.pathname.split('/').at(-1)!)}`,{cache:'no-store',signal:AbortSignal.timeout(5000),headers:address?{'X-Forwarded-For':address}:{}});
+        if(result.status===404)return securityHeaders(NextResponse.rewrite(destination,{status:404}));
+        if(!result.ok)throw new Error('Store lookup unavailable');
+        return securityHeaders(NextResponse.rewrite(destination));
+      }catch{return securityHeaders(new NextResponse('فروشگاه موقتاً در دسترس نیست. لطفاً دوباره تلاش کنید.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8','Retry-After':'30'}}));}
+    }
     destination.protocol='https:';destination.host='dndnerds.ir';destination.port='';
     return securityHeaders(NextResponse.redirect(destination));
   }
