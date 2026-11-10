@@ -248,6 +248,8 @@ export const stores =
     },
 
     (table) => [
+      uniqueIndex("stores_name_normalized_unique").on(sql`marketplace_store_name_key(${table.name})`),
+      check("stores_slug_dns_safe",sql`length(${table.slug}) BETWEEN 3 AND 63 AND ${table.slug} ~ '^[a-z0-9]+(-[a-z0-9]+)*$' AND ${table.slug} NOT IN ('www','acme','api','admin','mail','smtp','imap','pop','pop3','webmail','autodiscover','autoconfig','voice','turn','stun','vtt','play','app','account','auth','login','support','status','cdn','assets','static','media','files','storage','download','downloads','docs','blog','shop','store','marketplace','cartography','ns1','ns2','localhost','ftp','sftp','vpn','dev','test','staging')`),
       index("stores_status_idx")
         .on(table.status),
 

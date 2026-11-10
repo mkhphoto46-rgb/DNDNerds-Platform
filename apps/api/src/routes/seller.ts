@@ -1,3 +1,4 @@
+import {storeNameSchema,storeSlugSchema,rethrowStoreIdentityError} from '../marketplace/store-identity.js';
 
 import type {
   FastifyInstance,
@@ -47,14 +48,8 @@ import {
 const onboardBody =
   z.object({
     displayName: z.string().trim().min(2).max(120),
-    storeName: z.string().trim().min(2).max(140),
-    storeSlug:
-      z.string()
-        .trim()
-        .toLowerCase()
-        .min(3)
-        .max(80)
-        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/),
+    storeName: storeNameSchema,
+    storeSlug: storeSlugSchema,
     description: z.string().trim().min(10).max(800),
     category: z.string().trim().min(2).max(120),
   });
@@ -289,7 +284,7 @@ export async function registerSellerRoutes(
             });
 
           return { seller, store };
-        });
+        }).catch(rethrowStoreIdentityError);
 
       return reply.code(201).send({
         seller: {

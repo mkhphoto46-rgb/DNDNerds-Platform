@@ -1,3 +1,4 @@
+import {storeHostRoute} from './lib/store-address';
 import {
   NextResponse,
 } from "next/server";
@@ -64,6 +65,13 @@ export function proxy(
   request:
     NextRequest,
 ) {
+  const storeRoute=storeHostRoute(request.headers.get('host')??request.nextUrl.host,request.nextUrl.pathname);
+  if(storeRoute){
+    const destination=request.nextUrl.clone();destination.pathname=storeRoute.pathname;
+    if(storeRoute.kind==='rewrite')return securityHeaders(NextResponse.rewrite(destination));
+    destination.protocol='https:';destination.host='dndnerds.ir';destination.port='';
+    return securityHeaders(NextResponse.redirect(destination));
+  }
   const sellerPreparation=/^\/seller\/marketplace\/?$/.test(request.nextUrl.pathname);
   if (process.env.FREE_LAUNCH_MODE === "true" && !sellerPreparation &&
     /^\/(cart|checkout|orders|seller)(\/|$)/.test(request.nextUrl.pathname)) {

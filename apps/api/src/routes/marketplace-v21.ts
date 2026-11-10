@@ -1,3 +1,4 @@
+import {storeNameSchema,storeSlugSchema,rethrowStoreIdentityError} from '../marketplace/store-identity.js';
 import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { requireAuthUser } from '../auth/session.js';
@@ -65,7 +66,7 @@ export async function registerMarketplaceV21(app:FastifyInstance){
     await q.begin(async tx=>{await tx`insert into marketplace_shipping_profiles(store_id,method,fee_rial,dispatch_days) values(${storeId},${b.method},${b.feeRial},${b.dispatchDays}) on conflict(store_id) do update set method=excluded.method,fee_rial=excluded.fee_rial,dispatch_days=excluded.dispatch_days,version=marketplace_shipping_profiles.version+1,updated_at=now()`;await tx`insert into marketplace_audit(actor_id,action,entity_id) values(${u.id},'SHIPPING_EDIT',${storeId})`;});return {ok:true};
   });
   app.post(`${base}/seller/apply`,async(req,reply)=>{
-    const u=await user(req);const b=parse(z.object({name:text(180),slug,description:text(800),category:text(120)}),req.body);
+    const u=await user(req);const b=parse(z.object({name:storeNameSchema,slug:storeSlugSchema,description:text(800),category:text(120)}),req.body);
     const [exists]=await q`select id from seller_profiles where user_id=${u.id}`;if(exists)fail(409,'درخواست فروشندگی قبلاً ثبت شده است.','APPLICATION_EXISTS');
     const [slugTaken]=await q`select id from stores where slug=${b.slug}`;if(slugTaken)fail(409,'این نشانی فروشگاه قبلاً گرفته شده است.','SLUG_TAKEN');
     // B51: the checks above can race; the unique constraints decide, and answer 409 instead of 500.
@@ -75,11 +76,7 @@ export async function registerMarketplaceV21(app:FastifyInstance){
       const [store]=await tx`insert into stores(seller_profile_id,name,slug,description,category,status) values(${seller.id},${b.name},${b.slug},${b.description},${b.category},'PENDING_REVIEW') returning id,slug,status`;
       if(!store)fail(500,'Store insert failed');
       await tx`insert into store_members(store_id,user_id,role) values(${store.id},${u.id},'OWNER')`;return store;
-    }).catch((error:{code?:string;constraint_name?:string})=>{
-      if(error?.code==='23505'&&error.constraint_name==='stores_slug_unique')fail(409,'این نشانی فروشگاه قبلاً گرفته شده است.','SLUG_TAKEN');
-      if(error?.code==='23505'&&error.constraint_name==='seller_profiles_user_id_unique')fail(409,'درخواست فروشندگی قبلاً ثبت شده است.','APPLICATION_EXISTS');
-      throw error;
-    });return reply.code(201).send(created);
+    }).catch(rethrowStoreIdentityError);return reply.code(201).send(created);
   });
   app.get(`${base}/seller/dashboard`,async(req)=>{
     const u=await user(req);
@@ -101,8 +98,8 @@ export async function registerMarketplaceV21(app:FastifyInstance){
   });
   app.patch(`${base}/seller/stores/:storeId`,async req=>{
     const {storeId}=params(req);const {u}=await member(req,storeId,['OWNER','MANAGER']);
-    const b=parse(z.object({name:text(180),description:text(800)}),req.body);
-    await q.begin(async tx=>{await tx`update stores set name=${b.name},description=${b.description},updated_at=now() where id=${storeId}`;await tx`insert into marketplace_audit(actor_id,action,entity_id) values(${u.id},'STORE_EDIT',${storeId})`;});return {ok:true};
+    const b=parse(z.object({name:storeNameSchema,description:text(800)}),req.body);
+    await q.begin(async tx=>{await tx`update stores set name=${b.name},description=${b.description},updated_at=now() where id=${storeId}`;await tx`insert into marketplace_audit(actor_id,action,entity_id) values(${u.id},'STORE_EDIT',${storeId})`;}).catch(rethrowStoreIdentityError);return {ok:true};
   });
   app.post(`${base}/seller/stores/:storeId/products`,async(req,reply)=>{
     const {storeId}=params(req);const {u}=await member(req,storeId);
