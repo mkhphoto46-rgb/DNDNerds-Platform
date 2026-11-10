@@ -84,7 +84,7 @@ After=network-online.target
 Wants=network-online.target
 [Service]
 Type=simple
-ExecStartPre=/usr/sbin/named-checkconf /etc/bind/dndnerds-acme/named.conf
+ExecStartPre=/usr/bin/env named-checkconf /etc/bind/dndnerds-acme/named.conf
 ExecStart=/usr/sbin/named -f -4 -u bind -c /etc/bind/dndnerds-acme/named.conf
 Restart=on-failure
 RestartSec=5
