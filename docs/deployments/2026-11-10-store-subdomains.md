@@ -1,0 +1,17 @@
+# Store subdomain application release — DNS pending
+
+Application source `7c7b5f0de117647d084eec732599b9f17a9764bd`, Web build `Y-FGdseqr_bfz8Cd7b4L8`, archive SHA256 `f1e1ba1a555a2ebfd59148df9fc7e31143ad58bf4af578ac19c5013b7f930d4d` released successfully through guarded deployment. Previous Web build WuWUy8b6v_zsOERHKzOhI preserved as rollback. Migration0042_store_identity applied additively after0041, journal1794268800000. No existing names or slugs changed.
+
+Backup `/opt/dndnerds/backups/join-before-20261110T153349Z`; restore verified19.69s; counts28users/8game tables/0orders/1product. Result existingRowsPreserved=true,privateSettingsPreserved=true,financialWritesDisabled=true. New host render and unknown404 verified first against restored DB, then independently on live3100 with Host headers. Selected5API hashes match local tested output. Existing games/knowledge/admin/seller routes checked.
+
+Unique normalized display names enforced by database unique index and all create/rename paths return friendly409. Slugs unique, DNSsafe3..63, infrastructurelabels reserved. Root store host rewrites to existing public store page, query retained, account/admin pages return to apex, cookies stay host-only. Unknown hosts return styled direct404 to avoid Next streamed404 returning200. Two initial candidates failed this check only in staging, before live swap; fixed candidate passed.
+
+Validation:6identity integration tests,3proxy tests,API build,Web typecheck/Linux build,5release guard unit tests passed. Independent focused source review found no confirmed material issues. Live browser saw new unique-name label and63character slug bound with current design preserved; no production account/order mutations used.
+
+User explicitly approved sending DNS support request in existing Tad ticket20261027651058. Sent2026-11-10 18:33 Tehran; no provider response yet when checked. Required *.A/acme.A to94.183.163.87, _acme-challenge NS->acme.dndnerds.ir. Existing parent NS and emailrecords retained. Public activation NOT verified: endpoint `/api/store-domains/status` returns enabled=false. Seller link/copy remains gated accordingly.
+
+Dedicated authoritative BIND service dndnerds-acme-dns installed (rootbackup path recorded `/root/dndnerds-acme-last-backup`). Listens127.0.0.1 andpublicIP53UDP/TCP, resolved.53/.54 intact. External WindowsUDP/TCP SOA queries passed; unrelated recursion andAXFR refused. Config root:bind, scopedTSIG exactTXTonly, secretservergenerated and never printed. Ubuntu named-checkconf resides/usr/bin; setup ExecStartPre now uses/usr/bin/env for portability. Existing nginx/TURN/apex/mailTLS configs untouched during setup.
+
+`dndnerds-store-domains.timer` enabled and active: every5minutes checks actual store rendering and DNS delegation before CA requests. Current observed exit0: delegationpending onns2.tadserver.com, no CArequests. Future path stages DNS01, issues separate wildcardlineage dndnerds-stores, validates newnginx vhost, knownHTTPS200/unknown404/apex200, then atomic readiness marker; autoactivationtimer stops after success. Certbotrenewaltimer/hook continues. One-daycooldown limits failedCA attempts. This future certificate/activation branch remains pending externalDNS and must not be represented as testedproductionTLS.
+
+Operational files: ops/store-domains/README.md and activation scripts. Logs: `/opt/dndnerds/staging/store-domains-deploy.log`, `journalctl -u dndnerds-store-domains.service`. Stagedinstaller root `/opt/dndnerds/staging/store-domains-20261110`.
