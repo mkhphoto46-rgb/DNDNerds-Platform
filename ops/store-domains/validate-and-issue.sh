@@ -2,8 +2,8 @@
 set -euo pipefail
 umask 077
 [[ $EUID == 0 ]] || exit 1
-[[ ${1:-} == staging || ${1:-} == production ]] || { echo 'Usage: bash validate-and-issue.sh staging|production EMAIL' >&2; exit 1; }
-[[ ${2:-} == *@* ]] || { echo 'ACME account email required.' >&2; exit 1; }
+[[ ${1:-} == check || ${1:-} == staging || ${1:-} == production ]] || { echo 'Usage: bash validate-and-issue.sh check|staging|production [EMAIL]' >&2; exit 1; }
+[[ $1 == check || ${2:-} == *@* ]] || { echo 'ACME account email required.' >&2; exit 1; }
 zone=_acme-challenge.dndnerds.ir
 # Check every current parent NS directly, rather than a stale recursive cache.
 mapfile -t parents < <(dig @1.1.1.1 dndnerds.ir NS +short)
@@ -23,6 +23,7 @@ done
 # as documented in README. A VPS self-query alone does not prove ingress works.
 dig @94.183.163.87 "$zone" SOA +norecurse +short | grep -q '^acme.dndnerds.ir\.'
 dig @94.183.163.87 "$zone" SOA +tcp +norecurse +short | grep -q '^acme.dndnerds.ir\.'
+[[ $1 != check ]] || exit 0
 args=(certonly --non-interactive --agree-tos --email "$2" --authenticator dns-rfc2136
   --dns-rfc2136-credentials /etc/letsencrypt/dndnerds-stores/rfc2136.ini
   --dns-rfc2136-propagation-seconds 120 -d '*.dndnerds.ir')

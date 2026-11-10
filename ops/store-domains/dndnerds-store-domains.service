@@ -1,0 +1,14 @@
+[Unit]
+Description=Activate storefront wildcard HTTPS after DNS readiness
+Wants=network-online.target
+After=network-online.target dndnerds-acme-dns.service
+[Service]
+Type=oneshot
+User=root
+Group=root
+UMask=0077
+WorkingDirectory=/opt/dndnerds/staging/store-domains-20261110
+ExecStart=/bin/bash /opt/dndnerds/staging/store-domains-20261110/auto-activate.sh
+TimeoutStartSec=900
+StandardOutput=journal
+StandardError=journal

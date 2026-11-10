@@ -122,6 +122,33 @@ try:
     for path in meta.get('disabledMutationProbes',[]):
         assert path.startswith('/api/v1/marketplace/v21/admin/') and '..' not in path
         get('http://127.0.0.1:24198'+path,503,b'{}',{'Content-Type':'application/json'})
+    # Verify the exact storefront host rewrite against the restored database before swap.
+    if meta.get('storeDomainProbe'):
+        slug=meta['storeDomainProbe'];assert re.fullmatch(r'[a-z0-9]+(?:-[a-z0-9]+)*',slug) and 3<=len(slug)<=63
+        webstage=stage/'apps/web'
+        for name in ['server.js','package.json']:copy_file(APP/'apps/web'/name,webstage/name)
+        (webstage/'public').symlink_to(APP/'apps/web/public',target_is_directory=True)
+        (webstage/'node_modules').symlink_to(APP/'node_modules',target_is_directory=True)
+        with socket.socket() as probe:
+            assert probe.connect_ex(('127.0.0.1',3104))!=0, 'Staging web port occupied'
+        webenv=dict(runtime_env,PORT='3104',HOSTNAME='127.0.0.1',NODE_PATH=str(APP/'node_modules'),MARKETPLACE_API_BASE_URL='http://127.0.0.1:24198')
+        weblog=(snapshot/'staging-web.log').open('wb')
+        webprocess=subprocess.Popen(['node',str(webstage/'server.js')],cwd=webstage,env=webenv,stdout=weblog,stderr=subprocess.STDOUT)
+        try:
+            for attempt in range(30):
+                try:get('http://127.0.0.1:3104/api/store-domains/status');break
+                except Exception:
+                    if webprocess.poll() is not None or attempt==29:raise
+                    time.sleep(1)
+            body=get('http://127.0.0.1:3104/?page=1',headers={'Host':slug+'.dndnerds.ir'})
+            assert b'id="shop-products"' in body, 'Store host resolved to wrong page'
+            get('http://127.0.0.1:3104/',404,headers={'Host':'unallocated-domain-probe.dndnerds.ir'})
+            for route in ['/games','/knowledge','/find-dm','/admin/sales','/admin/commerce','/seller/marketplace']:
+                get('http://127.0.0.1:3104'+route,headers={'Host':'dndnerds.ir'})
+        finally:
+            webprocess.terminate()
+            try:webprocess.wait(timeout=10)
+            except subprocess.TimeoutExpired:webprocess.kill();webprocess.wait()
     result={'restoreVerified':True,'restoreSeconds':round(time.monotonic()-restore_started,2),'restoredCounts':restored_counts,'stagingHealthVerified':True,'financialWritesDisabled':True}
     (snapshot/'marketplace-restore.json').write_text(json.dumps(result))
 finally:

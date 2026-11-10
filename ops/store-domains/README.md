@@ -141,3 +141,40 @@ reversed. Coordinate removal of parent delegation with Tad before retiring DNS.
 
 References: [official RFC2136 Certbot plugin](https://certbot-dns-rfc2136.readthedocs.io/en/latest/),
 [BIND configuration reference](https://bind9.readthedocs.io/en/stable/reference.html).
+
+## Optional pending-DNS activation timer
+
+`auto-activate.sh` and the `dndnerds-store-domains.{service,timer}` templates allow
+an operator-reviewed activation to proceed when Tad finishes the DNS request.
+These files are prepared artifacts, not proof that the timer is installed.
+Install the entire directory as root-owned files inside the root-only directory
+`/opt/dndnerds/staging/store-domains-20261110` (mode 0700); shell scripts must also
+be root-owned mode 0700. Copy the two unit templates into `/etc/systemd/system`,
+run `systemd-analyze verify` on them, then `systemctl daemon-reload` and
+`systemctl enable --now dndnerds-store-domains.timer` after reviewing the scripts.
+Follow progress through `journalctl -u dndnerds-store-domains.service`.
+
+Each run takes the shared marketplace release lock and a private activation lock.
+Before a CA request it checks that the Next server on port 3100 serves the real
+`moralin` storefront (HTTP 200 plus `shop-products` and the expected Persian name),
+an unallocated store gives 404, and the domain-status endpoint is installed but
+disabled. Failed DNS readiness exits successfully without requesting certificates.
+Once DNS is ready, staging and production issuance run with `info@dndnerds.ir`;
+any CA attempt starts a one-day cooldown, including interrupted attempts. A valid
+publicly trusted existing wildcard certificate with at least seven days remaining
+is reused. This avoids repeatedly issuing production certificates on timer ticks.
+
+Only a missing vhost or one whose checksum matches this script's recorded
+ownership is installed; unmanaged or externally modified files fail closed.
+Owned configs are backed up before replacement. The script validates and reloads
+nginx, checks public-IP HTTPS for the actual store, an unknown-store 404 and apex
+health, then atomically publishes the root-owned mode-0644 marker
+`/opt/dndnerds/store-domains-ready.json`. The status endpoint must report enabled
+after that write. Any activation or post-marker check failure removes the marker
+created by this attempt, unlinks only the owned enabled site and validates/reloads
+the previous nginx configuration. Failed rollback is logged for operator attention.
+An existing completed marker causes observation only; later failures are reported
+without tearing down the established service. Five-minute rechecks are bounded by
+the systemd 900-second timeout. Public-IP probes from the VPS verify the public
+nginx/SNI path, while the earlier off-host DNS tests remain necessary evidence of
+external DNS ingress. No script changes the public stream/TURN/apex configs.
