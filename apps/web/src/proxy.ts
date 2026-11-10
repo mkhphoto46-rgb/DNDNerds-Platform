@@ -62,6 +62,10 @@ function securityHeaders(
   return response;
 }
 
+function storeError(status:number,title:string,message:string){
+  return securityHeaders(new NextResponse(`<!doctype html><html lang="fa" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex"><title>${title} | DND Nerds</title><style>body{margin:0;min-height:100vh;display:grid;place-items:center;background:#061427;color:#f7f5ef;font-family:Tahoma,sans-serif;line-height:2}main{box-sizing:border-box;width:min(90%,640px);padding:32px;border:1px solid #36c9da;border-radius:24px;background:#052333}h1{color:#efc477;font-size:clamp(24px,5vw,36px)}a{display:inline-block;margin-top:16px;padding:10px 20px;border-radius:12px;background:#efc477;color:#061427;text-decoration:none}a:focus-visible{outline:3px solid #36c9da;outline-offset:4px}</style></head><body><main><span dir="ltr">DND Nerds</span><h1>${title}</h1><p>${message}</p><a href="https://dndnerds.ir/store">بازگشت به بازارچه</a></main></body></html>`,{status,headers:{'Content-Type':'text/html; charset=utf-8','Cache-Control':'no-store',...(status===503?{'Retry-After':'30'}:{})}}));
+}
+
 export async function proxy(
   request:
     NextRequest,
@@ -73,10 +77,10 @@ export async function proxy(
       try{
         const address=visitorAddress(request.headers);
         const result=await fetch(`${process.env.MARKETPLACE_API_BASE_URL??'http://127.0.0.1:4100'}/api/v1/stores/${encodeURIComponent(storeRoute.pathname.split('/').at(-1)!)}`,{cache:'no-store',signal:AbortSignal.timeout(5000),headers:address?{'X-Forwarded-For':address}:{}});
-        if(result.status===404)return securityHeaders(NextResponse.rewrite(destination,{status:404}));
+        if(result.status===404)return storeError(404,'این فروشگاه پیدا نشد','فروشگاه مورد نظر وجود ندارد یا هنوز فعال نشده است.');
         if(!result.ok)throw new Error('Store lookup unavailable');
         return securityHeaders(NextResponse.rewrite(destination));
-      }catch{return securityHeaders(new NextResponse('فروشگاه موقتاً در دسترس نیست. لطفاً دوباره تلاش کنید.',{status:503,headers:{'Content-Type':'text/plain; charset=utf-8','Retry-After':'30'}}));}
+      }catch{return storeError(503,'فروشگاه موقتاً در دسترس نیست','لطفاً کمی بعد دوباره تلاش کنید.');}
     }
     destination.protocol='https:';destination.host='dndnerds.ir';destination.port='';
     return securityHeaders(NextResponse.redirect(destination));
