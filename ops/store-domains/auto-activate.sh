@@ -109,8 +109,21 @@ printf '%s\n' "$source_hash" > "$state/owned-vhost.sha256"
 [[ -L $enabled ]] || ln -s "$available" "$enabled"
 nginx -t
 systemctl reload nginx
-[[ $(fetch --resolve moralin.dndnerds.ir:443:94.183.163.87 -o "$tmp/known" -w '%{http_code}' https://moralin.dndnerds.ir/) == 200 ]]
-assert_store "$tmp/known"
+# Reload signals the master. New workers can take a moment to accept TLS.
+store_ready=false
+for attempt in {1..10}; do
+  if [[ $(fetch --connect-timeout 2 --max-time 3 --resolve moralin.dndnerds.ir:443:94.183.163.87 -o "$tmp/known" -w '%{http_code}' https://moralin.dndnerds.ir/ 2>"$tmp/tls-error") == 200 ]] &&
+    assert_store "$tmp/known"; then
+    store_ready=true
+    break
+  fi
+  sleep 1
+done
+if [[ $store_ready != true ]]; then
+  cat "$tmp/tls-error" >&2
+  echo 'Storefront did not become ready after nginx reload.' >&2
+  exit 1
+fi
 [[ $(fetch --resolve "$unknown:443:94.183.163.87" -o /dev/null -w '%{http_code}' "https://$unknown/") == 404 ]]
 [[ $(fetch --resolve dndnerds.ir:443:94.183.163.87 -o /dev/null -w '%{http_code}' https://dndnerds.ir/) == 200 ]]
 python3 - "$marker" <<'PY'
