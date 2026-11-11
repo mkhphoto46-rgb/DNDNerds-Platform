@@ -81,7 +81,7 @@
 .shopFilters select{appearance:none;padding-inline-end:40px}
 .selectArrow{pointer-events:none;position:absolute;inset-inline-end:12px;top:50%;transform:translateY(-50%);width:20px;height:20px;display:grid;place-items:center;color:var(--site-cyan)}
 .shopFilters :is(button,a){display:flex;align-items:center;justify-content:center;gap:8px}
-.shopFilters button img{width:20px;height:20px;object-fit:contain}
+.shopFilters button :global(.site-icon){width:20px;height:20px;object-fit:contain}
 .shopFilters a{border:1px solid #39758a;color:var(--site-cyan)}
 .shopFilters :is(input,select,button,a):focus-visible,.thumbnails button:focus-visible{outline:2px solid var(--site-cyan);outline-offset:2px}
 .thumbnails{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px;padding:10px}
