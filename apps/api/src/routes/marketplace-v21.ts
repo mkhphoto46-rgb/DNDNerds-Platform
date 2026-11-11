@@ -82,23 +82,15 @@ export async function registerMarketplaceV21(app:FastifyInstance){
       return clean;
     });
     return q.begin(async tx=>{
-      // Use the same quota lock as reference and legacy media uploads.
-      if(uploads.length)await tx`select pg_advisory_xact_lock(hashtextextended('marketplace-media-quota',0))`;
       const [product]=await tx`select image_url,gallery_extra_urls from products where id=${productId} and store_id=${storeId} for update`;
       if(!product)fail(404,'محصول یافت نشد.');
       const current=[product.image_url,...product.gallery_extra_urls].filter(Boolean) as string[];
       if(JSON.stringify(current)!==JSON.stringify(body.previous))fail(409,'تصاویر محصول تغییر کرده‌اند. پنل را تازه کنید.');
       if(body.keep.some(url=>!current.includes(url)))fail(400,'تصویر متعلق به این محصول نیست.');
       const urls=[...body.keep];
-      if(uploads.length){
-        const [size]=await tx`select coalesce(sum(octet_length(data_webp)),0) as total from marketplace_media`;
-        if(Number(size?.total)+uploads.reduce((sum,data)=>sum+Buffer.byteLength(data),0)>350000000)fail(409,'ظرفیت فایل‌های بازارچه تکمیل است.');
-        const [quota]=await tx`select count(*)::int as count from marketplace_media where owner_id=${u.id}`;
-        if(Number(quota?.count)+uploads.length>20)fail(409,'سقف فایل‌های حساب تکمیل شده است.');
-        for(const data of uploads){
-          const [media]=await tx`insert into marketplace_media(owner_id,data_webp) values(${u.id},${data}) returning id`;
-          urls.push('/api/marketplace/v21/media/'+media!.id);
-        }
+      for(const data of uploads){
+        const [media]=await tx`insert into marketplace_media(owner_id,data_webp) values(${u.id},${data}) returning id`;
+        urls.push('/api/marketplace/v21/media/'+media!.id);
       }
       await tx`update products set image_url=${urls[0]??null},gallery_extra_urls=${JSON.stringify(urls.slice(1))}::jsonb,updated_at=now() where id=${productId}`;
       return {imageUrls:urls};

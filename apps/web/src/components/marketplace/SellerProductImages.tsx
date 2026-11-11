@@ -1,7 +1,7 @@
 'use client';
 
 import {useState, type FormEvent} from 'react';
-import {marketplaceImage} from '@/lib/marketplace-image';
+import {compressProductImage} from '@/lib/marketplace-image';
 import styles from './storefront.module.css';
 
 export function SellerProductImages({storeId, productId, initialUrls}:{
@@ -22,7 +22,7 @@ export function SellerProductImages({storeId, productId, initialUrls}:{
     setMessage('');
     try{
       const uploads:string[]=[];
-      for(const file of files)uploads.push(await marketplaceImage(file));
+      for(const file of files)uploads.push(await compressProductImage(file));
       const response=await fetch(`/api/marketplace/v21/seller/stores/${storeId}/products/${productId}/images`,{
         method:'PUT',
         headers:{'Content-Type':'application/json'},
@@ -48,7 +48,7 @@ export function SellerProductImages({storeId, productId, initialUrls}:{
       <img src={url} alt={index===0?'تصویر اصلی':`تصویر ${index+1}`}/>
       <button type="button" disabled={busy} onClick={()=>setKeep(keep.filter(item=>item!==url))} aria-label={`حذف تصویر ${index+1}`}>حذف</button>
     </div>)}</div>}
-    <label>افزودن عکس<input type="file" multiple accept="image/png,image/jpeg,image/webp" disabled={busy||keep.length===5} onChange={event=>{
+    <label>افزودن عکس<input type="file" multiple accept="image/*" disabled={busy||keep.length===5} onChange={event=>{
       const selected=Array.from(event.currentTarget.files??[]);
       if(selected.length+keep.length>5){
         event.currentTarget.value='';

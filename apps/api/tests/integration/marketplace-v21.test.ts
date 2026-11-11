@@ -150,6 +150,8 @@ test('product gallery keeps the old cover, limits uploads and respects publicati
   const update=(token:string,body:typeof payload)=>api.request({method:'PUT',url:path,token,payload:body});
   assert.equal((await update(other.token,payload)).status,403);
   assert.equal((await update(owner.token,{...payload,uploads:Array(5).fill(webp)})).status,400);
+  await sql(q=>q`insert into marketplace_media(owner_id,data_webp)
+    select ${owner.userId},${webp} from generate_series(1,20)`);
   const result=await update(owner.token,payload);
   assert.equal(result.status,200,JSON.stringify(result.body));
   const urls=result.body.imageUrls as string[];
