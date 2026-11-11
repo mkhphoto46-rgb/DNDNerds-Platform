@@ -77,11 +77,11 @@ export async function registerCatalog(app:FastifyInstance){
     const [p]=await q`select p.id from products p join stores s on s.id=p.store_id where s.slug=${storeSlug} and p.slug=${productSlug} and s.status='ACTIVE' and p.status='PUBLISHED'`;
     if(!p)return reply.code(404).send({error:{code:'PRODUCT_NOT_FOUND'}});
     // Direct details use the same visibility and pricing rules, without a catalog-page scan.
-    const rows=await q`select p.id,p.slug,p.name,p.description,p.category,p.product_type as "productType",p.brand,p.image_url as "imageUrl",p.production_days as "productionDays",s.id as "storeId",s.slug as "storeSlug",s.name as "storeName",(s.verified and s.identity_evidence_ref is not null) as verified,
+    const rows=await q`select p.gallery_extra_urls as "galleryExtraUrls",p.id,p.slug,p.name,p.description,p.category,p.product_type as "productType",p.brand,p.image_url as "imageUrl",p.production_days as "productionDays",s.id as "storeId",s.slug as "storeSlug",s.name as "storeName",(s.verified and s.identity_evidence_ref is not null) as verified,
       jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'options',v.options,'priceRial',case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end,'basePriceRial',v.price_rial,'priceToman',(case when now()>=v.discount_starts_at and now()<v.discount_ends_at then v.discount_rial else v.price_rial end)/10.0,'inventory',${availableQuantity},'perOrderLimit',v.per_order_limit,'priceEffectiveAt',v.price_effective_at) order by v.is_default desc,v.id) variants
       from products p join stores s on s.id=p.store_id join product_variants v on v.product_id=p.id and v.status='ACTIVE' join inventory i on i.variant_id=v.id
       where p.id=${p.id} and s.status='ACTIVE' and p.status='PUBLISHED' group by p.id,s.id`;
     if(!rows[0])return reply.code(404).send({error:{code:'PRODUCT_NOT_FOUND'}});
-    return mapProduct(rows[0]);
+    return {...mapProduct(rows[0]),imageUrls:[rows[0].imageUrl,...rows[0].galleryExtraUrls].filter(Boolean)};
   });
 }

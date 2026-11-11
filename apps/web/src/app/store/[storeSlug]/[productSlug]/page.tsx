@@ -23,7 +23,7 @@ export default async function ProductPage({params}:{params:Promise<{storeSlug:st
  return <main className={styles.page}><div className={styles.shell}>
   <nav className={styles.breadcrumb} aria-label="مسیر محصول"><Link href="/store">بازارچه</Link><span aria-hidden="true">/</span><Link href={`/store?category=${encodeURIComponent(product.category)}`}>{categoryLabel(product.category)}</Link><span aria-hidden="true">/</span><Link href={`/store/${store.slug}`}>{store.name}</Link><span aria-hidden="true">/</span><span>{product.name}</span></nav>
   <section className={styles.productLayout} aria-label="معرفی و انتخاب محصول">
-   <ProductGallery src={product.imageUrl} name={product.name}/>
+   <ProductGallery images={product.imageUrls??(product.imageUrl?[product.imageUrl]:[])} name={product.name}/>
    <div className={styles.overview}><Link className={styles.category} href={`/store?category=${encodeURIComponent(product.category)}`}>{categoryLabel(product.category)}</Link><h1 className={styles.productTitle}>{product.name}</h1><div className={styles.overviewLinks}><a href="#product-community">دیدگاه‌ها و پرسش‌ها</a><Link href={`/store/${store.slug}`}>از فروشگاه {store.name}</Link></div><p className={styles.summary}>{product.description}</p>
     <dl className={styles.facts}>{product.brand&&<div><dt>برند</dt><dd><bdi>{product.brand}</bdi></dd></div>}<div><dt>نوع عرضه</dt><dd>{supplyLabel(product.productType)}</dd></div>{Array.from(attributes).slice(0,4).map(([key,values])=><div key={key}><dt>{attributeLabel(key)}</dt><dd>{Array.from(values).join('، ')}</dd></div>)}</dl>
    </div>

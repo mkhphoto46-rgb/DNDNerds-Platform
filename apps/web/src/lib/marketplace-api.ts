@@ -76,6 +76,7 @@ export type MarketplaceProduct = {
 
 export type MarketplaceProductDetail =
   MarketplaceProduct & {
+    imageUrls?: string[];
     source: "postgresql";
   };
 

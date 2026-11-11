@@ -139,3 +139,34 @@ test('review regressions: empty pages retain totals, SKU aliases cannot bypass l
  const alias=await api.request({method:'POST',url:'/api/v1/marketplace/orders',token:other.token,remoteAddress:'10.31.1.1',payload:{idempotencyKey:randomUUID(),address,items:[{productId,quantity:1},{productId,variantId,expectedPriceRial:120000,quantity:1}]}});assert.equal(alias.status,409);
  const invalid=await api.request({method:'POST',url:`/api/v1/marketplace/v21/seller/stores/${storeId}/products`,token:owner.token,remoteAddress:'10.31.1.2',payload:{slug:'invalid-category',name:'Invalid',description:'Invalid test',category:'unknown-category',productType:'READY_TO_SHIP',variant:{sku:'invalid-test',name:'Default',priceRial:1000,stock:1}}});assert.equal(invalid.status,400);
 });
+
+test('product gallery keeps the old cover, limits uploads and respects publication and ownership',async()=>{
+  const base='/api/v1/marketplace/v21';
+  const path=`${base}/seller/stores/${storeId}/products/${productId}/images`;
+  const cover='/site-ui/wordmark.png';
+  const webp='data:image/webp;base64,UklGRjQAAABXRUJQVlA4ICgAAACQAQCdASoBAAEAAUAmJaACdLoAA5gA/vIiX/xaHWh1oaOu7D5aiAAA';
+  await sql(q=>q`update products set image_url=${cover} where id=${productId}`);
+  const payload={previous:[cover],keep:[cover],uploads:Array(4).fill(webp),publishConsent:true};
+  const update=(token:string,body:typeof payload)=>api.request({method:'PUT',url:path,token,payload:body});
+  assert.equal((await update(other.token,payload)).status,403);
+  assert.equal((await update(owner.token,{...payload,uploads:Array(5).fill(webp)})).status,400);
+  const result=await update(owner.token,payload);
+  assert.equal(result.status,200,JSON.stringify(result.body));
+  const urls=result.body.imageUrls as string[];
+  assert.equal(urls.length,5);
+  assert.equal(urls[0],cover);
+  assert.equal((await update(owner.token,payload)).status,409);
+  const detail=await api.request({method:'GET',url:`/api/v1/stores/${slug}/products/dice`});
+  assert.deepEqual(detail.body.imageUrls,urls);
+  const mediaPath='/api/v1'+urls[4].slice(4);
+  assert.equal((await api.app.inject({method:'GET',url:mediaPath})).statusCode,200);
+  await sql(q=>q`update products set status='DRAFT' where id=${productId}`);
+  try{
+    assert.equal((await api.app.inject({method:'GET',url:mediaPath})).statusCode,404);
+  }finally{
+    await sql(q=>q`update products set status='PUBLISHED' where id=${productId}`);
+  }
+  const reduced=await update(owner.token,{previous:urls,keep:urls.slice(1,4),uploads:[],publishConsent:true});
+  assert.deepEqual(reduced.body.imageUrls,urls.slice(1,4));
+  assert.equal((await api.app.inject({method:'GET',url:mediaPath})).statusCode,404);
+});

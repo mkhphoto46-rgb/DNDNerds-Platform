@@ -50,12 +50,59 @@ export async function registerMarketplaceV21(app:FastifyInstance){
   });
   app.get(`${base}/media/:mediaId`,async(req,reply)=>{
     const {mediaId}=params(req);const u=await requireAuthUser(req);
-    const [m]=await q`select m.data_webp from marketplace_media m where m.id=${mediaId} and (m.owner_id=${u?.id??null} or exists(select 1 from marketplace_custom_requests r join store_members sm on sm.store_id=r.store_id where r.reference_key='private/'||m.owner_id||'/'||m.id and sm.user_id=${u?.id??null}) or exists(select 1 from products p join stores s on s.id=p.store_id where p.image_url=${'/api/marketplace/v21/media/'+mediaId} and p.status='PUBLISHED' and s.status='ACTIVE') or exists(select 1 from products p join marketplace_admins a on a.user_id=${u?.id??null} and a.active=true where p.image_url=${'/api/marketplace/v21/media/'+mediaId}))`;
+    const url='/api/marketplace/v21/media/'+mediaId;
+    const [m]=await q`select m.data_webp from marketplace_media m where m.id=${mediaId} and (
+      m.owner_id=${u?.id??null}
+      or exists(select 1 from marketplace_custom_requests r join store_members sm on sm.store_id=r.store_id where r.reference_key='private/'||m.owner_id||'/'||m.id and sm.user_id=${u?.id??null})
+      or exists(select 1 from products p join stores s on s.id=p.store_id
+        where (p.image_url=${url} or p.gallery_extra_urls ? ${url})
+        and ((p.status='PUBLISHED' and s.status='ACTIVE')
+          or exists(select 1 from marketplace_admins a where a.user_id=${u?.id??null} and a.active=true)
+          or exists(select 1 from store_members sm where sm.store_id=s.id and sm.user_id=${u?.id??null} and sm.role in ('OWNER','MANAGER','PRODUCT_EDITOR')))))`;
     if(!m)fail(404,'فایل یافت نشد.');return reply.header('cache-control','private, no-store').header('x-content-type-options','nosniff').type('image/webp').send(Buffer.from(m.data_webp.split(',')[1],'base64'));
   });
   app.post(`${base}/seller/stores/:storeId/products/:productId/image`,async req=>{
     const {storeId,productId}=params(req);const {u}=await member(req,storeId);const b=parse(z.object({mediaId:id,publishConsent:z.literal(true)}),req.body);
     const [m]=await q`select id from marketplace_media where id=${b.mediaId} and owner_id=${u.id}`;if(!m)fail(404,'فایل یافت نشد.');const changed=await q`update products set image_url=${'/api/marketplace/v21/media/'+b.mediaId},updated_at=now() where id=${productId} and store_id=${storeId} returning id`;if(!changed.length)fail(404,'محصول یافت نشد.');return {ok:true};
+  });
+  app.put(`${base}/seller/stores/:storeId/products/:productId/images`,{bodyLimit:3_600_000},async req=>{
+    const {storeId,productId}=params(req);
+    const {u}=await member(req,storeId);
+    const body=parse(z.object({
+      previous:z.array(z.string().max(4096)).max(5),
+      keep:z.array(z.string().max(4096)).max(5),
+      uploads:z.array(z.string().max(700000)).max(5),
+      publishConsent:z.literal(true),
+    }),req.body);
+    if(body.keep.length+body.uploads.length>5)fail(400,'برای هر محصول حداکثر ۵ تصویر مجاز است.');
+    if(new Set(body.keep).size!==body.keep.length)fail(400,'تصویر تکراری است.');
+    const uploads=body.uploads.map(value=>{
+      const clean=cleanReferenceImage(value);
+      if(!clean)fail(400,'یکی از تصاویر معتبر نیست.');
+      return clean;
+    });
+    return q.begin(async tx=>{
+      // Use the same quota lock as reference and legacy media uploads.
+      if(uploads.length)await tx`select pg_advisory_xact_lock(hashtextextended('marketplace-media-quota',0))`;
+      const [product]=await tx`select image_url,gallery_extra_urls from products where id=${productId} and store_id=${storeId} for update`;
+      if(!product)fail(404,'محصول یافت نشد.');
+      const current=[product.image_url,...product.gallery_extra_urls].filter(Boolean) as string[];
+      if(JSON.stringify(current)!==JSON.stringify(body.previous))fail(409,'تصاویر محصول تغییر کرده‌اند. پنل را تازه کنید.');
+      if(body.keep.some(url=>!current.includes(url)))fail(400,'تصویر متعلق به این محصول نیست.');
+      const urls=[...body.keep];
+      if(uploads.length){
+        const [size]=await tx`select coalesce(sum(octet_length(data_webp)),0) as total from marketplace_media`;
+        if(Number(size?.total)+uploads.reduce((sum,data)=>sum+Buffer.byteLength(data),0)>350000000)fail(409,'ظرفیت فایل‌های بازارچه تکمیل است.');
+        const [quota]=await tx`select count(*)::int as count from marketplace_media where owner_id=${u.id}`;
+        if(Number(quota?.count)+uploads.length>20)fail(409,'سقف فایل‌های حساب تکمیل شده است.');
+        for(const data of uploads){
+          const [media]=await tx`insert into marketplace_media(owner_id,data_webp) values(${u.id},${data}) returning id`;
+          urls.push('/api/marketplace/v21/media/'+media!.id);
+        }
+      }
+      await tx`update products set image_url=${urls[0]??null},gallery_extra_urls=${JSON.stringify(urls.slice(1))}::jsonb,updated_at=now() where id=${productId}`;
+      return {imageUrls:urls};
+    });
   });
   app.get(`${base}/readiness`,async()=>({catalog:true,sellerDrafts:true,livePayments:false,livePayouts:false,kycIntake:false,carrierCoverage:false,
     gates:await q`select code,decision,(evidence_ref is not null and expires_at>now()) as "evidenceCurrent" from marketplace_gate_decisions order by code`}));
@@ -82,6 +129,7 @@ export async function registerMarketplaceV21(app:FastifyInstance){
     const u=await user(req);
     const stores=await q`select s.id,s.slug,s.name,s.description,s.category,s.status,m.role from stores s join store_members m on m.store_id=s.id where m.user_id=${u.id} order by s.created_at limit 50`;
     const products=await q`select p.id,p.store_id as "storeId",p.name,p.slug,p.category,p.status,p.product_type as "productType",p.brand,p.production_days as "productionDays",
+      (case when p.image_url is null then '[]'::jsonb else jsonb_build_array(p.image_url) end || p.gallery_extra_urls) as "imageUrls",
       coalesce(jsonb_agg(jsonb_build_object('id',v.id,'sku',v.sku,'name',v.name,'priceRial',v.price_rial,'stock',i.quantity_on_hand,'reserved',i.quantity_reserved,'options',v.options,'perOrderLimit',v.per_order_limit,'discountRial',v.discount_rial,'discountStartsAt',v.discount_starts_at,'discountEndsAt',v.discount_ends_at) order by v.created_at) filter(where v.id is not null),'[]') variants
       from products p join store_members m on m.store_id=p.store_id and m.user_id=${u.id} left join product_variants v on v.product_id=p.id left join inventory i on i.variant_id=v.id group by p.id order by p.created_at desc limit 200`;
     const articles=await q`select a.id,a.store_id as "storeId",a.title,a.status from marketplace_articles a join store_members m on m.store_id=a.store_id and m.user_id=${u.id} order by a.created_at desc limit 100`;
