@@ -1,12 +1,10 @@
+import { reauth } from "./admin.js";
 
 import type {
   FastifyInstance,
   FastifyRequest,
 } from "fastify";
 
-import {
-  verify,
-} from "@node-rs/argon2";
 
 import {
   and,
@@ -30,7 +28,6 @@ import {
   financialLedgerPostings,
   financialLedgerTransactions,
   marketplaceAdminAuditLogs,
-  marketplaceAdmins,
   payoutProviderAttempts,
   payoutRequestDestinationSnapshots,
   sellerBalances,
@@ -67,97 +64,11 @@ const bodySchema =
         .max(180),
   });
 
-async function adminReauth(
-  request: FastifyRequest,
-  password: string,
-) {
-  const user =
-    await requireAuthUser(
-      request,
-    );
-
-  if (!user) {
-    return null;
-  }
-
-  const [
-    admin,
-  ] =
-    await db
-      .select({
-        role:
-          marketplaceAdmins.role,
-      })
-      .from(
-        marketplaceAdmins,
-      )
-      .where(
-        and(
-          eq(
-            marketplaceAdmins.userId,
-            user.id,
-          ),
-
-          eq(
-            marketplaceAdmins.active,
-            true,
-          ),
-        ),
-      )
-      .limit(1);
-
-  if (
-    !admin ||
-    admin.role ===
-      "SUPPORT"
-  ) {
-    return null;
-  }
-
-  const [
-    row,
-  ] =
-    await db
-      .select({
-        passwordHash:
-          users.passwordHash,
-      })
-      .from(
-        users,
-      )
-      .where(
-        eq(
-          users.id,
-          user.id,
-        ),
-      )
-      .limit(1);
-
-  if (!row?.passwordHash) {
-    return null;
-  }
-
-  try {
-    const valid =
-      await verify(
-        row.passwordHash,
-        password,
-      );
-
-    return valid
-      ? {
-          userId:
-            user.id,
-
-          role:
-            admin.role,
-        }
-      : null;
-  }
-  catch {
-    return null;
-  }
+async function adminReauth(request: FastifyRequest, password: string) {
+  const admin = await reauth(request, password);
+  return admin && admin.role !== "SUPPORT" ? admin : null;
 }
+
 
 async function audit(
   adminUserId: string,

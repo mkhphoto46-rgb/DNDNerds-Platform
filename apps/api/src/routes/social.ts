@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, desc, eq, gt, inArray, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
-import { messagePage } from "./social-message-page.js";
+import { sendMessagePage } from "./social-message-page.js";
 import { db } from "../db/client.js";
 import {
   socialProfiles, socialFriendRequests, socialFriendships, socialBlocks,
@@ -249,7 +249,7 @@ export async function registerSocialRoutes(app: FastifyInstance) {
         cursor ? or(lt(socialMessages.createdAt, cursor.createdAt), and(
           eq(socialMessages.createdAt, cursor.createdAt), lt(socialMessages.id, cursor.id))) : undefined))
       .orderBy(desc(socialMessages.createdAt), desc(socialMessages.id)).limit(50);
-    return messagePage(rows);
+    return sendMessagePage(rows, request, reply);
   });
   app.post<{ Params: { userId: string } }>("/api/v1/social/friends/:userId/messages", async (request, reply) => {
     const user = await actor(request, reply); if (!user) return;

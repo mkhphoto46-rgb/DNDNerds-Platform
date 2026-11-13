@@ -1336,6 +1336,8 @@ export const userSessions =
           },
         ),
 
+      mfaVerifiedAt: bcTimestamp("mfa_verified_at", { withTimezone: true }),
+
       lastSeenAt:
         bcTimestamp(
           "last_seen_at",

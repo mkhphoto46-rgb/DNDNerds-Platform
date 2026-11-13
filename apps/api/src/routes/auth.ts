@@ -529,6 +529,7 @@ export async function registerAuthRoutes(
       const session =
         await issueSession(
           user.id,
+          mfa?.enabled ? new Date() : null,
         );
 
       await recordIssuedSession(

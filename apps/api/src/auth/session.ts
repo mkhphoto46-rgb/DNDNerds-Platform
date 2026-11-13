@@ -12,6 +12,7 @@ import {
   eq,
   gt,
   isNull,
+  lte,
 } from "drizzle-orm";
 
 import {
@@ -30,6 +31,12 @@ export type AuthUser = {
   username: string | null;
   publicId: string;
 };
+
+const sessionMfa = new WeakMap<FastifyRequest, Date | null>();
+
+export function verifiedSessionMfa(request: FastifyRequest) {
+  return sessionMfa.get(request) ?? null;
+}
 
 const SESSION_DAYS =
   30;
@@ -74,6 +81,7 @@ export function getBearerToken(
 
 export async function issueSession(
   userId: string,
+  mfaVerifiedAt: Date | null = null,
 ) {
   const token =
     randomBytes(32)
@@ -98,6 +106,7 @@ export async function issueSession(
         tokenHash(token),
 
       expiresAt,
+      mfaVerifiedAt,
 
       lastSeenAt:
         new Date(),
@@ -129,6 +138,8 @@ export async function requireAuthUser(
   ] =
     await db
       .select({
+        mfaVerifiedAt: userSessions.mfaVerifiedAt,
+        lastSeenAt: userSessions.lastSeenAt,
         sessionId:
           userSessions.id,
 
@@ -179,18 +190,15 @@ export async function requireAuthUser(
     return null;
   }
 
-  await db
-    .update(userSessions)
-    .set({
-      lastSeenAt:
-        now,
-    })
-    .where(
-      eq(
-        userSessions.id,
-        row.sessionId,
-      ),
-    );
+  sessionMfa.set(request, row.mfaVerifiedAt);
+  const cutoff = new Date(now.getTime() - 60_000);
+  if (row.lastSeenAt <= cutoff) {
+    await db.update(userSessions).set({ lastSeenAt: now }).where(and(
+      eq(userSessions.id, row.sessionId),
+      isNull(userSessions.revokedAt),
+      lte(userSessions.lastSeenAt, cutoff),
+    ));
+  }
 
   return {
     id:

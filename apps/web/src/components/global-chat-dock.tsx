@@ -59,6 +59,7 @@ export function GlobalChatDock(){
   const bottom=useRef<HTMLDivElement>(null);
   const accountSeq=useRef(0);
   const chatSeq=useRef(0);
+  const messageValidator = useRef<{ route: string; etag: string } | null>(null);
 
   const refreshAccount=useCallback(async()=>{
     const seq=++accountSeq.current;
@@ -103,20 +104,41 @@ export function GlobalChatDock(){
     const seq=++chatSeq.current;
     const route=chat.kind==="direct"?`friends/${encodeURIComponent(chat.id)}/messages`:`groups/${encodeURIComponent(chat.id)}/messages`;
     try{
-      const rows=await api<Message[]>(route);
-      if(seq!==chatSeq.current)return;
-      setMessages(rows);
+      const previous = messageValidator.current;
+      const response = await fetch(`/api/social/${route}`, {
+        cache: "no-store",
+        headers: previous?.route === route ? { "If-None-Match": previous.etag } : undefined,
+      });
+      if (seq !== chatSeq.current || response.status === 304) return;
+      const body = await response.json() as { data: Message[]; error?: { message?: string } };
+      if (seq !== chatSeq.current) return;
+      if (!response.ok) throw new Error(body.error?.message ?? "دریافت پیام‌ها ناموفق بود");
+      const etag = response.headers.get("etag");
+      messageValidator.current = etag ? { route, etag } : null;
+      setMessages(body.data);
     }catch(e){if(seq===chatSeq.current)setNotice(e instanceof Error?e.message:"دریافت پیام‌ها ناموفق بود");}
   },[chat,open,session]);
-  useEffect(()=>{setMessages([]);setDraft("");void refreshMessages();},[refreshMessages]);
+  useEffect(() => {
+    chatSeq.current++;
+    messageValidator.current = null;
+    setMessages([]);
+    setDraft("");
+    void refreshMessages();
+  }, [refreshMessages]);
   useEffect(()=>{
     if(!open||session!=="ready")return;
     const id=window.setInterval(()=>{
       if(document.visibilityState!=="visible")return;
-      void refreshLists();void refreshMessages();
+      void refreshMessages();
     },12000);
-    return()=>window.clearInterval(id);
-  },[open,session,refreshLists,refreshMessages]);
+    const listTimer = window.setInterval(() => {
+      if (document.visibilityState === "visible") void refreshLists();
+    }, 60_000);
+    return () => {
+      window.clearInterval(id);
+      window.clearInterval(listTimer);
+    };
+  }, [open, session, refreshLists, refreshMessages]);
   useEffect(()=>{if(chat&&open)bottom.current?.scrollIntoView({block:"end",behavior:"smooth"});},[messages,chat,open]);
   const action=async(fn:()=>Promise<unknown>)=>{
     if(busy)return;

@@ -92,22 +92,10 @@ export async function consumeRateLimit(
   const redis =
     await getRedisClient();
 
-  const count =
-    await redis.incr(
-      key,
-    );
-
-  if (count === 1) {
-    await redis.pExpire(
-      key,
-      windowMs,
-    );
-  }
-
-  const ttl =
-    await redis.pTTL(
-      key,
-    );
+  const [count, ttl] = await redis.eval(
+    "local n = redis.call('INCR', KEYS[1]); if redis.call('PTTL', KEYS[1]) < 0 then redis.call('PEXPIRE', KEYS[1], ARGV[1]); end; return {n, redis.call('PTTL', KEYS[1])}",
+    { keys: [key], arguments: [String(windowMs)] },
+  ) as [number, number];
 
   return {
     count,

@@ -51,13 +51,14 @@ export async function registerMarketplaceV21(app:FastifyInstance){
   app.get(`${base}/media/:mediaId`,async(req,reply)=>{
     const {mediaId}=params(req);const u=await requireAuthUser(req);
     const url='/api/marketplace/v21/media/'+mediaId;
+    const admin = u ? await getAdmin(req, u) : null;
     const [m]=await q`select m.data_webp from marketplace_media m where m.id=${mediaId} and (
       m.owner_id=${u?.id??null}
       or exists(select 1 from marketplace_custom_requests r join store_members sm on sm.store_id=r.store_id where r.reference_key='private/'||m.owner_id||'/'||m.id and sm.user_id=${u?.id??null})
       or exists(select 1 from products p join stores s on s.id=p.store_id
         where (p.image_url=${url} or p.gallery_extra_urls ? ${url})
         and ((p.status='PUBLISHED' and s.status='ACTIVE')
-          or exists(select 1 from marketplace_admins a where a.user_id=${u?.id??null} and a.active=true)
+          or ${Boolean(admin)}
           or exists(select 1 from store_members sm where sm.store_id=s.id and sm.user_id=${u?.id??null} and sm.role in ('OWNER','MANAGER','PRODUCT_EDITOR')))))`;
     if(!m)fail(404,'فایل یافت نشد.');return reply.header('cache-control','private, no-store').header('x-content-type-options','nosniff').type('image/webp').send(Buffer.from(m.data_webp.split(',')[1],'base64'));
   });

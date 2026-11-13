@@ -1,3 +1,4 @@
+import { getAdmin, reauth } from "./admin.js";
 import type {
   FastifyInstance,
   FastifyRequest,
@@ -29,7 +30,6 @@ import {
 
 import {
   marketplaceAdminAuditLogs,
-  marketplaceAdmins,
   sellerPayoutDestinations,
   storeMembers,
   stores,
@@ -174,80 +174,15 @@ async function requireStoreOwner(
   return row;
 }
 
-async function requireAdmin(
-  request: FastifyRequest,
-) {
-  const user =
-    await requireAuthUser(
-      request,
-    );
-
-  if (!user) {
-    return null;
-  }
-
-  const [admin] =
-    await db
-      .select({
-        role:
-          marketplaceAdmins.role,
-      })
-      .from(
-        marketplaceAdmins,
-      )
-      .where(
-        and(
-          eq(
-            marketplaceAdmins.userId,
-            user.id,
-          ),
-          eq(
-            marketplaceAdmins.active,
-            true,
-          ),
-        ),
-      )
-      .limit(1);
-
-  if (!admin) {
-    return null;
-  }
-
-  return {
-    userId:
-      user.id,
-
-    role:
-      admin.role,
-  };
+async function requireAdmin(request: FastifyRequest) {
+  return getAdmin(request);
 }
 
-async function adminReauth(
-  request: FastifyRequest,
-  password: string,
-) {
-  const admin =
-    await requireAdmin(
-      request,
-    );
-
-  if (
-    !admin ||
-    admin.role === "SUPPORT"
-  ) {
-    return null;
-  }
-
-  const valid =
-    await verifyUserPassword(
-      admin.userId,
-      password,
-    );
-
-  return valid
-    ? admin
-    : null;
+async function adminReauth(request: FastifyRequest, password: string) {
+  const admin = await reauth(request, password);
+  return admin && admin.role !== "SUPPORT" ? admin : null;
 }
+
 
 function publicDestination(
   row: {

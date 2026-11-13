@@ -31,7 +31,10 @@ import {
 
 import {
   requireAuthUser,
+  verifiedSessionMfa,
+  type AuthUser,
 } from "../auth/session.js";
+import { consumeRateLimit } from "../security/redis-rate-limit.js";
 import { publicAccountId } from "../auth/public-identity.js";
 import { notifyMembershipRevoked } from "../integrations/vtt-membership-revoked.js";
 
@@ -50,52 +53,51 @@ import {
   storeCommissionSettings,
   stores,
   users,
+  userTotpMfa,
 } from "../db/schema.js";
 
-export async function getAdmin(
-  request: FastifyRequest,
-) {
-  const user =
-    await requireAuthUser(request);
+async function adminIdentity(request: FastifyRequest, user: AuthUser) {
+  const [row] = await db.select({
+    role: marketplaceAdmins.role,
+    mfaEnabled: userTotpMfa.enabled,
+    mfaConfirmedAt: userTotpMfa.confirmedAt,
+  }).from(marketplaceAdmins).leftJoin(userTotpMfa, eq(userTotpMfa.userId, user.id))
+    .where(and(eq(marketplaceAdmins.userId, user.id), eq(marketplaceAdmins.active, true))).limit(1);
 
-  if (!user) {
-    return null;
+  if (!row) return { kind: "forbidden" } as const;
+  const verified = verifiedSessionMfa(request);
+  if (process.env.ADMIN_REQUIRE_MFA === "true") {
+    if (!row.mfaEnabled || !row.mfaConfirmedAt) return { kind: "enroll" } as const;
+    if (!verified || verified < row.mfaConfirmedAt) return { kind: "reauthenticate" } as const;
   }
+  return { kind: "allowed", admin: { userId: user.id, email: user.email, role: row.role } } as const;
+}
 
-  const [admin] =
-    await db
-      .select({
-        role: marketplaceAdmins.role,
-      })
-      .from(marketplaceAdmins)
-      .where(
-        and(
-          eq(marketplaceAdmins.userId, user.id),
-          eq(marketplaceAdmins.active, true),
-        ),
-      )
-      .limit(1);
-
-  if (!admin) {
-    return null;
-  }
-
-  return {
-    userId: user.id,
-    email: user.email,
-    role: admin.role,
-  };
+export async function getAdmin(request: FastifyRequest, authenticated?: AuthUser) {
+  const user = authenticated ?? await requireAuthUser(request);
+  if (!user) return null;
+  const access = await adminIdentity(request, user);
+  return access.kind === "allowed" ? access.admin : null;
 }
 
 export async function reauth(
   request: FastifyRequest,
   password: string,
+  authenticated?: AuthUser,
 ) {
-  const admin =
-    await getAdmin(request);
+  const admin = await getAdmin(request, authenticated);
 
   if (!admin) {
     return null;
+  }
+
+  try {
+    const attempt = await consumeRateLimit(`dndnerds:admin-reauth:${admin.userId}`, 30, 60_000);
+    if (attempt.limited) throw Object.assign(new Error("Too many administrator verification attempts."), { statusCode: 429 });
+  } catch (error) {
+    if ((error as { statusCode?: number }).statusCode === 429) throw error;
+    request.log.error({ err: error }, "Administrator rate limiter unavailable");
+    throw Object.assign(new Error("Administrator verification temporarily unavailable."), { statusCode: 503 });
   }
 
   const [row] =
@@ -191,6 +193,17 @@ const storeCommissionBody =
 export async function registerAdminRoutes(
   app: FastifyInstance,
 ) {
+  app.get("/api/v1/admin/access", async (request, reply) => {
+    reply.header("Cache-Control", "private, no-store");
+    const user = await requireAuthUser(request);
+    if (!user) return reply.code(401).send({ error: { code: "UNAUTHORIZED" } });
+    const access = await adminIdentity(request, user);
+    if (access.kind === "allowed") return { data: { role: access.admin.role } };
+    const code = access.kind === "enroll" ? "ADMIN_MFA_REQUIRED"
+      : access.kind === "reauthenticate" ? "ADMIN_MFA_LOGIN_REQUIRED" : "ADMIN_FORBIDDEN";
+    return reply.code(403).send({ error: { code } });
+  });
+
   await registerAdminControl(app);
   await registerSalesReporting(app);
   await registerSellerAccess(app);

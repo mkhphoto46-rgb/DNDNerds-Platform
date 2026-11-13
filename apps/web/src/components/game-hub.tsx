@@ -69,6 +69,7 @@ export function GameHub({ mode }: { mode: Mode }) {
   const searchVersion = useRef(0);
   const initializedEdit = useRef<string | null>(null);
   useEffect(() => { const timer = setTimeout(() => setSearchQuery(filter), 250); return () => clearTimeout(timer); }, [filter]);
+  const [gameTotal, setGameTotal] = useState(0);
   const [gamePage, setGamePage] = useState(1);
   const [gameSort, setGameSort] = useState<"newest" | "likes">("newest");
   const emptyTableForm = () => ({ genres: [] as string[], imageData: null as string | null, title: "", description: "", system: "D&D 5e", language: "فارسی", playStyle: "داستان‌محور", levelRange: "1 تا 5", schedule: "با هماهنگی گروه", capacity: 4, status: "DRAFT", visibility: "PUBLIC" as "PUBLIC" | "PRIVATE" });
@@ -94,7 +95,18 @@ export function GameHub({ mode }: { mode: Mode }) {
   const reload = useCallback(async () => {
     const version = ++searchVersion.current; setError("");
     try {
-      if (mode === "find-game") { const query = new URLSearchParams({ q: searchQuery, genre }); const games = await request<Table[]>(`tables?${query}`); if (version === searchVersion.current) setTables(games); }
+      if (mode === "find-game") {
+        const query = new URLSearchParams({ q: searchQuery, genre, page: String(gamePage), sort: gameSort });
+        const response = await fetch(`/api/game-hub/tables?${query}`, { cache: "no-store" });
+        const result = await response.json() as { data: Table[]; total: number };
+        if (!response.ok) throw new Error(apiErrorMessage(result, "دریافت میزها انجام نشد.", response.status));
+        if (version === searchVersion.current) {
+          const lastPage = Math.max(1, Math.ceil(result.total / 12));
+          if (gamePage > lastPage) setGamePage(lastPage);
+          setGameTotal(result.total);
+          setTables(result.data);
+        }
+      }
       if (mode === "find-dm") { const dms = await request<Profile[]>(`dms?${new URLSearchParams({ q: searchQuery })}`); if (version === searchVersion.current) setProfiles(dms); }
       if (mode === "play" || mode === "create-game") {
         try {
@@ -117,7 +129,7 @@ export function GameHub({ mode }: { mode: Mode }) {
       }
     } catch (reason) { if (version === searchVersion.current) setError(reason instanceof Error ? reason.message : "بارگذاری ناموفق بود."); }
     finally { if (version === searchVersion.current) setLoading(false); }
-  }, [mode, searchQuery, genre]);
+  }, [mode, searchQuery, genre, gamePage, gameSort]);
   const refresh = useVisibleRefresh(reload);
 
   // B74: one save at a time; a new table clears the form so a second click can't duplicate it.
@@ -158,7 +170,6 @@ export function GameHub({ mode }: { mode: Mode }) {
   }
 
   const heading = headings[mode];
-  const visibleGames = mode === "find-game" ? [...tables].sort((a, b) => gameSort === "likes" ? (b.likes ?? 0) - (a.likes ?? 0) || (b.reviewCount ?? 0) - (a.reviewCount ?? 0) : 0) : [];
   const gamesPerPage = 12;
   return <main className={styles.page}>
     <div className="shell">
@@ -177,15 +188,15 @@ export function GameHub({ mode }: { mode: Mode }) {
 
       {mode === "find-game" && !loading && <>
 
-        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="نام میز، موضوع کمپین، ژانر یا نام میزبان" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "likes"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="likes">بیشترین پسند</option></select></label><label>ژانر <select value={genre} onChange={e => { setGenre(e.target.value); setGamePage(1); }}><option value="">همهٔ ژانرها</option>{genreChoices.map(value => <option key={value}>{value}</option>)}</select></label><span>{visibleGames.length} کمپین</span></div>
-        <div className={styles.gameGrid}>{visibleGames.slice((gamePage - 1) * gamesPerPage, gamePage * gamesPerPage).map(table => <article className={styles.gameCard} key={table.id}>
+        <div className={styles.listToolbar}><input className={styles.search} aria-label="جستجوی میز" placeholder="نام میز، موضوع کمپین، ژانر یا نام میزبان" value={filter} onChange={event => { setFilter(event.target.value); setGamePage(1); }} /><label>چینش <select value={gameSort} onChange={event => { setGameSort(event.target.value as "newest" | "likes"); setGamePage(1); }}><option value="newest">تازه‌ترین</option><option value="likes">بیشترین پسند</option></select></label><label>ژانر <select value={genre} onChange={e => { setGenre(e.target.value); setGamePage(1); }}><option value="">همهٔ ژانرها</option>{genreChoices.map(value => <option key={value}>{value}</option>)}</select></label><span>{gameTotal} کمپین</span></div>
+        <div className={styles.gameGrid}>{tables.map(table => <article className={styles.gameCard} key={table.id}>
           <CoverImage src={table.imageData} title={table.title} /><div className={styles.gameCardBody}>
           <small>{table.visibility === "PRIVATE" ? "🔒 ورود با کد دعوت" : "✦ ورود آزاد"} · {table.system} · {table.language} · سطح {table.levelRange}</small><h2><Link href={`/find-game/${table.id}`}>{table.title}</Link></h2><div className={styles.genreTags}>{table.genres?.map(value => <span key={value}>{value}</span>)}</div><p>{table.description || "DM هنوز توضیحی برای این میز ننوشته است."}</p>
           <div className={styles.gameCardFooter}><Link href={`/dm/${table.hostUserId}`}>DM: {table.hostName || table.hostUsername || "میزبان"}</Link><span>{table.schedule}</span></div>
           <Reactions target={`tables/${table.id}`} summary={table} /><RecentReviews reviews={table.recentReviews} />
           <Link className={styles.detailLink} href={`/find-game/${table.id}`}>دیدن جزئیات کمپین ←</Link></div>
         </article>)}</div>
-        {visibleGames.length > gamesPerPage && <nav className={styles.pagination} aria-label="صفحه‌های کمپین"><button disabled={gamePage === 1} onClick={() => setGamePage(page => page - 1)}>صفحهٔ پیشین</button><span>صفحهٔ {gamePage} از {Math.ceil(visibleGames.length / gamesPerPage)}</span><button disabled={gamePage * gamesPerPage >= visibleGames.length} onClick={() => setGamePage(page => page + 1)}>صفحهٔ بعدی</button></nav>}
+        {gameTotal > gamesPerPage && <nav className={styles.pagination} aria-label="صفحه‌های کمپین"><button disabled={gamePage === 1} onClick={() => setGamePage(page => page - 1)}>صفحهٔ پیشین</button><span>صفحهٔ {gamePage} از {Math.ceil(gameTotal / gamesPerPage)}</span><button disabled={gamePage * gamesPerPage >= gameTotal} onClick={() => setGamePage(page => page + 1)}>صفحهٔ بعدی</button></nav>}
         {!tables.length && <div className={styles.empty}>هنوز میز منتشرشده‌ای وجود ندارد. اگر DM هستی، نخستین میز را بساز. <Link href={routes.create}>ساخت میز</Link></div>}
       </>}
 

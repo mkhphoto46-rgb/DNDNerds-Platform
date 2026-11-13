@@ -61,7 +61,7 @@ async function forward(
 
   return NextResponse.json(
     data,
-    { status: upstream.status },
+    { status: upstream.status, headers: { "Cache-Control": "private, no-store" } },
   );
 }
 

@@ -48,7 +48,9 @@ function securityHeaders(
     "Content-Security-Policy",
     [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+      process.env.NODE_ENV === "development"
+        ? "script-src 'self' 'unsafe-inline' 'unsafe-eval'"
+        : "script-src 'self' 'unsafe-inline'",
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: blob:",
       "font-src 'self' data:",
@@ -89,6 +91,14 @@ export async function proxy(
   if (process.env.FREE_LAUNCH_MODE === "true" && !sellerPreparation &&
     /^\/(cart|checkout|orders|seller)(\/|$)/.test(request.nextUrl.pathname)) {
     return securityHeaders(NextResponse.redirect(new URL("/store", request.url)));
+  }
+  if (/^\/admin(?:\/|$)/.test(request.nextUrl.pathname)) {
+    const response = securityHeaders(request.cookies.has("dnd_session")
+      ? NextResponse.next()
+      : NextResponse.redirect(new URL("/login?next=%2Fadmin", request.url)));
+    response.headers.set("Cache-Control", "private, no-store");
+    response.headers.set("X-Robots-Tag", "noindex, nofollow");
+    return response;
   }
   const method =
     request.method

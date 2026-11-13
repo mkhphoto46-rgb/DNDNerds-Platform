@@ -1,12 +1,11 @@
+import type { FastifyRequest } from "fastify";
+import { getAdmin, reauth } from "./admin.js";
 import type {
   FastifyInstance,
 } from "fastify";
 import { isDeepStrictEqual } from 'node:util';
 import { buildItemRefundSnapshot } from '../refunds/item-refund-snapshot.js';
 
-import {
-  verify,
-} from "@node-rs/argon2";
 
 import {
   and,
@@ -30,7 +29,6 @@ import {
 
 import {
   marketplaceAdminAuditLogs,
-  marketplaceAdmins,
   marketplaceOrders,
   marketplaceRefundCaseEvidence,
   marketplaceRefundCaseEvents,
@@ -247,11 +245,12 @@ function publicCase(
 }
 
 async function caseAccess(
-  userId:
-    string,
+  request: FastifyRequest,
+  user: NonNullable<Awaited<ReturnType<typeof requireAuthUser>>>,
   caseId:
     string,
 ) {
+  const userId = user.id;
   const [refundCase] =
     await db
       .select()
@@ -282,29 +281,7 @@ async function caseAccess(
     };
   }
 
-  const [admin] =
-    await db
-      .select({
-        role:
-          marketplaceAdmins.role,
-      })
-      .from(
-        marketplaceAdmins,
-      )
-      .where(
-        and(
-          eq(
-            marketplaceAdmins.userId,
-            userId,
-          ),
-
-          eq(
-            marketplaceAdmins.active,
-            true,
-          ),
-        ),
-      )
-      .limit(1);
+  const admin = await getAdmin(request, user);
 
   if (admin) {
     return {
@@ -373,89 +350,15 @@ function normalizeDeclaredImageMime(
 }
 
 async function reauthMarketplaceStaff(
-  userId:
-    string,
-  password:
-    string,
-  allowSupport:
-    boolean,
+  request: FastifyRequest,
+  user: NonNullable<Awaited<ReturnType<typeof requireAuthUser>>>,
+  password: string,
+  allowSupport: boolean,
 ) {
-  const [admin] =
-    await db
-      .select({
-        role:
-          marketplaceAdmins.role,
-      })
-      .from(
-        marketplaceAdmins,
-      )
-      .where(
-        and(
-          eq(
-            marketplaceAdmins.userId,
-            userId,
-          ),
-
-          eq(
-            marketplaceAdmins.active,
-            true,
-          ),
-        ),
-      )
-      .limit(1);
-
-  if (
-    !admin ||
-    (
-      !allowSupport &&
-      admin.role ===
-        "SUPPORT"
-    )
-  ) {
-    return null;
-  }
-
-  const [account] =
-    await db
-      .select({
-        passwordHash:
-          users.passwordHash,
-      })
-      .from(
-        users,
-      )
-      .where(
-        eq(
-          users.id,
-          userId,
-        ),
-      )
-      .limit(1);
-
-  if (!account?.passwordHash) {
-    return null;
-  }
-
-  try {
-    const valid =
-      await verify(
-        account.passwordHash,
-        password,
-      );
-
-    return valid
-      ? {
-          userId,
-
-          role:
-            admin.role,
-        }
-      : null;
-  }
-  catch {
-    return null;
-  }
+  const admin = await reauth(request, password, user);
+  return admin && (allowSupport || admin.role !== "SUPPORT") ? admin : null;
 }
+
 
 async function writeAdminRefundAudit(
   adminUserId:
@@ -1021,8 +924,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const access =
-        await caseAccess(
-          user.id,
+        await caseAccess(request, user,
           params.data.caseId,
         );
 
@@ -1552,8 +1454,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const access =
-        await caseAccess(
-          user.id,
+        await caseAccess(request, user,
           params.data.caseId,
         );
 
@@ -1666,8 +1567,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const access =
-        await caseAccess(
-          user.id,
+        await caseAccess(request, user,
           params.data.caseId,
         );
 
@@ -1806,8 +1706,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const staff =
-        await reauthMarketplaceStaff(
-          user.id,
+        await reauthMarketplaceStaff(request, user,
           body.data.password,
           true,
         );
@@ -2158,8 +2057,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const access =
-        await caseAccess(
-          user.id,
+        await caseAccess(request, user,
           params.data.caseId,
         );
 
@@ -2419,8 +2317,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const admin =
-        await reauthMarketplaceStaff(
-          user.id,
+        await reauthMarketplaceStaff(request, user,
           body.data.password,
           false,
         );
@@ -2880,8 +2777,7 @@ export async function registerRefundCaseRoutes(
       }
 
       const admin =
-        await reauthMarketplaceStaff(
-          user.id,
+        await reauthMarketplaceStaff(request, user,
           body.data.password,
           false,
         );
@@ -3137,7 +3033,7 @@ export async function registerRefundCaseRoutes(
     if (!params.success || !body.success) {
       return reply.code(400).send({ error: { code: "VALIDATION_ERROR", message: "Valid case ID and password required." } });
     }
-    const admin = await reauthMarketplaceStaff(user.id, body.data.password, false);
+    const admin = await reauthMarketplaceStaff(request, user, body.data.password, false);
     if (!admin) return reply.code(403).send({ error: { code: "ADMIN_REAUTH_FAILED", message: "Admin re-auth failed or insufficient role." } });
     try {
       const result = await executeSellerOrderRefundCase(params.data.caseId, admin.userId);

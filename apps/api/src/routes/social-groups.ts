@@ -2,7 +2,7 @@ import type { FastifyInstance, FastifyReply, FastifyRequest } from "fastify";
 import { and, desc, eq, gt, lt, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { requireAuthUser } from "../auth/session.js";
-import { messagePage } from "./social-message-page.js";
+import { sendMessagePage } from "./social-message-page.js";
 import { db } from "../db/client.js";
 import { socialBlocks, socialFriendships, socialGroups, socialGroupInvites,
   socialGroupMembers, socialGroupMessages, socialProfiles, users } from "../db/schema.js";
@@ -184,7 +184,7 @@ export async function registerSocialGroupRoutes(app: FastifyInstance) {
       .from(socialGroupMessages).innerJoin(users,eq(socialGroupMessages.senderUserId,users.id)).where(and(eq(socialGroupMessages.groupId,id),cursor?
         or(lt(socialGroupMessages.createdAt,cursor.createdAt),and(eq(socialGroupMessages.createdAt,cursor.createdAt),lt(socialGroupMessages.id,cursor.id))):undefined))
       .orderBy(desc(socialGroupMessages.createdAt),desc(socialGroupMessages.id)).limit(50);
-    return messagePage(rows);
+    return sendMessagePage(rows, request, reply);
   });
   app.post<{Params:{groupId:string}}>("/api/v1/social/groups/:groupId/messages",async(request,reply)=>{
     const user=await actor(request,reply);if(!user)return;

@@ -309,6 +309,13 @@
       "when": 1794355200000,
       "tag": "0043_product_gallery",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794528000000,
+      "tag": "0044_admin_session_mfa",
+      "breakpoints": true
     }
   ]
 }
