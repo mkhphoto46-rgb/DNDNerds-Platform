@@ -139,6 +139,7 @@ export function AccountStatus({ mobile = false }: { mobile?: boolean }) {
         <Link href="/account">نمای کلی حساب من</Link>
         <Link href="/orders">تاریخچه خرید و سفارش‌ها</Link>
         <Link href="/account/sessions">امنیت و نشست‌های حساب</Link>
+        <Link href="/security">تأیید دومرحله‌ای</Link>
         <button type="button" disabled={signingOut} onClick={() => void signOut()}>
           {signingOut ? "در حال خروج…" : "خروج از حساب"}
         </button>

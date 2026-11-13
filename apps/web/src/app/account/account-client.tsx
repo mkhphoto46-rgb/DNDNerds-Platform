@@ -211,6 +211,7 @@ export default function AccountHomePage({ commerceEnabled = true }: { commerceEn
             <section className={styles.panel} aria-labelledby="security-links-heading">
               <div className={styles.sectionHeading}><h2 id="security-links-heading">امنیت و ورود</h2></div>
               <div className={styles.actions}>
+                <Link className={styles.action} href="/security"><span><strong>تأیید دومرحله‌ای</strong><small>تنظیم برنامهٔ Authenticator برای ورود</small></span><span className={styles.arrow}>←</span></Link>
                 <Link className={styles.action} href="/account/sessions"><span><strong>دستگاه‌ها و نشست‌ها</strong><small>مدیریت دستگاه‌های واردشده</small></span><span className={styles.arrow}>←</span></Link>
                 <Link className={styles.action} href="/account/change-password"><span><strong>تغییر رمز عبور</strong><small>انتخاب رمز تازه</small></span><span className={styles.arrow}>←</span></Link>
                 {account.user.emailVerified === false && <Link className={styles.action} href="/verify-email"><span><strong>تأیید ایمیل</strong><small>دریافت پیوند تأیید حساب</small></span><span className={styles.arrow}>←</span></Link>}
