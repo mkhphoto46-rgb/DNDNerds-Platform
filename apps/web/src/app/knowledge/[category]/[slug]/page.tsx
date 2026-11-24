@@ -2,5 +2,27 @@ import Link from "next/link";
 import {notFound} from "next/navigation";
 import {knowledgeArticles,knowledgeCategories} from "@/lib/knowledge";
 import styles from "../../knowledge.module.css";
-export async function generateMetadata({params}:{params:Promise<{category:string;slug:string}>}){const {category,slug}=await params;const a=knowledgeArticles.find(a=>a.category===category&&a.slug===slug);return {title:a?.title??"مقاله",description:a?.summary}}
+export async function generateMetadata(
+  { params }: { params: Promise<{ category: string; slug: string }> }
+) {
+  const { category, slug } = await params;
+  const article = knowledgeArticles.find(
+    a => a.category === category && a.slug === slug
+  );
+
+  if (!article) {
+    return {
+      title: "Article",
+      robots: { index: false, follow: false },
+    };
+  }
+
+  return {
+    title: article.title,
+    description: article.summary,
+    alternates: {
+      canonical: `https://dndnerds.ir/knowledge/${encodeURIComponent(article.category)}/${encodeURIComponent(article.slug)}`,
+    },
+  };
+}
 export default async function Page({params}:{params:Promise<{category:string;slug:string}>}){const {category,slug}=await params;const a=knowledgeArticles.find(a=>a.category===category&&a.slug===slug);if(!a)notFound();const c=knowledgeCategories.find(c=>c.slug===category)!;return <main className={styles.page}><div className="shell"><nav className={styles.crumbs} aria-label="مسیر مقاله"><Link href="/knowledge">دانشنامه</Link><span>/</span><Link href={`/knowledge/${category}`}>{c.title}</Link></nav><article className={styles.article}><small>تحریریهٔ DND Nerds · {c.title}</small><h1>{a.title}</h1><p>{a.summary}</p><nav className={styles.toc} aria-label="فهرست مقاله">{a.sections.map(([h],i)=><a href={`#part-${i}`} key={h}>{h}</a>)}</nav>{a.sections.map(([h,p],i)=><section id={`part-${i}`} key={h}><h2>{h}</h2><p>{p}</p></section>)}{a.sources&&<aside><h2>مرجع و نسخهٔ قواعد</h2><p>متن بالا آموزش و توضیح مستقل است؛ برای حکم دقیق به مرجع نسخهٔ میز خودت رجوع کن.</p>{a.sources.map(([title,url])=><p key={url}><a href={url} target="_blank" rel="noopener noreferrer">{title} ↗</a></p>)}</aside>}<div className={styles.actions}><Link className={styles.button} href={`/knowledge/${category}`}>بازگشت به {c.title}</Link>{category==="equipment"&&<Link className={styles.button} href="/store">دیدن بازارچه</Link>}{category==="stories"&&<Link className={styles.button} href="/games">شروع ماجراجویی</Link>}</div></article></div></main>}
