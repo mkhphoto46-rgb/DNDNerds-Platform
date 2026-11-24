@@ -1,7 +1,15 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import styles from "@/components/game-hub.module.css";
-export const metadata: Metadata = { title: "راهنمای سایت" };
+export const metadata: Metadata = {
+    "title":  {
+                  "absolute":  "راهنمای استفاده از دی‌انددی نردز | DND Nerds"
+              },
+    "description":  "مسیرهای عضویت در کمپین، ساخت میز به‌عنوان DM و استفاده از بخش‌های دی‌انددی نردز را پیدا کن.",
+    "alternates":  {
+                       "canonical":  "https://dndnerds.ir/learn"
+                   }
+};
 const guides = [
   { title: "چطور عضو یک کمپین شوم؟", steps: ["با حساب سایت وارد شو.", "در Tavern نقش Player را انتخاب کن و میزهای عمومی را ببین، یا کد دعوت میز خصوصی را وارد کن.", "روی ورود به بازی بزن تا محیط Player باز شود."], href: "/find-game", action: "دیدن میزها" },
   { title: "چطور به‌عنوان DM میز بسازم؟", steps: ["در Tavern نقش DM را انتخاب کن.", "عنوان، زمان، ظرفیت و عمومی یا خصوصی بودن میز را مشخص کن.", "میز را منتشر کن؛ اگر خصوصی است، کد دعوت را برای دوستانت بفرست و با نمای DM وارد شو."], href: "/play", action: "مدیریت میزها" },

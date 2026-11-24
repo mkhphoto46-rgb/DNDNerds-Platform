@@ -37,9 +37,13 @@ export const metadata: Metadata = {
 const websiteJsonLd = {
     "@context":  "https://schema.org",
     "@type":  "WebSite",
+    "url":  "https://dndnerds.ir/",
     "name":  "DND Nerds",
-    "alternateName":  "دی‌انددی نردز",
-    "url":  "https://dndnerds.ir/"
+    "alternateName":  [
+                          "دی‌انددی نردز",
+                          "دی اند دی نردز",
+                          "دیندینرز"
+                      ]
 };
 
 export default function Home() {

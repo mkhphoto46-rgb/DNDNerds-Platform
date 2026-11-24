@@ -9,3 +9,29 @@
 .actions{display:flex;flex-wrap:wrap;gap:12px;margin:20px 0}.button{display:inline-flex;align-items:center;justify-content:center;min-height:46px;padding:10px 20px;border:1px solid #47d7dd;border-radius:12px;background:#0c4357;color:#e9fbff;font:inherit;cursor:pointer;text-decoration:none!important}.actions .button:first-child{color:#062032;background:#f1cd82;border-color:#ffe1a0}
 .form{display:grid;gap:20px}.form label{display:grid;gap:8px;min-width:0}.form input,.form select,.form textarea{width:100%;min-width:0;box-sizing:border-box;padding:14px;background:#021827;color:#effaff;border:1px solid #43849b;border-radius:12px;font:inherit}.form textarea{min-height:340px;resize:vertical;line-height:2}.notice{padding:16px;border:1px solid #4d94a1;border-radius:12px;background:#073144;color:#e1f5fa;line-height:2}.error{color:#ffcac8}.entry{margin-bottom:16px;padding:18px;border:1px solid #387d90;border-radius:16px;min-width:0}.entry h2{font-size:20px;margin:0 0 10px}
 @media(max-width:600px){.grid{grid-template-columns:1fr;gap:14px}.card{padding:22px}.page{padding-top:110px}.article p{font-size:16px;line-height:2.1}.article h2{font-size:21px}.form textarea{min-height:280px}}
+
+.articleIllustrated {
+  display: flow-root;
+}
+
+.articleArt {
+  float: inline-start;
+  width: min(35%, 220px);
+  height: auto;
+  aspect-ratio: 1;
+  object-fit: cover;
+  margin-inline-end: 22px;
+  margin-block-end: 16px;
+  border: 1px solid #387d90;
+  border-radius: 16px;
+}
+
+@media (max-width: 600px) {
+  .articleArt {
+    float: none;
+    display: block;
+    width: min(100%, 220px);
+    margin-inline: auto;
+    margin-block: 12px 20px;
+  }
+}
