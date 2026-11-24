@@ -4,7 +4,23 @@ const postgres=require('/opt/dndnerds/app/apps/api/node_modules/postgres');
 const sql=postgres(process.env.DATABASE_URL,{max:1});
 (async()=>{
 try {
- const status=await fetch('http://127.0.0.1:4200/api/platform/status');
+ const headers = {};
+ try {
+   const key = require('node:fs').readFileSync(
+     '/opt/dndnerds/data/vtt/host-key.txt', 'utf8'
+   ).trim();
+
+   if (!key) throw Error('Empty VTT host key');
+
+   headers['X-VTT-Host-Key'] = key;
+ } catch (error) {
+   if (error.code !== 'ENOENT') throw error;
+ }
+
+ const status=await fetch(
+   'http://127.0.0.1:4200/api/platform/status',
+   {headers, signal: AbortSignal.timeout(5000)}
+ );
  if(!status.ok)throw Error('VTT status unavailable');
  const rooms=(await status.json()).connectedCampaignRooms;
  if(!Number.isInteger(rooms))throw Error('Campaign rooms unavailable');
